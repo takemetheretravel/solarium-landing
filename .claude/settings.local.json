@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(git --version)",
+      "Bash(npx --yes create-next-app@14 . --typescript --tailwind --app --src-dir --import-alias \"@/*\" --no-eslint --use-npm)",
+      "Bash(mkdir -p C:/Projetos/solarium-build)",
+      "Bash(npx --yes create-next-app@14 solarium-landing --typescript --tailwind --app --src-dir --import-alias \"@/*\" --no-eslint --use-npm)",
+      "Bash(wait %1)",
+      "Bash(rm -rf C:/Projetos/solarium-build)",
+      "Bash(rm -rf C:/Projetos/.claude-solarium-temp)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Initial scaffold: Next.js 14 landing with Solarium brand\")"
+    ]
+  }
+}

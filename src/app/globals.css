@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-cream: #faf8f3;
+  --color-charcoal: #1a1a1a;
+  --color-serra: #3d5a47;
+  --color-copper: #b8865b;
+}
+
+html,
+body {
+  background-color: var(--color-cream);
+  color: var(--color-charcoal);
+}
+
+body {
+  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
