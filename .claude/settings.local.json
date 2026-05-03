@@ -11,7 +11,21 @@
       "Bash(rm -rf C:/Projetos/.claude-solarium-temp)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Initial scaffold: Next.js 14 landing with Solarium brand\")"
+      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Initial scaffold: Next.js 14 landing with Solarium brand\")",
+      "Bash(npm run *)",
+      "Bash(rm -rf node_modules)",
+      "Bash(npm install *)",
+      "Bash(export HOSTAWAY_ACCOUNT_ID=$\\(grep '^HOSTAWAY_ACCOUNT_ID' .env.local)",
+      "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{ const r=JSON.parse\\(s\\); console.log\\('count:',r.count, 'limit:', r.limit\\); \\(r.result||[]\\).forEach\\(l => console.log\\(l.id, '|', l.name, '|', 'guests:', l.personCapacity, '|', 'bedrooms:', l.bedroomsNumber\\)\\); }\\)\")",
+      "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\).result; console.log\\('keys:',Object.keys\\(r\\).join\\(','\\)\\); console.log\\('price:',r.price,'currency:',r.currencyCode,'cleaning:',r.cleaningFee\\); console.log\\('minNights:',r.minNights,'maxNights:',r.maxNights\\); console.log\\('amenities count:', \\(r.listingAmenities||[]\\).length\\); console.log\\('first amenity:', r.listingAmenities && r.listingAmenities[0]\\); console.log\\('images count:', \\(r.listingImages||[]\\).length\\); console.log\\('first image keys:', r.listingImages && r.listingImages[0] && Object.keys\\(r.listingImages[0]\\).join\\(','\\)\\);}\\)\")",
+      "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\).result; console.log\\('amenities:', \\(r.listingAmenities||[]\\).length, 'images:', \\(r.listingImages||[]\\).length\\); if\\(r.listingAmenities && r.listingAmenities[0]\\) console.log\\('amen sample:', JSON.stringify\\(r.listingAmenities[0]\\)\\); if\\(r.listingImages && r.listingImages[0]\\) console.log\\('img sample:', JSON.stringify\\(r.listingImages[0]\\)\\);}\\)\")",
+      "Bash(node -e \"const lr=require\\('lucide-react'\\); console.log\\('hasInstagram:', !!lr.Instagram, 'version:', require\\('lucide-react/package.json'\\).version\\); console.log\\('keys with insta:', Object.keys\\(lr\\).filter\\(k=>k.toLowerCase\\(\\).includes\\('insta'\\)\\).slice\\(0,10\\)\\);\")",
+      "Bash(node -e \"const lr=require\\('lucide-react'\\); console.log\\('version:', require\\('lucide-react/package.json'\\).version, 'hasInstagram:', !!lr.Instagram\\);\")",
+      "Bash(npm view *)",
+      "PowerShell($myPid = $PID; Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.ProcessId -ne $myPid } | Select-Object ProcessId, CommandLine | Format-List)",
+      "PowerShell(Stop-Process -Id 14540, 17720, 39516 -Force -ErrorAction SilentlyContinue)",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Sprint 1: full landing with Hostaway integration, booking flow, content pages\")"
     ]
   }
 }

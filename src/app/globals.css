@@ -7,6 +7,13 @@
   --color-charcoal: #1a1a1a;
   --color-serra: #3d5a47;
   --color-copper: #b8865b;
+
+  --rdp-accent-color: var(--color-serra);
+  --rdp-background-color: rgba(184, 134, 91, 0.12);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 html,
@@ -25,4 +32,90 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* react-day-picker brand overrides */
+.rdp-wrapper .rdp {
+  --rdp-cell-size: 36px;
+  margin: 0;
+  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+}
+.rdp-wrapper .rdp-caption_label {
+  font-family: var(--font-serif), Cormorant Garamond, Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--color-charcoal);
+  text-transform: capitalize;
+}
+.rdp-wrapper .rdp-head_cell {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(26, 26, 26, 0.5);
+  font-weight: 500;
+}
+.rdp-wrapper .rdp-day {
+  border-radius: 0;
+  color: var(--color-charcoal);
+}
+.rdp-wrapper .rdp-day_selected,
+.rdp-wrapper .rdp-day_selected:focus-visible,
+.rdp-wrapper .rdp-day_selected:hover {
+  background-color: var(--color-serra);
+  color: var(--color-cream);
+}
+.rdp-wrapper .rdp-day_range_middle {
+  background-color: rgba(61, 90, 71, 0.15);
+  color: var(--color-charcoal);
+}
+.rdp-wrapper .rdp-day_disabled {
+  color: rgba(26, 26, 26, 0.25);
+  text-decoration: line-through;
+}
+.rdp-wrapper .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+  background-color: rgba(184, 134, 91, 0.12);
+}
+
+/* Editorial prose for terms / privacy pages */
+.prose-editorial h2 {
+  font-family: var(--font-serif), Cormorant Garamond, Georgia, serif;
+  font-size: 1.875rem;
+  font-weight: 400;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  color: var(--color-charcoal);
+  letter-spacing: -0.01em;
+}
+.prose-editorial h3 {
+  font-family: var(--font-serif), Cormorant Garamond, Georgia, serif;
+  font-size: 1.375rem;
+  font-weight: 500;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  color: var(--color-charcoal);
+}
+.prose-editorial p {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(26, 26, 26, 0.85);
+  margin-bottom: 1rem;
+}
+.prose-editorial ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin-bottom: 1rem;
+  color: rgba(26, 26, 26, 0.85);
+}
+.prose-editorial ul li {
+  margin-bottom: 0.4rem;
+  line-height: 1.6;
+}
+.prose-editorial a {
+  color: var(--color-copper);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.prose-editorial strong {
+  color: var(--color-charcoal);
+  font-weight: 600;
 }
