@@ -1,19 +1,30 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Metadata } from "next";
-import { Quote, Check, MessageCircle, ArrowRight } from "lucide-react";
+import { Quote, MessageCircle, ArrowRight } from "lucide-react";
 import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import DriveImage from "@/components/ui/DriveImage";
 import Gallery from "@/components/property/Gallery";
+import AmenitiesGrouped from "@/components/property/AmenitiesGrouped";
 import BookingForm from "@/components/booking/BookingForm";
-import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
+import {
+  PROPERTIES,
+  getPropertyBySlug,
+  SOLARIUM_COMPLETO_GALLERY_GROUPS,
+} from "@/config/properties";
 import { REVIEWS, SITE, whatsappLink } from "@/config/site";
 import { getListing } from "@/lib/hostaway";
 
 export const revalidate = 300;
+
+const SEO_TITLES: Record<string, string> = {
+  "solarium-1": "Solarium 1 — Refúgio para Casais na Serra da Mantiqueira",
+  "solarium-2": "Solarium 2 — Cinema e SPA com Vista para a Serra",
+  "solarium-completo": "Solarium Completo — Duas Casas, Privacidade Total",
+};
 
 export function generateStaticParams() {
   return PROPERTIES.map((p) => ({ propertyId: p.slug }));
@@ -26,9 +37,16 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const property = getPropertyBySlug(params.propertyId);
   if (!property) return { title: "Não encontrado" };
+  const title = SEO_TITLES[property.slug] ?? property.name;
+  const ogImage = `https://drive.google.com/thumbnail?id=${property.heroImageId}&sz=w1600`;
   return {
-    title: `${property.name} — ${property.tagline}`,
+    title,
     description: property.description.slice(0, 160),
+    openGraph: {
+      title,
+      description: property.description.slice(0, 160),
+      images: [{ url: ogImage, width: 1600, height: 900, alt: property.name }],
+    },
   };
 }
 
@@ -45,9 +63,10 @@ export default async function PropertyPage({
   const listing = await getListing(property.id);
   const apiAmenities =
     listing?.listingAmenities?.map((a) => a.amenityName).filter(Boolean) ?? [];
-  const amenities = apiAmenities.length > 0 ? apiAmenities : property.amenitiesFallback;
+  const fullAmenities = apiAmenities.length > 0 ? apiAmenities : property.amenitiesFallback;
   const propertyReviews = REVIEWS.filter((r) => r.property === property.slug);
-  const initialGuests = searchParams?.guests ? Number(searchParams.guests) : 2;
+  const initialGuests = searchParams?.guests ? Number(searchParams.guests) : property.capacity.ideal;
+  const isCompleto = property.slug === "solarium-completo";
 
   return (
     <main>
@@ -57,7 +76,7 @@ export default async function PropertyPage({
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-transparent to-charcoal/70" />
         <div className="relative z-10 flex h-full flex-col items-start justify-end px-6 pb-20 text-cream sm:px-16 sm:pb-24">
           <Kicker tone="cream" className="mb-4 opacity-90">
-            {property.badge.toUpperCase()} · CAPACIDADE {property.capacity}
+            {property.badge.toUpperCase()} · IDEAL PARA {property.capacity.ideal} · ACOMODA ATÉ {property.capacity.max}
           </Kicker>
           <Heading level={1} className="text-cream">
             {property.name}
@@ -71,7 +90,18 @@ export default async function PropertyPage({
       {/* GALERIA */}
       <Section spacing="tight">
         <Container size="wide">
-          <Gallery imageIds={property.galleryImageIds} altPrefix={property.name} />
+          {isCompleto ? (
+            <div className="space-y-12">
+              {SOLARIUM_COMPLETO_GALLERY_GROUPS.map((group) => (
+                <div key={group.title}>
+                  <h3 className="mb-5 font-serif text-xl text-charcoal/70">{group.title}</h3>
+                  <Gallery imageIds={group.ids} altPrefix={`${property.name} — ${group.title}`} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Gallery imageIds={property.galleryImageIds} altPrefix={property.name} />
+          )}
         </Container>
       </Section>
 
@@ -86,6 +116,9 @@ export default async function PropertyPage({
                 <br />
                 <em className="not-italic font-serif italic text-serra">{property.tagline}</em>
               </Heading>
+              <p className="mt-4 font-serif text-lg text-charcoal/80">
+                Ideal para <strong className="font-serif">{property.capacity.ideal} hóspedes</strong>. Acomoda até {property.capacity.max}.
+              </p>
               <p className="mt-8 font-sans text-base leading-[1.8] text-charcoal/80">
                 {property.description}
               </p>
@@ -109,31 +142,22 @@ export default async function PropertyPage({
                 initialCheckin={searchParams?.checkin}
                 initialCheckout={searchParams?.checkout}
                 initialGuests={initialGuests}
-                maxCapacity={property.capacity}
+                maxCapacity={property.capacity.max}
+                idealCapacity={property.capacity.ideal}
               />
             </aside>
           </div>
         </Container>
       </Section>
 
-      {/* AMENITIES */}
+      {/* COMODIDADES */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container>
           <div className="mb-12 max-w-2xl">
             <Kicker className="mb-4">Comodidades</Kicker>
             <Heading level={2}>Tudo o que você precisa, e mais.</Heading>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {amenities.map((a) => (
-              <div
-                key={a}
-                className="flex items-center gap-3 border-b border-charcoal/5 py-3 font-sans text-sm text-charcoal/80"
-              >
-                <Check className="h-4 w-4 flex-shrink-0 text-copper" strokeWidth={2} />
-                <span>{a}</span>
-              </div>
-            ))}
-          </div>
+          <AmenitiesGrouped groups={property.amenityGroups} fullList={fullAmenities} />
         </Container>
       </Section>
 
@@ -172,7 +196,7 @@ export default async function PropertyPage({
           <Kicker className="mb-4">Política de cancelamento</Kicker>
           <Heading level={3}>Flexível para a sua tranquilidade.</Heading>
           <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
-            Cancele com até 14 dias de antecedência e receba reembolso integral. Cancelamentos com menos de 14 dias e mais de 7 dias têm 50% de reembolso. Veja os termos completos para detalhes específicos por temporada.
+            Cancelamento sem custo em até 7 dias após a confirmação da reserva, desde que reste pelo menos 24h antes do check-in (conforme CDC). Reagendamentos podem ser solicitados com 15 dias de antecedência. Veja os termos completos para detalhes específicos.
           </p>
           <Link
             href="/termos#cancelamento"

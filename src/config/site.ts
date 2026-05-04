@@ -10,6 +10,17 @@ export const SITE = {
   pixDiscountPercent: 3,
 };
 
+// LOGO assets (Drive file IDs)
+export const LOGO = {
+  black: "1IZbgrnYYsZi8Z_EUgUvcS8Ve16ZO777w",
+  white: "1OV15NPns0IWYMPXZuyiOUEz7PUe5Dr8l",
+};
+
+// Hero video — TODO: preencher com fileId do vídeo "headline"/"360 Solarium 1" da pasta landing_page do Drive.
+// Enquanto vazio, o HeroVideo cai automaticamente no fallback (foto da banheira).
+// Para descobrir o ID: abra o vídeo no Drive, copie o link de compartilhamento, o ID é a string entre /d/ e /view.
+export const HERO_VIDEO_FILE_ID = "";
+
 export function whatsappLink(message: string): string {
   return `https://wa.me/${SITE.whatsappNumber}?text=${encodeURIComponent(message)}`;
 }

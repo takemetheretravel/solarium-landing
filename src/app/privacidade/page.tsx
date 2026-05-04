@@ -11,6 +11,8 @@ export const metadata: Metadata = {
     "Como o Solarium Mantiqueira coleta, armazena, usa e compartilha seus dados pessoais — em conformidade com a LGPD.",
 };
 
+export const revalidate = 86400;
+
 export default function PrivacidadePage() {
   return (
     <main className="pt-32 pb-20">

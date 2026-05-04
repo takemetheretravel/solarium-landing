@@ -1,118 +1,205 @@
 import Link from "next/link";
 import { Metadata } from "next";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, MessageCircle } from "lucide-react";
 import Container from "@/components/ui/Container";
-import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import DriveImage from "@/components/ui/DriveImage";
-import { PROPERTIES } from "@/config/properties";
+import GuestForm from "@/components/booking/GuestForm";
+import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
 import { calculatePrice } from "@/lib/hostaway";
+import { validateCoupon, SITE, whatsappLink } from "@/config/site";
 import { formatBRLPrecise } from "@/lib/cn";
 
 export const metadata: Metadata = {
-  title: "Verificar disponibilidade",
-  description: "Veja a disponibilidade e preços ao vivo das nossas três opções de hospedagem.",
+  title: "Reserva — Seus dados",
+  description: "Preencha seus dados para finalizar sua reserva no Solarium Mantiqueira.",
+  robots: { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";
 
-export default async function ReservarPage({
-  searchParams,
-}: {
-  searchParams: { checkin?: string; checkout?: string; guests?: string };
-}) {
-  const { checkin, checkout } = searchParams;
-  const guests = Number(searchParams.guests || 2);
+type Search = {
+  propertyId?: string;
+  checkin?: string;
+  checkout?: string;
+  guests?: string;
+  payment?: string;
+  coupon?: string;
+};
 
-  const quotes = checkin && checkout
-    ? await Promise.all(
-        PROPERTIES.map((p) =>
-          calculatePrice(p.id, checkin, checkout, guests).catch(() => null),
-        ),
-      )
-    : [];
+function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "checkin" | "checkout">> & Search {
+  return Boolean(s.propertyId && s.checkin && s.checkout);
+}
+
+export default async function ReservarPage({ searchParams }: { searchParams: Search }) {
+  if (!isComplete(searchParams)) {
+    return <ChooseProperty />;
+  }
+
+  const property = getPropertyBySlug(searchParams.propertyId);
+  if (!property) return <ChooseProperty />;
+  const checkin = searchParams.checkin!;
+  const checkout = searchParams.checkout!;
+  const guests = Number(searchParams.guests || 2);
+  const paymentMethod: "card" | "pix" = searchParams.payment === "pix" ? "pix" : "card";
+  const couponCode = (searchParams.coupon || "").trim().toUpperCase();
+
+  const quote = await calculatePrice(property.id, checkin, checkout, guests);
+
+  let couponDiscount = 0;
+  let runningTotal = quote?.totalPrice ?? 0;
+  if (quote && couponCode) {
+    const v = validateCoupon(couponCode, quote.nights, quote.totalPrice);
+    if (v.valid) {
+      couponDiscount = v.discountAmount;
+      runningTotal -= couponDiscount;
+    }
+  }
+  const pixDiscount = paymentMethod === "pix" ? runningTotal * 0.03 : 0;
+  runningTotal -= pixDiscount;
 
   return (
-    <main className="pt-32 pb-20">
-      <Container>
-        <Kicker className="mb-4">Disponibilidade</Kicker>
-        <Heading level={1} className="text-4xl sm:text-6xl">
-          Selecione a casa ideal.
-        </Heading>
-        {checkin && checkout ? (
-          <p className="mt-6 font-sans text-base text-charcoal/70">
-            Datas: <strong>{new Date(checkin).toLocaleDateString("pt-BR")}</strong> →{" "}
-            <strong>{new Date(checkout).toLocaleDateString("pt-BR")}</strong> · {guests}{" "}
-            {guests === 1 ? "hóspede" : "hóspedes"}
-          </p>
-        ) : (
-          <p className="mt-6 font-sans text-base text-charcoal/70">
-            Selecione datas pelo formulário da home para ver preços ao vivo.
-          </p>
-        )}
+    <main className="bg-cream pt-32 pb-20">
+      <Container size="wide">
+        <Link
+          href={`/${property.slug}`}
+          className="inline-flex items-center gap-2 font-sans text-xs uppercase tracking-[0.25em] text-charcoal/60 hover:text-copper"
+        >
+          <ArrowLeft className="h-4 w-4" /> Voltar para {property.name}
+        </Link>
 
-        <Section spacing="tight">
-          <div className="grid gap-8 lg:grid-cols-3">
-            {PROPERTIES.map((p, i) => {
-              const quote = quotes[i];
-              const linkParams = new URLSearchParams();
-              if (checkin) linkParams.set("checkin", checkin);
-              if (checkout) linkParams.set("checkout", checkout);
-              linkParams.set("guests", String(guests));
-              const fits = guests <= p.capacity;
+        <div className="mt-8">
+          <Kicker className="mb-4">Reserva — etapa 1 de 2</Kicker>
+          <Heading level={1} className="text-4xl sm:text-5xl">
+            Seus dados
+          </Heading>
+          <p className="mt-3 max-w-2xl font-sans text-base text-charcoal/70">
+            Preencha as informações abaixo e siga para o pagamento. Levamos a sério a privacidade — seus dados são tratados conforme a{" "}
+            <Link href="/privacidade" className="text-copper underline underline-offset-4">LGPD</Link>.
+          </p>
+        </div>
 
-              return (
-                <Link
-                  key={p.slug}
-                  href={`/${p.slug}?${linkParams.toString()}`}
-                  className="group flex flex-col bg-cream transition-all hover:-translate-y-1"
+        <div className="mt-12 grid gap-12 lg:grid-cols-[1.4fr_1fr] lg:gap-16">
+          <section>
+            {quote ? (
+              <GuestForm
+                propertySlug={property.slug}
+                checkin={checkin}
+                checkout={checkout}
+                guests={guests}
+                paymentMethod={paymentMethod}
+                couponCode={couponCode || undefined}
+              />
+            ) : (
+              <div className="border border-red-300 bg-red-50 p-6 font-sans text-sm text-red-700">
+                <p>Não conseguimos calcular o preço para essas datas no momento.</p>
+                <p className="mt-2">
+                  Por favor, tente outras datas em{" "}
+                  <Link href={`/${property.slug}`} className="underline">
+                    /{property.slug}
+                  </Link>{" "}
+                  ou fale com o concierge.
+                </p>
+                <a
+                  href={whatsappLink(`Olá! Tive problema ao reservar o ${property.name} de ${checkin} a ${checkout}.`)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 bg-charcoal px-4 py-2 font-sans text-xs uppercase tracking-widest text-cream"
                 >
-                  <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
-                    <DriveImage
-                      fileId={p.heroImageId}
-                      alt={p.name}
-                      sizes="(max-width: 1024px) 100vw, 33vw"
-                    />
-                    {!fits && (
-                      <span className="absolute right-3 top-3 bg-charcoal/90 px-3 py-1.5 font-sans text-[0.6rem] uppercase tracking-[0.2em] text-cream">
-                        Capacidade insuficiente
-                      </span>
-                    )}
-                  </div>
-                  <div className="border-t border-charcoal/10 p-6">
-                    <Kicker className="mb-2">{p.badge}</Kicker>
-                    <Heading level={3} className="text-2xl">{p.name}</Heading>
-                    <p className="mt-2 font-sans text-sm text-charcoal/60">Capacidade {p.capacity}</p>
+                  <MessageCircle className="h-4 w-4" /> Falar com o concierge
+                </a>
+              </div>
+            )}
+          </section>
 
-                    {quote ? (
-                      <div className="mt-6 border-t border-charcoal/10 pt-4">
-                        <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
-                          Total {quote.nights} {quote.nights === 1 ? "noite" : "noites"}
-                        </span>
-                        <p className="mt-1 font-serif text-3xl text-charcoal">
-                          {formatBRLPrecise(quote.totalPrice)}
-                        </p>
+          <aside className="lg:sticky lg:top-28 lg:self-start">
+            <div className="border border-charcoal/10 bg-white">
+              <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
+                <DriveImage
+                  fileId={property.heroImageId}
+                  alt={property.name}
+                  sizes="(max-width: 1024px) 100vw, 40vw"
+                />
+              </div>
+              <div className="p-6">
+                <Kicker className="mb-2">{property.badge}</Kicker>
+                <h2 className="font-serif text-2xl text-charcoal">{property.name}</h2>
+                <ul className="mt-5 space-y-3 border-y border-charcoal/10 py-5 font-sans text-sm">
+                  <li className="flex justify-between"><span className="text-charcoal/60">Check-in</span><span className="text-charcoal">{new Date(checkin).toLocaleDateString("pt-BR")}</span></li>
+                  <li className="flex justify-between"><span className="text-charcoal/60">Check-out</span><span className="text-charcoal">{new Date(checkout).toLocaleDateString("pt-BR")}</span></li>
+                  <li className="flex justify-between"><span className="text-charcoal/60">Hóspedes</span><span className="text-charcoal">{guests}</span></li>
+                  {quote && <li className="flex justify-between"><span className="text-charcoal/60">Noites</span><span className="text-charcoal">{quote.nights}</span></li>}
+                </ul>
+
+                {quote && (
+                  <div className="mt-5 space-y-2 font-sans text-sm">
+                    <div className="flex justify-between text-charcoal/80">
+                      <span>Subtotal</span>
+                      <span>{formatBRLPrecise(quote.totalPrice)}</span>
+                    </div>
+                    {couponDiscount > 0 && (
+                      <div className="flex justify-between text-serra">
+                        <span>Cupom {couponCode}</span>
+                        <span>− {formatBRLPrecise(couponDiscount)}</span>
                       </div>
-                    ) : checkin && checkout ? (
-                      <p className="mt-6 border-t border-charcoal/10 pt-4 font-sans text-sm text-charcoal/60">
-                        Indisponível para essas datas.
-                      </p>
-                    ) : (
-                      <p className="mt-6 border-t border-charcoal/10 pt-4 font-sans text-sm text-charcoal/60">
-                        A partir de R$ — / noite
-                      </p>
                     )}
-
-                    <span className="mt-6 inline-flex items-center gap-1 font-sans text-xs uppercase tracking-[0.25em] text-copper transition-transform group-hover:translate-x-1">
-                      Ver detalhes <ArrowRight className="h-3.5 w-3.5" />
-                    </span>
+                    {pixDiscount > 0 && (
+                      <div className="flex justify-between text-serra">
+                        <span>Desconto Pix (3%)</span>
+                        <span>− {formatBRLPrecise(pixDiscount)}</span>
+                      </div>
+                    )}
+                    <div className="mt-3 flex items-baseline justify-between border-t border-charcoal/10 pt-3 font-serif">
+                      <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
+                      <span className="text-3xl text-charcoal">{formatBRLPrecise(runningTotal)}</span>
+                    </div>
                   </div>
-                </Link>
-              );
-            })}
-          </div>
-        </Section>
+                )}
+              </div>
+            </div>
+
+            <p className="mt-4 text-center font-sans text-xs text-charcoal/50">
+              Dúvidas? <a href={whatsappLink("Olá! Estou na etapa de preencher meus dados para reservar.")} target="_blank" rel="noopener noreferrer" className="text-copper underline">{SITE.whatsappDisplay}</a>
+            </p>
+          </aside>
+        </div>
+      </Container>
+    </main>
+  );
+}
+
+function ChooseProperty() {
+  return (
+    <main className="bg-cream pt-32 pb-20">
+      <Container>
+        <Kicker className="mb-4">Reserva</Kicker>
+        <Heading level={1} className="text-4xl sm:text-5xl">
+          Escolha a casa para reservar.
+        </Heading>
+        <p className="mt-4 max-w-2xl font-sans text-base text-charcoal/70">
+          Selecione a casa, datas e hóspedes para iniciar a reserva.
+        </p>
+        <div className="mt-12 grid gap-6 lg:grid-cols-3">
+          {PROPERTIES.map((p) => (
+            <Link
+              key={p.slug}
+              href={`/${p.slug}`}
+              className="group flex flex-col bg-cream transition-all hover:-translate-y-1"
+            >
+              <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
+                <DriveImage fileId={p.cardImageId} alt={p.name} sizes="(max-width: 1024px) 100vw, 33vw" />
+              </div>
+              <div className="border-t border-charcoal/10 p-6">
+                <Kicker className="mb-2">{p.badge}</Kicker>
+                <h2 className="font-serif text-2xl text-charcoal">{p.name}</h2>
+                <p className="mt-2 font-sans text-sm text-charcoal/60">
+                  Ideal para {p.capacity.ideal} · acomoda até {p.capacity.max}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
       </Container>
     </main>
   );

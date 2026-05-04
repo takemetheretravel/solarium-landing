@@ -25,7 +25,10 @@
       "PowerShell($myPid = $PID; Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.ProcessId -ne $myPid } | Select-Object ProcessId, CommandLine | Format-List)",
       "PowerShell(Stop-Process -Id 14540, 17720, 39516 -Force -ErrorAction SilentlyContinue)",
       "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
-      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Sprint 1: full landing with Hostaway integration, booking flow, content pages\")"
+      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Sprint 1: full landing with Hostaway integration, booking flow, content pages\")",
+      "Read(//tmp/**)",
+      "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\).result||[]; r.forEach\\(d=>console.log\\(JSON.stringify\\(d\\)\\)\\);}\\)\")",
+      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Sprint 2.5: Hostaway 403-retry+debug, end-to-end booking draft, 17 UX/copy/visual fixes\")"
     ]
   }
 }

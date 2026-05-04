@@ -7,7 +7,14 @@ import "react-day-picker/dist/style.css";
 import { ChevronDown, Tag, MessageCircle, ArrowRight } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
 
-type CalendarDay = { date: string; isAvailable: boolean; price: number; minimumStay: number };
+type CalendarDay = {
+  date: string;
+  isAvailable: boolean;
+  price: number;
+  minimumStay: number;
+  closedOnArrival?: boolean;
+  closedOnDeparture?: boolean;
+};
 
 type Quote = {
   nights: number;
@@ -30,6 +37,7 @@ type Props = {
   initialCheckout?: string;
   initialGuests?: number;
   maxCapacity: number;
+  idealCapacity?: number;
 };
 
 function todayPlus(days: number): Date {
@@ -54,6 +62,8 @@ function fromISO(s: string): Date | undefined {
   return new Date(y, m - 1, d);
 }
 
+const MAX_DAYS_AHEAD = 540; // ~18 meses
+
 export default function BookingForm({
   propertySlug,
   initialCheckin,
@@ -77,7 +87,7 @@ export default function BookingForm({
 
   useEffect(() => {
     const start = toISO(todayPlus(0));
-    const end = toISO(todayPlus(365));
+    const end = toISO(todayPlus(MAX_DAYS_AHEAD));
     fetch(`/api/calendar?property=${propertySlug}&start=${start}&end=${end}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -86,12 +96,20 @@ export default function BookingForm({
       .catch(() => {});
   }, [propertySlug]);
 
-  const disabledDays = useMemo(() => {
-    const blocked = calendarDays
-      .filter((d) => !d.isAvailable)
-      .map((d) => fromISO(d.date))
-      .filter((d): d is Date => Boolean(d));
-    return [{ before: todayPlus(0) }, ...blocked];
+  const { fullyBlocked, noArrivalDates, noDepartureDates, minimumStayMap } = useMemo(() => {
+    const fullyBlocked: Date[] = [];
+    const noArrivalDates: Date[] = [];
+    const noDepartureDates: Date[] = [];
+    const minimumStayMap = new Map<string, number>();
+    for (const d of calendarDays) {
+      const date = fromISO(d.date);
+      if (!date) continue;
+      if (!d.isAvailable) fullyBlocked.push(date);
+      else if (d.closedOnArrival && !d.closedOnDeparture) noArrivalDates.push(date);
+      else if (d.closedOnDeparture && !d.closedOnArrival) noDepartureDates.push(date);
+      if (d.minimumStay > 1) minimumStayMap.set(d.date, d.minimumStay);
+    }
+    return { fullyBlocked, noArrivalDates, noDepartureDates, minimumStayMap };
   }, [calendarDays]);
 
   const checkinISO = toISO(range.from);
@@ -137,23 +155,29 @@ export default function BookingForm({
     setCouponApplied(couponInput.trim().toUpperCase());
   }
 
-  function handleReserve() {
+  function handleContinue() {
     if (!range.from || !range.to) return;
     const params = new URLSearchParams({
-      property: propertySlug,
+      propertyId: propertySlug,
       checkin: toISO(range.from),
       checkout: toISO(range.to),
       guests: String(guests),
       payment: paymentMethod,
     });
     if (couponApplied) params.set("coupon", couponApplied);
-    router.push(`/checkout?${params.toString()}`);
+    router.push(`/reservar?${params.toString()}`);
   }
 
-  const canReserve = Boolean(range.from && range.to && quote && !loading);
+  const canContinue = Boolean(range.from && range.to && quote && !loading && range.from !== range.to);
+
+  const minStayHint = useMemo(() => {
+    if (!range.from) return null;
+    const m = minimumStayMap.get(toISO(range.from));
+    return m ? `Mínimo ${m} noites para esta data` : null;
+  }, [range.from, minimumStayMap]);
 
   return (
-    <div className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">
+    <div id="reservar" className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">
       <div className="mb-6 flex items-baseline justify-between">
         <span className="font-sans text-[0.65rem] uppercase tracking-[0.3em] text-copper">
           Reserve diretamente
@@ -166,19 +190,30 @@ export default function BookingForm({
         )}
       </div>
 
-      <div className="rdp-wrapper mb-6">
+      <div className="rdp-wrapper mb-2">
         <DayPicker
           mode="range"
           numberOfMonths={1}
-          locale={undefined}
           selected={range as { from: Date | undefined; to: Date | undefined }}
           onSelect={(r) => setRange({ from: r?.from, to: r?.to })}
-          disabled={disabledDays}
+          disabled={[
+            { before: todayPlus(0) },
+            { after: todayPlus(MAX_DAYS_AHEAD) },
+            ...fullyBlocked,
+          ]}
+          modifiers={{ noArrival: noArrivalDates, noDeparture: noDepartureDates }}
+          modifiersClassNames={{
+            noArrival: "rdp-no-arrival",
+            noDeparture: "rdp-no-departure",
+          }}
           weekStartsOn={0}
         />
       </div>
+      {minStayHint && (
+        <p className="font-sans text-[0.7rem] text-copper">{minStayHint}</p>
+      )}
 
-      <div className="grid grid-cols-2 gap-3 border-y border-charcoal/10 py-4 text-sm">
+      <div className="mt-4 grid grid-cols-2 gap-3 border-y border-charcoal/10 py-4 text-sm">
         <div>
           <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Check-in</span>
           <span className="font-serif text-lg text-charcoal">
@@ -299,7 +334,7 @@ export default function BookingForm({
       )}
 
       {loading && <p className="mt-4 font-sans text-xs text-charcoal/50">Calculando preço…</p>}
-      {!quote && !loading && range.from && range.to && (
+      {!quote && !loading && range.from && range.to && range.from !== range.to && (
         <p className="mt-4 font-sans text-xs text-charcoal/50">
           Preço indisponível para essas datas. Tente outras ou fale com o concierge.
         </p>
@@ -307,11 +342,11 @@ export default function BookingForm({
 
       <button
         type="button"
-        onClick={handleReserve}
-        disabled={!canReserve}
+        onClick={handleContinue}
+        disabled={!canContinue}
         className="mt-6 flex w-full items-center justify-center gap-2 bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream transition-colors hover:bg-copper/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Reservar agora <ArrowRight className="h-4 w-4" />
+        Continuar para reserva <ArrowRight className="h-4 w-4" />
       </button>
 
       <a

@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+export const revalidate = 86400;
+
 export default function TermosPage() {
   return (
     <main className="pt-32 pb-20">

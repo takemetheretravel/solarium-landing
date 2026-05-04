@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
       isAvailable: d.isAvailable === 1,
       price: d.price,
       minimumStay: d.minimumStay,
+      closedOnArrival: d.closedOnArrival === 1,
+      closedOnDeparture: d.closedOnDeparture === 1,
     })),
   });
 }

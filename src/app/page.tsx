@@ -1,13 +1,27 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles, Cpu, Waves, Heart, Coffee, Flower2, Quote } from "lucide-react";
+import {
+  ArrowRight,
+  Sparkles,
+  Cpu,
+  Waves,
+  Heart,
+  Coffee,
+  Flower2,
+  Percent,
+  Tag,
+  MessageCircle,
+} from "lucide-react";
 import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import DriveImage from "@/components/ui/DriveImage";
+import HeroVideo from "@/components/ui/HeroVideo";
 import BookingBar from "@/components/booking/BookingBar";
+import ReviewsMarquee from "@/components/ui/ReviewsMarquee";
+import FAQ from "@/components/ui/FAQ";
 import { PROPERTIES } from "@/config/properties";
-import { REVIEWS, PARTNERS, EXPERIENCES_ONSITE, SITE, whatsappLink } from "@/config/site";
+import { REVIEWS, PARTNERS, EXPERIENCES_ONSITE, SITE, HERO_VIDEO_FILE_ID, whatsappLink } from "@/config/site";
 import { getMinNightlyFromCalendar } from "@/lib/hostaway";
 import { formatBRL } from "@/lib/cn";
 
@@ -15,11 +29,15 @@ export const revalidate = 300;
 
 const ONSITE_ICONS = { coffee: Coffee, spa: Flower2, heart: Heart };
 
+const MARQUEE_REVIEW_IDS = [1, 2, 3, 4, 5, 9, 10, 14];
+
 export default async function Home() {
   const minPrices = await Promise.all(
     PROPERTIES.map((p) => getMinNightlyFromCalendar(p.id, 90).catch(() => null)),
   );
-  const featuredReviews = REVIEWS.filter((r) => r.featured).slice(0, 5);
+  const marqueeReviews = MARQUEE_REVIEW_IDS
+    .map((id) => REVIEWS.find((r) => r.id === id))
+    .filter((r): r is (typeof REVIEWS)[number] => Boolean(r));
   const featuredPartners = PARTNERS.slice(1);
   const flagshipPartner = PARTNERS[0];
 
@@ -27,13 +45,17 @@ export default async function Home() {
     <main>
       {/* HERO */}
       <section className="relative h-screen min-h-[640px] w-full overflow-hidden">
-        <DriveImage
-          fileId="1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8"
+        <HeroVideo
+          videoFileId={HERO_VIDEO_FILE_ID}
+          fallbackImageId="1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8"
           alt="Banheira com vista para o pôr do sol na Serra da Mantiqueira"
-          priority
-          sizes="100vw"
+          imageObjectPosition="70%_center"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-charcoal/40 via-charcoal/20 to-charcoal/60" />
+        {/* base overlay - stronger on mobile, lighter on desktop */}
+        <div className="absolute inset-0 bg-charcoal/50 md:bg-charcoal/30" />
+        {/* bottom gradient for text legibility */}
+        <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-charcoal/75 via-charcoal/40 to-transparent" />
+
         <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center text-cream">
           <Kicker tone="cream" className="mb-6 opacity-90">{SITE.region}</Kicker>
           <Heading level={1} className="text-cream">
@@ -41,7 +63,7 @@ export default async function Home() {
             <br />
             <em className="not-italic font-serif italic text-cream/95">Mantiqueira</em>
           </Heading>
-          <p className="mx-auto mt-8 max-w-xl font-sans text-base leading-relaxed text-cream/85 sm:text-lg">
+          <p className="mx-auto mt-8 max-w-xl font-sans text-base leading-relaxed text-cream/90 sm:text-lg">
             Refúgio de design e experiência. Duas casas pensadas para casais e momentos especiais, em integração com a serra.
           </p>
           <Link
@@ -57,15 +79,30 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* BOOKING BAR */}
-      <Section id="busca" spacing="tight">
+      {/* POR QUE RESERVAR DIRETO */}
+      <Section spacing="default" className="border-b border-charcoal/10 bg-cream">
         <Container>
-          <div className="flex flex-col items-center">
+          <div className="mb-16 max-w-2xl">
             <Kicker className="mb-4">Reservas diretas</Kicker>
-            <Heading level={3} className="mb-8 text-center">
-              Selecione suas datas e descubra a casa ideal.
-            </Heading>
-            <BookingBar />
+            <Heading level={2}>As vantagens de reservar pelo nosso site.</Heading>
+          </div>
+          <div className="grid grid-cols-2 gap-10 lg:grid-cols-4 lg:gap-8">
+            {[
+              { icon: Percent, title: "3% de desconto no Pix", text: "Aplicado automaticamente ao escolher Pix no checkout." },
+              { icon: Tag, title: "Cupons exclusivos", text: "Descontos progressivos por estadias mais longas." },
+              { icon: MessageCircle, title: "Atendimento direto com o anfitrião", text: "Sem intermediários, sem fila — falamos com você." },
+              { icon: Sparkles, title: "Concierge proativo", text: "Da chegada à partida, cuidamos dos detalhes." },
+            ].map((item) => (
+              <div key={item.title}>
+                <item.icon className="h-7 w-7 text-copper" strokeWidth={1.5} />
+                <h3 className="mt-5 font-serif text-xl leading-tight text-charcoal">
+                  {item.title}
+                </h3>
+                <p className="mt-3 font-sans text-sm leading-relaxed text-charcoal/70">
+                  {item.text}
+                </p>
+              </div>
+            ))}
           </div>
         </Container>
       </Section>
@@ -92,7 +129,7 @@ export default async function Home() {
                 >
                   <div className="relative aspect-[4/5] overflow-hidden bg-charcoal/5">
                     <DriveImage
-                      fileId={p.heroImageId}
+                      fileId={p.cardImageId}
                       alt={p.name}
                       sizes="(max-width: 1024px) 100vw, 33vw"
                     />
@@ -104,8 +141,11 @@ export default async function Home() {
                     <Heading level={3} className="text-2xl text-charcoal sm:text-3xl">
                       {p.name}
                     </Heading>
-                    <p className="mt-2 font-sans text-sm text-charcoal/70">
-                      Capacidade {p.capacity} hóspedes
+                    <p className="mt-2 font-serif text-base text-charcoal">
+                      Ideal para {p.capacity.ideal} hóspedes
+                    </p>
+                    <p className="font-sans text-xs text-charcoal/55">
+                      Acomoda até {p.capacity.max}
                     </p>
                     <ul className="mt-6 space-y-2 font-sans text-sm text-charcoal/80">
                       {p.differentials.slice(0, 3).map((d) => (
@@ -141,6 +181,19 @@ export default async function Home() {
         </Container>
       </Section>
 
+      {/* BOOKING BAR */}
+      <Section id="busca" spacing="tight" className="bg-cream">
+        <Container>
+          <div className="flex flex-col items-center">
+            <Kicker className="mb-4">Verificar disponibilidade</Kicker>
+            <Heading level={3} className="mb-8 text-center">
+              Selecione suas datas para ver as casas livres.
+            </Heading>
+            <BookingBar />
+          </div>
+        </Container>
+      </Section>
+
       {/* POR QUE SOLARIUM */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -169,7 +222,7 @@ export default async function Home() {
         </Container>
       </Section>
 
-      {/* REVIEWS */}
+      {/* REVIEWS — MARQUEE */}
       <Section className="bg-serra/5">
         <Container>
           <div className="mb-12 flex flex-col items-center text-center">
@@ -178,38 +231,11 @@ export default async function Home() {
               Dezenas de momentos memoráveis, contados por quem viveu.
             </Heading>
           </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {featuredReviews.map((r, idx) => (
-              <article
-                key={r.id}
-                className={`flex flex-col bg-cream p-8 ${idx === 0 ? "lg:col-span-2 lg:row-span-1" : ""}`}
-              >
-                <Quote className="h-6 w-6 text-copper" strokeWidth={1.5} />
-                <p className="mt-4 font-serif text-lg italic leading-relaxed text-charcoal/85">
-                  “{r.text}”
-                </p>
-                <div className="mt-6 border-t border-charcoal/10 pt-4 font-sans text-xs uppercase tracking-[0.2em] text-charcoal/60">
-                  <span className="text-charcoal">{r.author}</span>
-                  <span className="mx-2 text-charcoal/30">·</span>
-                  <span>{r.from}</span>
-                  <span className="mx-2 text-charcoal/30">·</span>
-                  <span>{r.source}</span>
-                </div>
-              </article>
-            ))}
-          </div>
-          <div className="mt-12 text-center">
-            <Link
-              href="/solarium-1#reviews"
-              className="inline-flex items-center gap-2 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
-            >
-              Ver todas as avaliações <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
         </Container>
+        <ReviewsMarquee reviews={marqueeReviews} />
       </Section>
 
-      {/* EXPERIENCIAS */}
+      {/* EXPERIÊNCIAS */}
       <Section className="border-t border-charcoal/10">
         <Container>
           <div className="grid gap-16 lg:grid-cols-2 lg:gap-20">
@@ -222,7 +248,7 @@ export default async function Home() {
             </div>
             <div className="flex flex-col justify-center">
               <Kicker className="mb-4">Experiências</Kicker>
-              <Heading level={2}>Sua estadia, sua curadoria.</Heading>
+              <Heading level={2}>Sua experiência, nossa curadoria.</Heading>
               <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
                 Da cesta de café da manhã preparada com produtores locais à decoração para sua data especial — cuidamos para que cada detalhe seja seu.
               </p>
@@ -284,6 +310,17 @@ export default async function Home() {
               Conhecer todos os parceiros <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
+        </Container>
+      </Section>
+
+      {/* FAQ */}
+      <Section className="border-t border-charcoal/10 bg-cream">
+        <Container size="narrow">
+          <div className="mb-12">
+            <Kicker className="mb-4">Dúvidas frequentes</Kicker>
+            <Heading level={2}>Antes de reservar.</Heading>
+          </div>
+          <FAQ />
         </Container>
       </Section>
 

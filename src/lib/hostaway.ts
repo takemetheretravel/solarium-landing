@@ -1,9 +1,11 @@
+import { cacheGet, cacheSet, cacheClear, cacheDelete } from "./hostaway-cache";
+
 const BASE_URL = process.env.HOSTAWAY_API_BASE_URL || "https://api.hostaway.com/v1";
 const ACCOUNT_ID = process.env.HOSTAWAY_ACCOUNT_ID || "";
 const API_KEY = process.env.HOSTAWAY_API_KEY || "";
 
 export const REVALIDATE_LISTINGS = 300;
-export const REVALIDATE_CALENDAR = 300;
+export const REVALIDATE_CALENDAR = 60;
 
 export type HostawayListing = {
   id: number;
@@ -32,6 +34,8 @@ export type HostawayCalendarDay = {
   price: number;
   minimumStay: number;
   maximumStay?: number | null;
+  closedOnArrival?: 0 | 1 | null;
+  closedOnDeparture?: 0 | 1 | null;
   countAvailableUnits: number;
 };
 
@@ -46,12 +50,31 @@ export type HostawayPriceQuote = {
   raw: unknown;
 };
 
-let cachedToken: { value: string; expiresAt: number } | null = null;
+type TokenInfo = { value: string; expiresAt: number; obtainedAt: number };
+const TOKEN_CACHE_KEY = "hostaway:accessToken";
 
-async function getAccessToken(): Promise<string | null> {
-  if (!ACCOUNT_ID || !API_KEY) return null;
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
-    return cachedToken.value;
+export type HostawayDiagnostic = {
+  hasCredentials: boolean;
+  tokenStatus: "ok" | "missing" | "error";
+  tokenObtainedAt?: string;
+  tokenExpiresAt?: string;
+  lastError?: string;
+};
+
+let lastDiagnostic: HostawayDiagnostic = {
+  hasCredentials: Boolean(ACCOUNT_ID && API_KEY),
+  tokenStatus: "missing",
+};
+
+export function getDiagnostic(): HostawayDiagnostic {
+  return { ...lastDiagnostic };
+}
+
+async function fetchAccessToken(): Promise<TokenInfo | null> {
+  if (!ACCOUNT_ID || !API_KEY) {
+    lastDiagnostic = { hasCredentials: false, tokenStatus: "missing" };
+    console.error("[Hostaway] Credenciais ausentes em .env.local");
+    return null;
   }
 
   try {
@@ -73,28 +96,78 @@ async function getAccessToken(): Promise<string | null> {
     });
 
     if (!res.ok) {
-      console.error("[hostaway] token request failed:", res.status, res.statusText);
+      const errText = await res.text().catch(() => "");
+      lastDiagnostic = {
+        hasCredentials: true,
+        tokenStatus: "error",
+        lastError: `HTTP ${res.status}: ${errText.slice(0, 200)}`,
+      };
+      console.error("[Hostaway] Falha ao gerar token:", res.status, errText.slice(0, 200));
       return null;
     }
     const json = (await res.json()) as { access_token: string; expires_in: number };
-    cachedToken = {
+    const now = Date.now();
+    const info: TokenInfo = {
       value: json.access_token,
-      expiresAt: Date.now() + json.expires_in * 1000,
+      expiresAt: now + json.expires_in * 1000,
+      obtainedAt: now,
     };
-    return cachedToken.value;
+    lastDiagnostic = {
+      hasCredentials: true,
+      tokenStatus: "ok",
+      tokenObtainedAt: new Date(now).toISOString(),
+      tokenExpiresAt: new Date(info.expiresAt).toISOString(),
+    };
+    console.log(
+      `[Hostaway] Token gerado, válido até ${new Date(info.expiresAt).toISOString()}`,
+    );
+    return info;
   } catch (err) {
-    console.error("[hostaway] token request error:", (err as Error).message);
+    const msg = (err as Error).message;
+    lastDiagnostic = { hasCredentials: true, tokenStatus: "error", lastError: msg };
+    console.error("[Hostaway] Erro ao gerar token:", msg);
     return null;
   }
 }
 
-type FetchOpts = { revalidate?: number; method?: string; body?: unknown };
+async function getAccessToken(forceRefresh = false): Promise<string | null> {
+  if (!forceRefresh) {
+    const cached = cacheGet<TokenInfo>(TOKEN_CACHE_KEY);
+    if (cached && cached.expiresAt > Date.now() + 60_000) {
+      return cached.value;
+    }
+  }
+  const info = await fetchAccessToken();
+  if (!info) return null;
+  const ttl = Math.max(60, Math.floor((info.expiresAt - Date.now()) / 1000) - 60);
+  cacheSet(TOKEN_CACHE_KEY, info, Math.min(ttl, 86400));
+  return info.value;
+}
+
+export function clearTokenCache(): void {
+  cacheDelete(TOKEN_CACHE_KEY);
+  console.log("[Hostaway] Token cache limpo manualmente");
+}
+
+export function clearAllCache(): number {
+  return cacheClear("hostaway:");
+}
+
+type FetchOpts = {
+  method?: string;
+  body?: unknown;
+  cacheKey?: string;
+  ttlSeconds?: number;
+};
 
 async function authFetch<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
-  const token = await getAccessToken();
-  if (!token) return null;
+  if (opts.cacheKey) {
+    const hit = cacheGet<T>(opts.cacheKey);
+    if (hit !== undefined) return hit;
+  }
 
-  try {
+  const doRequest = async (token: string): Promise<Response> => {
+    const isMutation = (opts.method ?? "GET") !== "GET";
     const init: RequestInit = {
       method: opts.method ?? "GET",
       headers: {
@@ -103,35 +176,56 @@ async function authFetch<T>(path: string, opts: FetchOpts = {}): Promise<T | nul
         ...(opts.body ? { "Content-Type": "application/json" } : {}),
       },
       ...(opts.body ? { body: JSON.stringify(opts.body) } : {}),
-      ...(opts.revalidate !== undefined
-        ? { next: { revalidate: opts.revalidate } }
-        : { next: { revalidate: 0 } }),
+      ...(isMutation
+        ? { cache: "no-store" as RequestCache }
+        : { next: { revalidate: opts.ttlSeconds ?? 60 } }),
     };
+    return fetch(`${BASE_URL}${path}`, init);
+  };
 
-    const res = await fetch(`${BASE_URL}${path}`, init);
+  try {
+    let token = await getAccessToken();
+    if (!token) return null;
+
+    let res = await doRequest(token);
+
+    if (res.status === 401 || res.status === 403) {
+      console.warn(`[Hostaway] ${res.status} em ${path} — regenerando token e tentando novamente`);
+      token = await getAccessToken(true);
+      if (!token) return null;
+      res = await doRequest(token);
+    }
+
     if (!res.ok) {
-      console.error(`[hostaway] ${opts.method ?? "GET"} ${path} failed:`, res.status);
+      const errText = await res.text().catch(() => "");
+      console.error(`[Hostaway] ${opts.method ?? "GET"} ${path} falhou:`, res.status, errText.slice(0, 200));
       return null;
     }
-    return (await res.json()) as T;
+    const json = (await res.json()) as T;
+    if (opts.cacheKey && opts.ttlSeconds) {
+      cacheSet(opts.cacheKey, json, opts.ttlSeconds);
+    }
+    return json;
   } catch (err) {
-    console.error(`[hostaway] ${opts.method ?? "GET"} ${path} error:`, (err as Error).message);
+    console.error(`[Hostaway] ${opts.method ?? "GET"} ${path} erro:`, (err as Error).message);
     return null;
   }
 }
 
 export async function getListings(): Promise<HostawayListing[]> {
-  const json = await authFetch<{ result?: HostawayListing[] }>(
-    "/listings?limit=20",
-    { revalidate: REVALIDATE_LISTINGS },
-  );
-  return json?.result ?? [];
+  const json = await authFetch<{ result?: HostawayListing[] }>("/listings?limit=20", {
+    cacheKey: "hostaway:listings",
+    ttlSeconds: REVALIDATE_LISTINGS,
+  });
+  const result = json?.result ?? [];
+  console.log(`[Hostaway] Listings retornadas: ${result.length}`);
+  return result;
 }
 
 export async function getListing(id: number): Promise<HostawayListing | null> {
   const json = await authFetch<{ result?: HostawayListing }>(
     `/listings/${id}?includeResources=1`,
-    { revalidate: REVALIDATE_LISTINGS },
+    { cacheKey: `hostaway:listing:${id}`, ttlSeconds: REVALIDATE_LISTINGS },
   );
   return json?.result ?? null;
 }
@@ -143,9 +237,37 @@ export async function getCalendar(
 ): Promise<HostawayCalendarDay[]> {
   const json = await authFetch<{ result?: HostawayCalendarDay[] }>(
     `/listings/${id}/calendar?startDate=${startDate}&endDate=${endDate}`,
-    { revalidate: REVALIDATE_CALENDAR },
+    {
+      cacheKey: `hostaway:calendar:${id}:${startDate}:${endDate}`,
+      ttlSeconds: REVALIDATE_CALENDAR,
+    },
   );
   return json?.result ?? [];
+}
+
+export async function getCombinedCalendar(
+  ids: number[],
+  startDate: string,
+  endDate: string,
+): Promise<Array<{ date: string; anyAvailable: boolean; anyArrival: boolean; minPrice: number | null }>> {
+  const all = await Promise.all(ids.map((id) => getCalendar(id, startDate, endDate)));
+  const map = new Map<string, { anyAvailable: boolean; anyArrival: boolean; minPrice: number | null }>();
+  for (const days of all) {
+    for (const d of days) {
+      const cur = map.get(d.date) ?? { anyAvailable: false, anyArrival: false, minPrice: null };
+      const available = d.isAvailable === 1;
+      const arrival = available && d.closedOnArrival !== 1;
+      cur.anyAvailable = cur.anyAvailable || available;
+      cur.anyArrival = cur.anyArrival || arrival;
+      if (available && Number.isFinite(d.price) && d.price > 0) {
+        cur.minPrice = cur.minPrice === null ? d.price : Math.min(cur.minPrice, d.price);
+      }
+      map.set(d.date, cur);
+    }
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, ...v }));
 }
 
 export async function calculatePrice(

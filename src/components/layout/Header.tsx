@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { LOGO } from "@/config/site";
+import { driveThumbnailUrl } from "@/lib/drive-image";
 
 const NAV = [
   { href: "/#nossas-casas", label: "Nossas Casas" },
@@ -32,25 +34,31 @@ export default function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [hasHero, pathname]);
 
+  const useDarkLogo = scrolled || open;
+
   return (
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300",
-        scrolled || open
+        useDarkLogo
           ? "bg-cream/95 backdrop-blur-sm border-b border-charcoal/10"
           : "bg-transparent",
       )}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 sm:px-10 lg:px-16">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 sm:px-10 sm:py-4 lg:px-16">
         <Link
           href="/"
-          className={cn(
-            "font-serif text-lg tracking-[0.3em] transition-colors sm:text-xl",
-            scrolled || open ? "text-charcoal" : "text-cream drop-shadow-sm",
-          )}
+          className="relative block"
           onClick={() => setOpen(false)}
+          aria-label="Solarium Mantiqueira — início"
         >
-          SOLARIUM
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={driveThumbnailUrl(useDarkLogo ? LOGO.black : LOGO.white, 480)}
+            alt="Solarium Mantiqueira"
+            className="max-h-10 w-auto object-contain md:max-h-12"
+            draggable={false}
+          />
         </Link>
 
         <nav className="hidden items-center gap-10 lg:flex">
@@ -60,7 +68,7 @@ export default function Header() {
               href={item.href}
               className={cn(
                 "font-sans text-xs uppercase tracking-[0.2em] transition-colors hover:text-copper",
-                scrolled ? "text-charcoal" : "text-cream",
+                scrolled ? "text-charcoal" : "text-cream drop-shadow-sm",
               )}
             >
               {item.label}
@@ -79,7 +87,7 @@ export default function Header() {
           onClick={() => setOpen((v) => !v)}
           className={cn(
             "lg:hidden",
-            scrolled || open ? "text-charcoal" : "text-cream",
+            useDarkLogo ? "text-charcoal" : "text-cream",
           )}
         >
           {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
