@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
+import { addDays } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { ChevronDown, Tag, MessageCircle, ArrowRight } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
 
@@ -16,10 +18,18 @@ type CalendarDay = {
   closedOnDeparture?: boolean;
 };
 
-type Quote = {
+type PriceFailure = {
+  reason: "missing-data" | "unavailable-day" | "min-stay-not-met" | "max-stay-exceeded" | "api-error";
+  message: string;
+  meta?: Record<string, unknown>;
+};
+
+type PriceResponse = {
+  ok: true;
   nights: number;
   averageNightly: number;
   cleaningFee: number;
+  extraGuestFee: number;
   discount: number;
   baseTotal: number;
   hostawayTotal: number;
@@ -29,6 +39,9 @@ type Quote = {
   pixDiscount: number;
   finalTotal: number;
   currency: string;
+} | {
+  ok: false;
+  failure: PriceFailure;
 };
 
 type Props = {
@@ -39,6 +52,8 @@ type Props = {
   maxCapacity: number;
   idealCapacity?: number;
 };
+
+const MAX_DAYS_AHEAD = 540;
 
 function todayPlus(days: number): Date {
   const d = new Date();
@@ -62,7 +77,9 @@ function fromISO(s: string): Date | undefined {
   return new Date(y, m - 1, d);
 }
 
-const MAX_DAYS_AHEAD = 540; // ~18 meses
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
 
 export default function BookingForm({
   propertySlug,
@@ -73,8 +90,8 @@ export default function BookingForm({
 }: Props) {
   const router = useRouter();
   const [range, setRange] = useState<{ from?: Date; to?: Date }>({
-    from: initialCheckin ? fromISO(initialCheckin) : todayPlus(14),
-    to: initialCheckout ? fromISO(initialCheckout) : todayPlus(16),
+    from: initialCheckin ? fromISO(initialCheckin) : undefined,
+    to: initialCheckout ? fromISO(initialCheckout) : undefined,
   });
   const [guests, setGuests] = useState(initialGuests);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">("card");
@@ -82,7 +99,7 @@ export default function BookingForm({
   const [couponApplied, setCouponApplied] = useState("");
   const [showCoupon, setShowCoupon] = useState(false);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
-  const [quote, setQuote] = useState<Quote | null>(null);
+  const [response, setResponse] = useState<PriceResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -96,41 +113,67 @@ export default function BookingForm({
       .catch(() => {});
   }, [propertySlug]);
 
-  const { fullyBlocked, noArrivalDates, noDepartureDates, minimumStayMap } = useMemo(() => {
-    const fullyBlocked: Date[] = [];
-    const noArrivalDates: Date[] = [];
-    const noDepartureDates: Date[] = [];
-    const minimumStayMap = new Map<string, number>();
+  const { fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO } = useMemo(() => {
+    const fullyBlockedSet = new Set<string>();
+    const noArrivalSet = new Set<string>();
+    const noDepartureSet = new Set<string>();
+    const minNightsByISO = new Map<string, number>();
     for (const d of calendarDays) {
-      const date = fromISO(d.date);
-      if (!date) continue;
-      if (!d.isAvailable) fullyBlocked.push(date);
-      else if (d.closedOnArrival && !d.closedOnDeparture) noArrivalDates.push(date);
-      else if (d.closedOnDeparture && !d.closedOnArrival) noDepartureDates.push(date);
-      if (d.minimumStay > 1) minimumStayMap.set(d.date, d.minimumStay);
+      if (!d.isAvailable) {
+        fullyBlockedSet.add(d.date);
+      } else {
+        if (d.closedOnArrival) noArrivalSet.add(d.date);
+        if (d.closedOnDeparture) noDepartureSet.add(d.date);
+      }
+      minNightsByISO.set(d.date, d.minimumStay || 1);
     }
-    return { fullyBlocked, noArrivalDates, noDepartureDates, minimumStayMap };
+    return { fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO };
   }, [calendarDays]);
+
+  const isChoosingCheckout = Boolean(range.from && !range.to);
+
+  const isDateDisabled = useCallback((date: Date): boolean => {
+    const iso = toISO(date);
+    const today = toISO(todayPlus(0));
+    const maxDate = toISO(todayPlus(MAX_DAYS_AHEAD));
+    if (iso < today || iso > maxDate) return true;
+    if (fullyBlockedSet.has(iso)) return true;
+    if (!isChoosingCheckout) {
+      return noArrivalSet.has(iso);
+    }
+    if (range.from) {
+      if (date <= range.from) return true;
+      const minStay = minNightsByISO.get(toISO(range.from)) ?? 1;
+      if (date < addDays(range.from, minStay)) return true;
+    }
+    return noDepartureSet.has(iso);
+  }, [isChoosingCheckout, fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO, range.from]);
+
+  const smartDefaultMonth = useMemo(() => {
+    if (range.from) return range.from;
+    if (calendarDays.length === 0) return todayPlus(14);
+    for (let i = 0; i < 30; i++) {
+      const target = todayPlus(i);
+      const iso = toISO(target);
+      const day = calendarDays.find((d) => d.date === iso);
+      if (day?.isAvailable) return target;
+    }
+    return todayPlus(14);
+  }, [calendarDays, range.from]);
 
   const checkinISO = toISO(range.from);
   const checkoutISO = toISO(range.to);
 
   useEffect(() => {
-    if (!range.from || !range.to) {
-      setQuote(null);
-      return;
-    }
-    const ci = toISO(range.from);
-    const co = toISO(range.to);
-    if (ci === co) {
-      setQuote(null);
+    if (!range.from || !range.to || sameDay(range.from, range.to)) {
+      setResponse(null);
       return;
     }
     setLoading(true);
     const params = new URLSearchParams({
       property: propertySlug,
-      checkin: ci,
-      checkout: co,
+      checkin: checkinISO,
+      checkout: checkoutISO,
       guests: String(guests),
       payment: paymentMethod,
     });
@@ -139,14 +182,10 @@ export default function BookingForm({
     const ctrl = new AbortController();
     fetch(`/api/price?${params.toString()}`, { signal: ctrl.signal })
       .then(async (r) => {
-        if (!r.ok) {
-          setQuote(null);
-          return;
-        }
-        const data = (await r.json()) as Quote;
-        setQuote(data);
+        const data = (await r.json()) as PriceResponse;
+        setResponse(data);
       })
-      .catch(() => setQuote(null))
+      .catch(() => setResponse(null))
       .finally(() => setLoading(false));
     return () => ctrl.abort();
   }, [propertySlug, checkinISO, checkoutISO, guests, paymentMethod, couponApplied, range.from, range.to]);
@@ -156,7 +195,7 @@ export default function BookingForm({
   }
 
   function handleContinue() {
-    if (!range.from || !range.to) return;
+    if (!range.from || !range.to || !response || response.ok !== true) return;
     const params = new URLSearchParams({
       propertyId: propertySlug,
       checkin: toISO(range.from),
@@ -168,13 +207,9 @@ export default function BookingForm({
     router.push(`/reservar?${params.toString()}`);
   }
 
-  const canContinue = Boolean(range.from && range.to && quote && !loading && range.from !== range.to);
-
-  const minStayHint = useMemo(() => {
-    if (!range.from) return null;
-    const m = minimumStayMap.get(toISO(range.from));
-    return m ? `Mínimo ${m} noites para esta data` : null;
-  }, [range.from, minimumStayMap]);
+  const okQuote = response && response.ok === true ? response : null;
+  const failure = response && response.ok === false ? response.failure : null;
+  const canContinue = Boolean(okQuote && !loading);
 
   return (
     <div id="reservar" className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">
@@ -182,9 +217,9 @@ export default function BookingForm({
         <span className="font-sans text-[0.65rem] uppercase tracking-[0.3em] text-copper">
           Reserve diretamente
         </span>
-        {quote && (
+        {okQuote && (
           <span className="font-serif text-2xl text-charcoal">
-            {formatBRLPrecise(quote.averageNightly)}
+            {formatBRLPrecise(okQuote.averageNightly)}
             <span className="ml-1 font-sans text-xs uppercase tracking-widest text-charcoal/60">/ noite</span>
           </span>
         )}
@@ -194,14 +229,15 @@ export default function BookingForm({
         <DayPicker
           mode="range"
           numberOfMonths={1}
+          locale={ptBR}
+          defaultMonth={smartDefaultMonth}
           selected={range as { from: Date | undefined; to: Date | undefined }}
           onSelect={(r) => setRange({ from: r?.from, to: r?.to })}
-          disabled={[
-            { before: todayPlus(0) },
-            { after: todayPlus(MAX_DAYS_AHEAD) },
-            ...fullyBlocked,
-          ]}
-          modifiers={{ noArrival: noArrivalDates, noDeparture: noDepartureDates }}
+          disabled={isDateDisabled}
+          modifiers={{
+            noArrival: (d: Date) => !fullyBlockedSet.has(toISO(d)) && noArrivalSet.has(toISO(d)),
+            noDeparture: (d: Date) => !fullyBlockedSet.has(toISO(d)) && noDepartureSet.has(toISO(d)),
+          }}
           modifiersClassNames={{
             noArrival: "rdp-no-arrival",
             noDeparture: "rdp-no-departure",
@@ -209,9 +245,16 @@ export default function BookingForm({
           weekStartsOn={0}
         />
       </div>
-      {minStayHint && (
-        <p className="font-sans text-[0.7rem] text-copper">{minStayHint}</p>
-      )}
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-charcoal/5 pt-3 font-sans text-[0.6rem] uppercase tracking-[0.15em] text-charcoal/50">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-copper/50" />
+          Só check-out
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-charcoal/15" />
+          Indisponível
+        </span>
+      </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 border-y border-charcoal/10 py-4 text-sm">
         <div>
@@ -287,56 +330,56 @@ export default function BookingForm({
           </button>
         </div>
       )}
-      {quote?.couponError && (
-        <p className="mt-2 font-sans text-xs text-red-600">{quote.couponError}</p>
+      {okQuote?.couponError && (
+        <p className="mt-2 font-sans text-xs text-red-600">{okQuote.couponError}</p>
       )}
-      {quote?.coupon && (
+      {okQuote?.coupon && (
         <p className="mt-2 font-sans text-xs text-serra">
-          ✓ {quote.coupon.code} aplicado — {quote.coupon.description}
+          ✓ {okQuote.coupon.code} aplicado — {okQuote.coupon.description}
         </p>
       )}
 
-      {quote && quote.nights > 0 && (
+      {okQuote && okQuote.nights > 0 && (
         <div className="mt-6 space-y-2 border-t border-charcoal/10 pt-4 font-sans text-sm">
           <div className="flex justify-between text-charcoal/80">
-            <span>{formatBRLPrecise(quote.averageNightly)} × {quote.nights} {quote.nights === 1 ? "noite" : "noites"}</span>
-            <span>{formatBRLPrecise(quote.baseTotal)}</span>
+            <span>{formatBRLPrecise(okQuote.averageNightly)} × {okQuote.nights} {okQuote.nights === 1 ? "noite" : "noites"}</span>
+            <span>{formatBRLPrecise(okQuote.baseTotal)}</span>
           </div>
-          {quote.discount > 0 && (
-            <div className="flex justify-between text-serra">
-              <span>Desconto de estadia</span>
-              <span>− {formatBRLPrecise(quote.discount)}</span>
-            </div>
-          )}
-          {quote.cleaningFee > 0 && (
+          {okQuote.cleaningFee > 0 && (
             <div className="flex justify-between text-charcoal/80">
               <span>Taxa de limpeza</span>
-              <span>{formatBRLPrecise(quote.cleaningFee)}</span>
+              <span>{formatBRLPrecise(okQuote.cleaningFee)}</span>
             </div>
           )}
-          {quote.coupon && (
+          {okQuote.extraGuestFee > 0 && (
+            <div className="flex justify-between text-charcoal/80">
+              <span>Hóspedes adicionais</span>
+              <span>{formatBRLPrecise(okQuote.extraGuestFee)}</span>
+            </div>
+          )}
+          {okQuote.coupon && (
             <div className="flex justify-between text-serra">
-              <span>Cupom {quote.coupon.code}</span>
-              <span>− {formatBRLPrecise(quote.coupon.discount)}</span>
+              <span>Cupom {okQuote.coupon.code}</span>
+              <span>− {formatBRLPrecise(okQuote.coupon.discount)}</span>
             </div>
           )}
-          {quote.pixDiscount > 0 && (
+          {okQuote.pixDiscount > 0 && (
             <div className="flex justify-between text-serra">
               <span>Desconto Pix (3%)</span>
-              <span>− {formatBRLPrecise(quote.pixDiscount)}</span>
+              <span>− {formatBRLPrecise(okQuote.pixDiscount)}</span>
             </div>
           )}
           <div className="mt-3 flex items-baseline justify-between border-t border-charcoal/10 pt-3 font-serif">
             <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
-            <span className="text-3xl text-charcoal">{formatBRLPrecise(quote.finalTotal)}</span>
+            <span className="text-3xl text-charcoal">{formatBRLPrecise(okQuote.finalTotal)}</span>
           </div>
         </div>
       )}
 
       {loading && <p className="mt-4 font-sans text-xs text-charcoal/50">Calculando preço…</p>}
-      {!quote && !loading && range.from && range.to && range.from !== range.to && (
-        <p className="mt-4 font-sans text-xs text-charcoal/50">
-          Preço indisponível para essas datas. Tente outras ou fale com o concierge.
+      {failure && (
+        <p className="mt-4 font-sans text-xs text-copper">
+          {failure.message}
         </p>
       )}
 

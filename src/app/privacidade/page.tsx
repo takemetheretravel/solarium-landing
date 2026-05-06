@@ -85,7 +85,7 @@ export default function PrivacidadePage() {
             <li>Revogação do consentimento, sem prejuízo dos tratamentos baseados em outras bases legais</li>
           </ul>
           <p>
-            Para exercer qualquer um desses direitos, entre em contato pelo e-mail <a href={`mailto:${SITE.email}`}>{SITE.email}</a> ou WhatsApp <strong>{SITE.whatsappDisplay}</strong>. Responderemos em até 15 dias úteis.
+            Para exercer qualquer um desses direitos, entre em contato pelo WhatsApp <strong>{SITE.whatsappDisplay}</strong>. Responderemos em até 15 dias úteis.
           </p>
 
           <h2>5. Retenção e segurança</h2>
@@ -106,7 +106,7 @@ export default function PrivacidadePage() {
           <h2>8. Encarregado e contato</h2>
           <p>
             <strong>Controlador:</strong> {SITE.legalName} (CNPJ {SITE.cnpj}).<br />
-            <strong>Encarregado de Dados (DPO):</strong> contato pelo e-mail <a href={`mailto:${SITE.email}`}>{SITE.email}</a> ou WhatsApp <strong>{SITE.whatsappDisplay}</strong>.
+            <strong>Encarregado de Dados (DPO):</strong> contato pelo WhatsApp <strong>{SITE.whatsappDisplay}</strong>.
           </p>
 
           <h2>9. Atualizações desta política</h2>

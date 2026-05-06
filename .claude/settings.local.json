@@ -28,7 +28,13 @@
       "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Sprint 1: full landing with Hostaway integration, booking flow, content pages\")",
       "Read(//tmp/**)",
       "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\).result||[]; r.forEach\\(d=>console.log\\(JSON.stringify\\(d\\)\\)\\);}\\)\")",
-      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Sprint 2.5: Hostaway 403-retry+debug, end-to-end booking draft, 17 UX/copy/visual fixes\")"
+      "Bash(git -c user.name=\"Lucas\" -c user.email=\"lucas@solariummantiqueira.com\" commit -m \"Sprint 2.5: Hostaway 403-retry+debug, end-to-end booking draft, 17 UX/copy/visual fixes\")",
+      "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\); console.log\\('status:',r.status,'days:',\\(r.result||[]\\).length\\); \\(r.result||[]\\).forEach\\(d=>console.log\\(d.date,'price:',d.price,'avail:',d.isAvailable\\)\\);}\\)\")",
+      "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\).result; console.log\\('cleaningFee:',r.cleaningFee,'guestPerPersonPerNightTax:',r.guestPerPersonPerNightTax,'guestStayTax:',r.guestStayTax,'guestNightlyTax:',r.guestNightlyTax,'guestsIncluded:',r.guestsIncluded,'priceForExtraPerson:',r.priceForExtraPerson,'weeklyDiscount:',r.weeklyDiscount,'monthlyDiscount:',r.monthlyDiscount\\);}\\)\")",
+      "Bash(rm -f /tmp/solarium-dev.log)",
+      "Bash(curl -s \"http://localhost:3000/api/debug/price-test?key=lucas2026&propertyId=316007&checkin=2026-06-15&checkout=2026-06-18&guests=2\")",
+      "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\); console.log\\('approach:',r.approach\\); console.log\\('result:', JSON.stringify\\(r.result,null,2\\).slice\\(0,500\\)\\); console.log\\('rawDays:', r.rawDays.length,'days'\\);}\\)\")",
+      "Bash(node scripts/download-images.mjs)"
     ]
   }
 }

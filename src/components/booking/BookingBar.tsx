@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
+import { ptBR } from "date-fns/locale";
 import { CalendarDays, Users, ArrowRight } from "lucide-react";
 
-type CombinedDay = { date: string; anyAvailable: boolean; anyArrival: boolean; minPrice: number | null };
+type CombinedDay = {
+  date: string;
+  anyAvailable: boolean;
+  anyArrival: boolean;
+  minPrice: number | null;
+};
+
+const MAX_DAYS_AHEAD = 540;
 
 function todayPlus(days: number): Date {
   const d = new Date();
@@ -36,10 +44,7 @@ function fmtDateBR(d: Date | undefined): string {
 
 export default function BookingBar() {
   const router = useRouter();
-  const [range, setRange] = useState<{ from?: Date; to?: Date }>({
-    from: todayPlus(14),
-    to: todayPlus(16),
-  });
+  const [range, setRange] = useState<{ from?: Date; to?: Date }>({});
   const [guests, setGuests] = useState(2);
   const [open, setOpen] = useState<"none" | "dates">("none");
   const [days, setDays] = useState<CombinedDay[]>([]);
@@ -47,7 +52,7 @@ export default function BookingBar() {
 
   useEffect(() => {
     const start = toISO(todayPlus(0));
-    const end = toISO(todayPlus(540));
+    const end = toISO(todayPlus(MAX_DAYS_AHEAD));
     fetch(`/api/calendar/combined?start=${start}&end=${end}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -68,17 +73,40 @@ export default function BookingBar() {
     }
   }, [open]);
 
-  const { fullyBlocked, noArrival } = useMemo(() => {
-    const fullyBlocked: Date[] = [];
-    const noArrival: Date[] = [];
+  const { fullyBlockedSet, noArrivalSet } = useMemo(() => {
+    const fullyBlockedSet = new Set<string>();
+    const noArrivalSet = new Set<string>();
     for (const d of days) {
-      const date = fromISO(d.date);
-      if (!date) continue;
-      if (!d.anyAvailable) fullyBlocked.push(date);
-      else if (!d.anyArrival) noArrival.push(date);
+      if (!d.anyAvailable) fullyBlockedSet.add(d.date);
+      else if (!d.anyArrival) noArrivalSet.add(d.date);
     }
-    return { fullyBlocked, noArrival };
+    return { fullyBlockedSet, noArrivalSet };
   }, [days]);
+
+  const isChoosingCheckout = Boolean(range.from && !range.to);
+
+  const isDateDisabled = useCallback((date: Date): boolean => {
+    const iso = toISO(date);
+    const today = toISO(todayPlus(0));
+    const maxDate = toISO(todayPlus(MAX_DAYS_AHEAD));
+    if (iso < today || iso > maxDate) return true;
+    if (fullyBlockedSet.has(iso)) return true;
+    if (!isChoosingCheckout) return noArrivalSet.has(iso);
+    if (range.from && date <= range.from) return true;
+    return false;
+  }, [isChoosingCheckout, fullyBlockedSet, noArrivalSet, range.from]);
+
+  const smartDefaultMonth = useMemo(() => {
+    if (range.from) return range.from;
+    if (days.length === 0) return todayPlus(14);
+    for (let i = 0; i < 30; i++) {
+      const target = todayPlus(i);
+      const iso = toISO(target);
+      const day = days.find((d) => d.date === iso);
+      if (day?.anyArrival) return target;
+    }
+    return todayPlus(14);
+  }, [days, range.from]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -156,10 +184,12 @@ export default function BookingBar() {
               mode="range"
               numberOfMonths={2}
               pagedNavigation
+              locale={ptBR}
+              defaultMonth={smartDefaultMonth}
               selected={range as { from: Date | undefined; to: Date | undefined }}
               onSelect={(r) => setRange({ from: r?.from, to: r?.to })}
-              disabled={[{ before: todayPlus(0) }, { after: todayPlus(540) }, ...fullyBlocked]}
-              modifiers={{ noArrival }}
+              disabled={isDateDisabled}
+              modifiers={{ noArrival: (d: Date) => !fullyBlockedSet.has(toISO(d)) && noArrivalSet.has(toISO(d)) }}
               modifiersClassNames={{ noArrival: "rdp-no-arrival" }}
               weekStartsOn={0}
             />

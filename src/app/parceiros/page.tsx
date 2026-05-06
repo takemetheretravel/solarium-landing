@@ -4,7 +4,7 @@ import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
-import DriveImage from "@/components/ui/DriveImage";
+import SmartImage from "@/components/ui/SmartImage";
 import { PARTNERS, instagramLink } from "@/config/site";
 
 export const metadata: Metadata = {
@@ -25,8 +25,8 @@ export default function ParceirosPage() {
   return (
     <main>
       <section className="relative h-[55vh] min-h-[400px] w-full overflow-hidden">
-        <DriveImage
-          fileId="1Dsan8yfE0CCrWd1H082S2SgRhG6HIfbO"
+        <SmartImage
+          src="/images/solarium-1/07-nevoeiro-plantas.jpg"
           alt="Detalhes da casa em integração com a serra"
           priority
           sizes="100vw"

@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { Metadata } from "next";
-import { ArrowLeft, MessageCircle } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Container from "@/components/ui/Container";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
-import DriveImage from "@/components/ui/DriveImage";
-import GuestForm from "@/components/booking/GuestForm";
+import SmartImage from "@/components/ui/SmartImage";
+import BookingPageClient from "@/components/booking/BookingPageClient";
 import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
 import { calculatePrice } from "@/lib/hostaway";
-import { validateCoupon, SITE, whatsappLink } from "@/config/site";
 import { formatBRLPrecise } from "@/lib/cn";
 
 export const metadata: Metadata = {
@@ -34,7 +33,22 @@ function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "check
 
 export default async function ReservarPage({ searchParams }: { searchParams: Search }) {
   if (!isComplete(searchParams)) {
-    return <ChooseProperty />;
+    const checkin = searchParams.checkin;
+    const checkout = searchParams.checkout;
+    const guests = Number(searchParams.guests || 2);
+
+    let prices: Record<string, number | null> = {};
+    if (checkin && checkout) {
+      const results = await Promise.all(
+        PROPERTIES.map(async (p) => {
+          const q = await calculatePrice(p.id, checkin, checkout, guests);
+          return { slug: p.slug, total: q?.totalPrice ?? null };
+        })
+      );
+      results.forEach((r) => { prices[r.slug] = r.total; });
+    }
+
+    return <ChooseProperty checkin={checkin} checkout={checkout} guests={guests} prices={prices} />;
   }
 
   const property = getPropertyBySlug(searchParams.propertyId);
@@ -46,18 +60,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
   const couponCode = (searchParams.coupon || "").trim().toUpperCase();
 
   const quote = await calculatePrice(property.id, checkin, checkout, guests);
-
-  let couponDiscount = 0;
-  let runningTotal = quote?.totalPrice ?? 0;
-  if (quote && couponCode) {
-    const v = validateCoupon(couponCode, quote.nights, quote.totalPrice);
-    if (v.valid) {
-      couponDiscount = v.discountAmount;
-      runningTotal -= couponDiscount;
-    }
-  }
-  const pixDiscount = paymentMethod === "pix" ? runningTotal * 0.03 : 0;
-  runningTotal -= pixDiscount;
+  if (!quote) console.error("[reservar] calculatePrice returned null for", property.id, checkin, checkout, guests);
 
   return (
     <main className="bg-cream pt-32 pb-20">
@@ -80,96 +83,43 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
           </p>
         </div>
 
-        <div className="mt-12 grid gap-12 lg:grid-cols-[1.4fr_1fr] lg:gap-16">
-          <section>
-            {quote ? (
-              <GuestForm
-                propertySlug={property.slug}
-                checkin={checkin}
-                checkout={checkout}
-                guests={guests}
-                paymentMethod={paymentMethod}
-                couponCode={couponCode || undefined}
-              />
-            ) : (
-              <div className="border border-red-300 bg-red-50 p-6 font-sans text-sm text-red-700">
-                <p>Não conseguimos calcular o preço para essas datas no momento.</p>
-                <p className="mt-2">
-                  Por favor, tente outras datas em{" "}
-                  <Link href={`/${property.slug}`} className="underline">
-                    /{property.slug}
-                  </Link>{" "}
-                  ou fale com o concierge.
-                </p>
-                <a
-                  href={whatsappLink(`Olá! Tive problema ao reservar o ${property.name} de ${checkin} a ${checkout}.`)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-2 bg-charcoal px-4 py-2 font-sans text-xs uppercase tracking-widest text-cream"
-                >
-                  <MessageCircle className="h-4 w-4" /> Falar com o concierge
-                </a>
-              </div>
-            )}
-          </section>
-
-          <aside className="lg:sticky lg:top-28 lg:self-start">
-            <div className="border border-charcoal/10 bg-white">
-              <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
-                <DriveImage
-                  fileId={property.heroImageId}
-                  alt={property.name}
-                  sizes="(max-width: 1024px) 100vw, 40vw"
-                />
-              </div>
-              <div className="p-6">
-                <Kicker className="mb-2">{property.badge}</Kicker>
-                <h2 className="font-serif text-2xl text-charcoal">{property.name}</h2>
-                <ul className="mt-5 space-y-3 border-y border-charcoal/10 py-5 font-sans text-sm">
-                  <li className="flex justify-between"><span className="text-charcoal/60">Check-in</span><span className="text-charcoal">{new Date(checkin).toLocaleDateString("pt-BR")}</span></li>
-                  <li className="flex justify-between"><span className="text-charcoal/60">Check-out</span><span className="text-charcoal">{new Date(checkout).toLocaleDateString("pt-BR")}</span></li>
-                  <li className="flex justify-between"><span className="text-charcoal/60">Hóspedes</span><span className="text-charcoal">{guests}</span></li>
-                  {quote && <li className="flex justify-between"><span className="text-charcoal/60">Noites</span><span className="text-charcoal">{quote.nights}</span></li>}
-                </ul>
-
-                {quote && (
-                  <div className="mt-5 space-y-2 font-sans text-sm">
-                    <div className="flex justify-between text-charcoal/80">
-                      <span>Subtotal</span>
-                      <span>{formatBRLPrecise(quote.totalPrice)}</span>
-                    </div>
-                    {couponDiscount > 0 && (
-                      <div className="flex justify-between text-serra">
-                        <span>Cupom {couponCode}</span>
-                        <span>− {formatBRLPrecise(couponDiscount)}</span>
-                      </div>
-                    )}
-                    {pixDiscount > 0 && (
-                      <div className="flex justify-between text-serra">
-                        <span>Desconto Pix (3%)</span>
-                        <span>− {formatBRLPrecise(pixDiscount)}</span>
-                      </div>
-                    )}
-                    <div className="mt-3 flex items-baseline justify-between border-t border-charcoal/10 pt-3 font-serif">
-                      <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
-                      <span className="text-3xl text-charcoal">{formatBRLPrecise(runningTotal)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <p className="mt-4 text-center font-sans text-xs text-charcoal/50">
-              Dúvidas? <a href={whatsappLink("Olá! Estou na etapa de preencher meus dados para reservar.")} target="_blank" rel="noopener noreferrer" className="text-copper underline">{SITE.whatsappDisplay}</a>
-            </p>
-          </aside>
-        </div>
+        <BookingPageClient
+          property={{
+            slug: property.slug,
+            name: property.name,
+            badge: property.badge,
+            heroImage: property.heroImage,
+          }}
+          checkin={checkin}
+          checkout={checkout}
+          guests={guests}
+          initialPaymentMethod={paymentMethod}
+          initialCouponCode={couponCode || undefined}
+          quote={quote ? { totalPrice: quote.totalPrice, nights: quote.nights } : null}
+        />
       </Container>
     </main>
   );
 }
 
-function ChooseProperty() {
+function ChooseProperty({
+  checkin,
+  checkout,
+  guests,
+  prices,
+}: {
+  checkin?: string;
+  checkout?: string;
+  guests?: number;
+  prices?: Record<string, number | null>;
+}) {
+  const hasDates = Boolean(checkin && checkout);
+
+  function fmtDate(iso: string) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  }
+
   return (
     <main className="bg-cream pt-32 pb-20">
       <Container>
@@ -177,28 +127,46 @@ function ChooseProperty() {
         <Heading level={1} className="text-4xl sm:text-5xl">
           Escolha a casa para reservar.
         </Heading>
-        <p className="mt-4 max-w-2xl font-sans text-base text-charcoal/70">
-          Selecione a casa, datas e hóspedes para iniciar a reserva.
-        </p>
+        {hasDates ? (
+          <p className="mt-4 max-w-2xl font-sans text-base text-charcoal/70">
+            {guests} hóspede{guests !== 1 ? "s" : ""} · {fmtDate(checkin!)} → {fmtDate(checkout!)}
+          </p>
+        ) : (
+          <p className="mt-4 max-w-2xl font-sans text-base text-charcoal/70">
+            Selecione a casa, datas e hóspedes para iniciar a reserva.
+          </p>
+        )}
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
-          {PROPERTIES.map((p) => (
-            <Link
-              key={p.slug}
-              href={`/${p.slug}`}
-              className="group flex flex-col bg-cream transition-all hover:-translate-y-1"
-            >
-              <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
-                <DriveImage fileId={p.cardImageId} alt={p.name} sizes="(max-width: 1024px) 100vw, 33vw" />
-              </div>
-              <div className="border-t border-charcoal/10 p-6">
-                <Kicker className="mb-2">{p.badge}</Kicker>
-                <h2 className="font-serif text-2xl text-charcoal">{p.name}</h2>
-                <p className="mt-2 font-sans text-sm text-charcoal/60">
-                  Ideal para {p.capacity.ideal} · acomoda até {p.capacity.max}
-                </p>
-              </div>
-            </Link>
-          ))}
+          {PROPERTIES.map((p) => {
+            const total = prices?.[p.slug];
+            const href = hasDates
+              ? `/reservar?propertyId=${p.slug}&checkin=${checkin}&checkout=${checkout}&guests=${guests}`
+              : `/${p.slug}`;
+
+            return (
+              <Link
+                key={p.slug}
+                href={href}
+                className="group flex flex-col bg-cream transition-all hover:-translate-y-1"
+              >
+                <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
+                  <SmartImage src={p.cardImage} alt={p.name} sizes="(max-width: 1024px) 100vw, 33vw" />
+                </div>
+                <div className="border-t border-charcoal/10 p-6">
+                  <Kicker className="mb-2">{p.badge}</Kicker>
+                  <h2 className="font-serif text-2xl text-charcoal">{p.name}</h2>
+                  <p className="mt-2 font-sans text-sm text-charcoal/60">
+                    Ideal para {p.capacity.ideal} · acomoda até {p.capacity.max}
+                  </p>
+                  {hasDates && (
+                    <p className="mt-3 font-serif text-xl text-charcoal">
+                      {total != null ? formatBRLPrecise(total) : "Consulte disponibilidade"}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </Container>
     </main>

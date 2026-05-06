@@ -10,6 +10,7 @@ type Props = {
   checkout: string;
   guests: number;
   paymentMethod: "card" | "pix";
+  onPaymentMethodChange: (pm: "card" | "pix") => void;
   couponCode?: string;
 };
 
@@ -61,7 +62,8 @@ export default function GuestForm(props: Props) {
   const [cpf, setCpf] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">(props.paymentMethod);
+  const paymentMethod = props.paymentMethod;
+  const setPaymentMethod = props.onPaymentMethodChange;
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

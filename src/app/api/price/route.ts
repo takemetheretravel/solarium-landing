@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { calculatePrice } from "@/lib/hostaway";
+import { calculatePriceDetailed } from "@/lib/hostaway";
 import { getPropertyBySlug, getPropertyById } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const paymentMethod = searchParams.get("payment") || "card";
 
   if (!propertyParam || !checkin || !checkout) {
-    return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Missing parameters" }, { status: 400 });
   }
 
   const idNum = Number(propertyParam);
@@ -24,13 +24,22 @@ export async function GET(req: NextRequest) {
     ? getPropertyById(idNum)
     : getPropertyBySlug(propertyParam);
   if (!property) {
-    return NextResponse.json({ error: "Property not found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: "Property not found" }, { status: 404 });
   }
 
-  const quote = await calculatePrice(property.id, checkin, checkout, guests);
-  if (!quote) {
-    return NextResponse.json({ error: "Price unavailable" }, { status: 502 });
+  const result = await calculatePriceDetailed(property.id, checkin, checkout, guests);
+  if ("failure" in result) {
+    return NextResponse.json(
+      {
+        ok: false,
+        failure: result.failure,
+        propertySlug: property.slug,
+      },
+      { status: result.failure.reason === "api-error" ? 502 : 200 },
+    );
   }
+
+  const quote = result.quote;
 
   let couponApplied: { code: string; description: string; discount: number } | null = null;
   let couponError: string | null = null;
@@ -57,12 +66,14 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
+    ok: true,
     propertySlug: property.slug,
     propertyId: property.id,
     propertyName: property.name,
     nights: quote.nights,
     averageNightly: quote.averageNightly,
     cleaningFee: quote.cleaningFee,
+    extraGuestFee: quote.extraGuestFee,
     discount: quote.discount,
     baseTotal: quote.baseTotal,
     hostawayTotal: quote.totalPrice,

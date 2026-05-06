@@ -44,10 +44,23 @@ export type HostawayPriceQuote = {
   baseTotal: number;
   discount: number;
   cleaningFee: number;
+  extraGuestFee: number;
   currency: string;
   nights: number;
   averageNightly: number;
+  source: "calendar-sum";
   raw: unknown;
+};
+
+export type HostawayPriceFailure = {
+  reason:
+    | "missing-data"
+    | "unavailable-day"
+    | "min-stay-not-met"
+    | "max-stay-exceeded"
+    | "api-error";
+  message: string;
+  meta?: Record<string, unknown>;
 };
 
 type TokenInfo = { value: string; expiresAt: number; obtainedAt: number };
@@ -270,41 +283,104 @@ export async function getCombinedCalendar(
     .map(([date, v]) => ({ date, ...v }));
 }
 
+/**
+ * Hostaway no longer exposes /calendarPriceCalculator (404 em maio/2026).
+ * Probamos também /priceDetails, /priceCalculator, /reservations/calculator — todos 404.
+ *
+ * Abordagem que funciona: somar `price` diário do GET /calendar
+ * (que já reflete pricing dinâmico) + cleaningFee + extra-guest fee da própria listing.
+ * Diários do Hostaway costumam vir já líquidos de descontos por temporada.
+ */
+export async function calculatePriceDetailed(
+  id: number,
+  checkin: string,
+  checkout: string,
+  guests: number,
+): Promise<{ quote: HostawayPriceQuote } | { failure: HostawayPriceFailure }> {
+  const nights = nightsBetween(checkin, checkout);
+  if (nights <= 0) {
+    return { failure: { reason: "missing-data", message: "Datas inválidas (check-in deve ser anterior ao check-out)." } };
+  }
+
+  // Calendar é inclusivo nas duas pontas. Para N noites a partir de checkin, pegamos
+  // checkin .. (checkout - 1 dia). Estes são os dias com cobrança (a noite estendida cobre o dia seguinte).
+  const lastNight = (() => {
+    const d = new Date(checkout + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const days = await getCalendar(id, checkin, lastNight);
+  if (!days || days.length === 0) {
+    console.error(`[Hostaway:price] Calendar vazio para listing ${id} (${checkin}..${lastNight})`);
+    return { failure: { reason: "api-error", message: "Não foi possível ler o calendário no momento." } };
+  }
+  if (days.length !== nights) {
+    console.warn(`[Hostaway:price] Calendar retornou ${days.length} dias, esperava ${nights}`);
+  }
+
+  const blocked = days.find((d) => d.isAvailable !== 1);
+  if (blocked) {
+    return {
+      failure: {
+        reason: "unavailable-day",
+        message: `A data ${blocked.date} está reservada.`,
+        meta: { date: blocked.date, status: blocked.status },
+      },
+    };
+  }
+
+  const firstDayMin = days[0]?.minimumStay ?? 1;
+  if (nights < firstDayMin) {
+    return {
+      failure: {
+        reason: "min-stay-not-met",
+        message: `Esta data exige no mínimo ${firstDayMin} noites.`,
+        meta: { minimumStay: firstDayMin, requested: nights },
+      },
+    };
+  }
+
+  const baseTotal = days.reduce((sum, d) => sum + (Number.isFinite(d.price) ? d.price : 0), 0);
+
+  const listing = await getListing(id);
+  const cleaningFee = Number(listing?.cleaningFee ?? 0);
+  const guestsIncluded = Number((listing as Record<string, unknown>)?.["guestsIncluded"] ?? 2);
+  const priceForExtraPerson = Number((listing as Record<string, unknown>)?.["priceForExtraPerson"] ?? 0);
+
+  const extraGuests = Math.max(0, guests - guestsIncluded);
+  const extraGuestFee = extraGuests * priceForExtraPerson * nights;
+
+  const totalPrice = baseTotal + cleaningFee + extraGuestFee;
+
+  console.log(
+    `[Hostaway:price] listing=${id} nights=${nights} guests=${guests} baseTotal=${baseTotal} cleaning=${cleaningFee} extra=${extraGuestFee} total=${totalPrice}`,
+  );
+
+  return {
+    quote: {
+      totalPrice,
+      baseTotal,
+      discount: 0,
+      cleaningFee,
+      extraGuestFee,
+      currency: String(listing?.currencyCode ?? "BRL"),
+      nights,
+      averageNightly: totalPrice / nights,
+      source: "calendar-sum",
+      raw: { days, listingFees: { cleaningFee, guestsIncluded, priceForExtraPerson } },
+    },
+  };
+}
+
 export async function calculatePrice(
   id: number,
   checkin: string,
   checkout: string,
   guests: number,
 ): Promise<HostawayPriceQuote | null> {
-  const json = await authFetch<{ result?: Record<string, unknown> }>(
-    `/listings/${id}/calendarPriceCalculator`,
-    {
-      method: "POST",
-      body: {
-        startingDate: checkin,
-        endingDate: checkout,
-        numberOfGuests: guests,
-        version: 2,
-      },
-    },
-  );
-  if (!json?.result) return null;
-  const r = json.result as Record<string, number | string>;
-  const totalPrice = Number(r.totalPrice ?? r.totalAmount ?? 0);
-  const baseTotal = Number(r.baseTotalPrice ?? r.totalRent ?? totalPrice);
-  const discount = Number(r.discount ?? r.totalDiscount ?? 0);
-  const cleaningFee = Number(r.cleaningFee ?? 0);
-  const nights = nightsBetween(checkin, checkout);
-  return {
-    totalPrice,
-    baseTotal,
-    discount,
-    cleaningFee,
-    currency: String(r.currency ?? r.currencyCode ?? "BRL"),
-    nights,
-    averageNightly: nights > 0 ? totalPrice / nights : 0,
-    raw: json.result,
-  };
+  const r = await calculatePriceDetailed(id, checkin, checkout, guests);
+  return "quote" in r ? r.quote : null;
 }
 
 export function nightsBetween(checkin: string, checkout: string): number {

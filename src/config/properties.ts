@@ -21,37 +21,50 @@ export type PropertyConfig = {
   differentials: string[];
   amenitiesFallback: string[];
   amenityGroups: AmenityGroup[];
-  heroImageId: string;
-  cardImageId: string;
-  galleryImageIds: string[];
+  heroImage: string;
+  cardImage: string;
+  galleryImages: string[];
 };
 
-const COMMON_GROUPS_BASE: AmenityGroup[] = [
-  {
-    groupId: "tecnologia",
-    title: "Tecnologia & Conforto",
-    iconName: "Cpu",
-    highlights: ["Automação Alexa em todos os ambientes", "Piso aquecido", "Smart TV e som integrado"],
-  },
-  {
-    groupId: "bem-estar",
-    title: "Bem-estar",
-    iconName: "Heart",
-    highlights: ["SPA com piscina infinita aquecida", "Banheira com vista para a serra", "Roupa de cama G3 Hotelaria"],
-  },
-  {
-    groupId: "natureza",
-    title: "Conexão com a Natureza",
-    iconName: "Mountain",
-    highlights: ["Vista 360° para a Serra da Mantiqueira", "Pet friendly", "Fire pit ao ar livre"],
-  },
-  {
-    groupId: "cozinha",
-    title: "Cozinha & Convivência",
-    iconName: "UtensilsCrossed",
-    highlights: ["Cozinha completa equipada", "Churrasqueira", "Deck para café da manhã"],
-  },
-];
+const TEC = (extras: string[] = []): AmenityGroup => ({
+  groupId: "tecnologia",
+  title: "Tecnologia & Conforto",
+  iconName: "Cpu",
+  highlights: ["Automação Alexa em todos os ambientes", "Piso aquecido", ...extras],
+});
+
+const BEM_ESTAR: AmenityGroup = {
+  groupId: "bem-estar",
+  title: "Bem-estar",
+  iconName: "Heart",
+  highlights: [
+    "SPA com piscina infinita aquecida",
+    "Banheira com vista para a serra",
+    "Roupa de cama G3 Hotelaria",
+  ],
+};
+
+const NATUREZA: AmenityGroup = {
+  groupId: "natureza",
+  title: "Conexão com a Natureza",
+  iconName: "Mountain",
+  highlights: [
+    "Vista 360° para a Serra da Mantiqueira",
+    "Pet friendly",
+    "Fire pit ao ar livre",
+  ],
+};
+
+const COZINHA = (churrasqueira: string): AmenityGroup => ({
+  groupId: "cozinha",
+  title: "Cozinha & Convivência",
+  iconName: "UtensilsCrossed",
+  highlights: [
+    "Cozinha completa equipada",
+    churrasqueira,
+    "Deck para café da manhã",
+  ],
+});
 
 const SOLARIUM_1: PropertyConfig = {
   id: 316007,
@@ -59,15 +72,15 @@ const SOLARIUM_1: PropertyConfig = {
   name: "Solarium 1",
   shortName: "Solarium 1",
   capacity: { ideal: 2, max: 4 },
-  badge: "Refúgio para casais",
+  badge: "Hidro com Vista Panorâmica",
   tagline: "Onde tudo começou — íntimo, premium, com vista para a Serra Fina.",
   description:
     "Solarium 1 é onde tudo começou. Pensado para casais que buscam um refúgio íntimo, integra design contemporâneo, tecnologia e a vista impressionante da Serra da Mantiqueira. A banheira de hidromassagem com vista para a serra, a cozinha aberta para o Parque Nacional do Itatiaia e o piso aquecido em todos os ambientes garantem que cada momento da sua estadia seja excepcional.",
   differentials: [
-    "SPA com piscina infinita aquecida",
-    "Banheira com vista para a Serra Fina",
+    "SPA com Hidro e borda infinita para a vista",
+    "Banheira com vista panorâmica para a Serra Fina",
     "Cozinha completa com vista para o Parque Nacional do Itatiaia",
-    "Piso aquecido",
+    "Piso aquecido em todos os ambientes",
     "Automação por Alexa",
   ],
   amenitiesFallback: [
@@ -81,21 +94,22 @@ const SOLARIUM_1: PropertyConfig = {
     "Automação Alexa",
     "Estacionamento gratuito",
     "Roupa de cama e banho premium",
+    "Churrasqueira a gás",
   ],
-  amenityGroups: COMMON_GROUPS_BASE,
-  heroImageId: "1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8",
-  cardImageId: "1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8",
-  galleryImageIds: [
-    "1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8",
-    "17W5LZJ8eLAEba49ZsGe1SK1b2t13r6Dy",
-    "1iCDdn8uREEmp5LHyMmhVqDgAkb-EtEao",
-    "12T5h6YPz1FekcJ8DgxeoJRfVoLdsMCBk",
-    "1Z4X1XXazEEfMAshKbcwnewTh4jqpL-JP",
-    "1GFb37d9ZP4wvF31UbuTzZoaAzL1QtH0i",
-    "1Dsan8yfE0CCrWd1H082S2SgRhG6HIfbO",
-    "1TwiWHWy_c0JL78C-K2EE1q5_RfAyYTi0",
-    "1GB-9iGmZ91eVpYyHorO1K6MSduJn9djN",
-    "1pvoYkpXzp3Yi3Ll-E7nmp-1SOCFLjKMd",
+  amenityGroups: [TEC(["Smart TV e som integrado"]), BEM_ESTAR, NATUREZA, COZINHA("Churrasqueira a gás")],
+  heroImage: "/images/solarium-1/01-banheira-por-do-sol.jpg",
+  cardImage: "/images/solarium-1/01-banheira-por-do-sol.jpg",
+  galleryImages: [
+    "/images/solarium-1/01-banheira-por-do-sol.jpg",
+    "/images/solarium-1/02-banheira-serra-fina.jpg",
+    "/images/solarium-1/03-cafe-na-rede.jpg",
+    "/images/solarium-1/04-vista-traseira.jpg",
+    "/images/solarium-1/05-banheira.jpg",
+    "/images/solarium-1/06-redario.jpg",
+    "/images/solarium-1/07-nevoeiro-plantas.jpg",
+    "/images/solarium-1/08-fire-pit.jpg",
+    "/images/solarium-1/09-deck-por-do-sol.jpg",
+    "/images/solarium-1/10-frente-rede-banheira.jpg",
   ],
 };
 
@@ -105,15 +119,15 @@ const SOLARIUM_2: PropertyConfig = {
   name: "Solarium 2",
   shortName: "Solarium 2",
   capacity: { ideal: 2, max: 4 },
-  badge: "Cinema integrado",
+  badge: "Cinema Integrado",
   tagline: "Cinema, SPA com teto retrátil e película inteligente — pura imersão.",
   description:
-    "Solarium 2 é a casa para quem busca uma experiência ainda mais imersiva. Cinema integrado com home theater, SPA com abertura de teto retrátil para banhos sob as estrelas, e película inteligente nas janelas que troca de transparente para opaca ao toque. Cada detalhe foi pensado para que a vista da Serra da Mantiqueira seja parte da sua estadia, sem abrir mão de privacidade.",
+    "Solarium 2 é a casa para quem busca uma experiência ainda mais imersiva. Cinema integrado com home theater, SPA com abertura de teto retrátil para banhos sob as estrelas, e película inteligente no chuveiro que troca de transparente para opaca ao toque. Cada detalhe foi pensado para que a vista da Serra da Mantiqueira seja parte da sua estadia, sem abrir mão de privacidade.",
   differentials: [
     "Cinema integrado com home theater",
+    "SPA de imersão com borda infinita voltada para o cinema",
     "SPA com abertura de teto retrátil",
-    "Película inteligente nas janelas",
-    "Maior imersão visual com a serra",
+    "Película inteligente para o chuveiro",
     "Piso aquecido",
   ],
   amenitiesFallback: [
@@ -121,37 +135,33 @@ const SOLARIUM_2: PropertyConfig = {
     "Piso aquecido",
     "Cinema com home theater",
     "SPA com teto retrátil",
-    "Película inteligente",
+    "Película inteligente para o chuveiro",
     "Banheira de hidromassagem",
     "Cozinha completa",
     "Smart TV",
     "Estacionamento gratuito",
     "Roupa de cama e banho premium",
+    "Churrasqueira a gás e a carvão",
   ],
   amenityGroups: [
-    {
-      groupId: "tecnologia",
-      title: "Tecnologia & Conforto",
-      iconName: "Cpu",
-      highlights: ["Automação Alexa em todos os ambientes", "Piso aquecido", "Película inteligente nas janelas"],
-    },
-    COMMON_GROUPS_BASE[1],
-    COMMON_GROUPS_BASE[2],
-    COMMON_GROUPS_BASE[3],
+    TEC(["Película inteligente no chuveiro"]),
+    BEM_ESTAR,
+    NATUREZA,
+    COZINHA("Churrasqueira a gás e a carvão"),
   ],
-  heroImageId: "1XZiLJItP4aC4A6rHZvEjiSahvc3g-yN3",
-  cardImageId: "1vo02TebjcJMEemE-qeataUsP2Hb2syr_",
-  galleryImageIds: [
-    "1XZiLJItP4aC4A6rHZvEjiSahvc3g-yN3",
-    "191sIkH7sYeooyP-Gyi-9RETR6HVwAXfy",
-    "1AqotYVMMzKIDHxdQ3Br-l_0M7NpECU3Y",
-    "17D_HYSerOCXpPeA5Zj-MlYEV8e8UsjE2",
-    "1vo02TebjcJMEemE-qeataUsP2Hb2syr_",
-    "1HidRA1fmmMeHj8kGZFl9mLRq5i0MEFIp",
-    "1YcFd3mmu5uoAt7iRuOTt4SU2HgiPgOMj",
-    "1heOGdG2Wjnvo5xhEfqQH-p6RnHpUJ-JZ",
-    "1mFvtNGtLA3pPq7dBijeK6H-F-x1IEGyo",
-    "1AXEISGXaorcWNBcSV1VCnoRkLv1ooeaB",
+  heroImage: "/images/solarium-2/01-deck-serra-fina.jpg",
+  cardImage: "/images/solarium-2/05-spa-teto-retratil.jpg",
+  galleryImages: [
+    "/images/solarium-2/01-deck-serra-fina.jpg",
+    "/images/solarium-2/02-banheira-por-do-sol.jpg",
+    "/images/solarium-2/03-frente-por-do-sol.jpg",
+    "/images/solarium-2/04-cinema-por-do-sol.jpg",
+    "/images/solarium-2/05-spa-teto-retratil.jpg",
+    "/images/solarium-2/06-spa-teto-retratil-2.jpg",
+    "/images/solarium-2/07-quarto-por-do-sol.jpg",
+    "/images/solarium-2/08-cinema-deck.jpg",
+    "/images/solarium-2/09-deck-tv.jpg",
+    "/images/solarium-2/10-quarto-decorado.jpg",
   ],
 };
 
@@ -161,7 +171,7 @@ const SOLARIUM_COMPLETO: PropertyConfig = {
   name: "Solarium Completo",
   shortName: "Completo",
   capacity: { ideal: 4, max: 8 },
-  badge: "Para grupos e celebrações",
+  badge: "Para Grupos e Celebrações",
   tagline: "As duas casas reservadas para você. Privacidade total.",
   description:
     "Solarium Completo é a reserva de ambas as casas para uma experiência exclusiva. Privacidade total da propriedade, ideal para celebrações, reuniões de família ou grupos pequenos que querem aproveitar o melhor das duas casas — do cinema integrado do Solarium 2 ao SPA com piscina infinita do Solarium 1, sem nenhum vizinho.",
@@ -177,17 +187,23 @@ const SOLARIUM_COMPLETO: PropertyConfig = {
     "Capacidade para 8 hóspedes",
     "Cinema, SPA aquecido e duas banheiras de hidromassagem",
     "Estacionamento amplo",
+    "Duas churrasqueiras (a gás e a carvão)",
   ],
-  amenityGroups: COMMON_GROUPS_BASE,
-  heroImageId: "1-Uu90NgdM46pp9wsQbHTXTG_x5gRawUX",
-  cardImageId: "1-Uu90NgdM46pp9wsQbHTXTG_x5gRawUX",
-  galleryImageIds: [
-    "1-Uu90NgdM46pp9wsQbHTXTG_x5gRawUX",
-    "1d7joJITenVQK_yoIgeFAowU441VuU2nL",
-    "1n55Z5DEk27v1lUVKIlnr8FxYuAPJNxUW",
-    "1fRqaIpWbAf6BLmRRcryCR6QnEpJ4u54h",
-    "1V4dG3DWLIOoCUfuNu13Iw23QE4Uu_ONM",
-    "1wDkVd1AOfckbf5iKyXC2-hKnrmJG74Gq",
+  amenityGroups: [
+    TEC(["Smart TV e som integrado", "Película inteligente no chuveiro (Solarium 2)"]),
+    BEM_ESTAR,
+    NATUREZA,
+    COZINHA("Duas churrasqueiras (a gás e a carvão)"),
+  ],
+  heroImage: "/images/solarium-completo/01-frente-externa.jpg",
+  cardImage: "/images/solarium-completo/01-frente-externa.jpg",
+  galleryImages: [
+    "/images/solarium-completo/01-frente-externa.jpg",
+    "/images/solarium-completo/02-noite-com-lua.jpg",
+    "/images/solarium-completo/03-final-de-tarde.jpg",
+    "/images/solarium-completo/04-drone-serra-itatiaia.jpg",
+    "/images/solarium-completo/05-drone-itatiaia.jpg",
+    "/images/solarium-completo/06-drone-serra-papagaio.jpg",
   ],
 };
 
@@ -201,32 +217,32 @@ export function getPropertyById(id: number): PropertyConfig | undefined {
   return PROPERTIES.find((p) => p.id === id);
 }
 
-export const SOLARIUM_COMPLETO_GALLERY_GROUPS: { title: string; ids: string[] }[] = [
+export const SOLARIUM_COMPLETO_GALLERY_GROUPS: { title: string; images: string[] }[] = [
   {
     title: "Solarium 1",
-    ids: [
-      "1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8",
-      "17W5LZJ8eLAEba49ZsGe1SK1b2t13r6Dy",
-      "12T5h6YPz1FekcJ8DgxeoJRfVoLdsMCBk",
-      "1TwiWHWy_c0JL78C-K2EE1q5_RfAyYTi0",
+    images: [
+      "/images/solarium-1/01-banheira-por-do-sol.jpg",
+      "/images/solarium-1/02-banheira-serra-fina.jpg",
+      "/images/solarium-1/04-vista-traseira.jpg",
+      "/images/solarium-1/08-fire-pit.jpg",
     ],
   },
   {
     title: "Solarium 2",
-    ids: [
-      "1XZiLJItP4aC4A6rHZvEjiSahvc3g-yN3",
-      "1vo02TebjcJMEemE-qeataUsP2Hb2syr_",
-      "17D_HYSerOCXpPeA5Zj-MlYEV8e8UsjE2",
-      "1heOGdG2Wjnvo5xhEfqQH-p6RnHpUJ-JZ",
+    images: [
+      "/images/solarium-2/01-deck-serra-fina.jpg",
+      "/images/solarium-2/05-spa-teto-retratil.jpg",
+      "/images/solarium-2/04-cinema-por-do-sol.jpg",
+      "/images/solarium-2/08-cinema-deck.jpg",
     ],
   },
   {
     title: "Visões do conjunto",
-    ids: [
-      "1-Uu90NgdM46pp9wsQbHTXTG_x5gRawUX",
-      "1d7joJITenVQK_yoIgeFAowU441VuU2nL",
-      "1fRqaIpWbAf6BLmRRcryCR6QnEpJ4u54h",
-      "1V4dG3DWLIOoCUfuNu13Iw23QE4Uu_ONM",
+    images: [
+      "/images/solarium-completo/01-frente-externa.jpg",
+      "/images/solarium-completo/02-noite-com-lua.jpg",
+      "/images/solarium-completo/04-drone-serra-itatiaia.jpg",
+      "/images/solarium-completo/05-drone-itatiaia.jpg",
     ],
   },
 ];

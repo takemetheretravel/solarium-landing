@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getDiagnostic, getListings, getListing } from "@/lib/hostaway";
+import PriceTester from "@/components/debug/PriceTester";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,20 @@ export default async function HostawayDebugPage({
               Nenhuma listing retornada. Verifique credenciais ou tente regenerar o token.
             </p>
           )}
+        </section>
+
+        <section className="mt-10 border border-charcoal/10 bg-white p-6">
+          <h2 className="font-serif text-2xl text-charcoal">Teste de preço</h2>
+          <p className="mt-2 font-sans text-sm text-charcoal/70">
+            <code className="bg-charcoal/5 px-1 py-0.5 text-xs">/calendarPriceCalculator</code> retorna 404 em produção.
+            Usamos <strong>soma das diárias do <code>/calendar</code> + cleaningFee + extra-guest fee</strong>.
+          </p>
+          <div className="mt-4">
+            <PriceTester
+              properties={listings.map((l) => ({ id: l.id, name: l.name }))}
+              debugKey={DEBUG_KEY}
+            />
+          </div>
         </section>
 
         {detail && (

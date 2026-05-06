@@ -2,7 +2,7 @@ export const SITE = {
   name: "Solarium Mantiqueira",
   legalName: "Take Me There",
   cnpj: "42.927.255/0001-44",
-  email: "reservas@solariummantiqueira.com",
+  email: "",
   whatsappNumber: "5535984075652",
   whatsappDisplay: "+55 35 98407-5652",
   instagram: "solariummantiqueira",
@@ -10,16 +10,18 @@ export const SITE = {
   pixDiscountPercent: 3,
 };
 
-// LOGO assets (Drive file IDs)
+// LOGO assets (paths locais em /public)
 export const LOGO = {
-  black: "1IZbgrnYYsZi8Z_EUgUvcS8Ve16ZO777w",
-  white: "1OV15NPns0IWYMPXZuyiOUEz7PUe5Dr8l",
+  black: "/images/comum/logo-preto.png",
+  white: "/images/comum/logo-branco.png",
+  square: "/images/comum/logo-quadrado.png",
 };
 
-// Hero video — TODO: preencher com fileId do vídeo "headline"/"360 Solarium 1" da pasta landing_page do Drive.
+export const HERO_IMAGE = "/images/comum/hero-banheira-por-do-sol.jpg";
+
+// Hero video — TODO: preencher com path local quando baixar o vídeo "headline" da pasta landing_page do Drive.
 // Enquanto vazio, o HeroVideo cai automaticamente no fallback (foto da banheira).
-// Para descobrir o ID: abra o vídeo no Drive, copie o link de compartilhamento, o ID é a string entre /d/ e /view.
-export const HERO_VIDEO_FILE_ID = "";
+export const HERO_VIDEO_PATH = "";
 
 export function whatsappLink(message: string): string {
   return `https://wa.me/${SITE.whatsappNumber}?text=${encodeURIComponent(message)}`;

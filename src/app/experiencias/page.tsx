@@ -5,7 +5,7 @@ import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
-import DriveImage from "@/components/ui/DriveImage";
+import SmartImage from "@/components/ui/SmartImage";
 import {
   EXPERIENCES_ONSITE,
   EXPERIENCES_REGION,
@@ -24,8 +24,8 @@ export default function ExperienciasPage() {
   return (
     <main>
       <section className="relative h-[60vh] min-h-[420px] w-full overflow-hidden">
-        <DriveImage
-          fileId="1iCDdn8uREEmp5LHyMmhVqDgAkb-EtEao"
+        <SmartImage
+          src="/images/solarium-1/03-cafe-na-rede.jpg"
           alt="Café da manhã na rede com vista para a serra"
           priority
           sizes="100vw"
@@ -34,8 +34,8 @@ export default function ExperienciasPage() {
         <div className="relative z-10 flex h-full flex-col items-center justify-end px-6 pb-20 text-center text-cream">
           <Kicker tone="cream" className="mb-4 opacity-90">Experiências</Kicker>
           <Heading level={1} className="text-cream">
-            Sua estadia,<br />
-            <em className="not-italic font-serif italic">sua curadoria.</em>
+            Sua experiência,<br />
+            <em className="not-italic font-serif italic">nossa curadoria.</em>
           </Heading>
         </div>
       </section>

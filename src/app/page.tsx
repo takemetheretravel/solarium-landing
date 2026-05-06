@@ -15,13 +15,18 @@ import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
-import DriveImage from "@/components/ui/DriveImage";
-import HeroVideo from "@/components/ui/HeroVideo";
+import SmartImage from "@/components/ui/SmartImage";
 import BookingBar from "@/components/booking/BookingBar";
 import ReviewsMarquee from "@/components/ui/ReviewsMarquee";
 import FAQ from "@/components/ui/FAQ";
 import { PROPERTIES } from "@/config/properties";
-import { REVIEWS, PARTNERS, EXPERIENCES_ONSITE, SITE, HERO_VIDEO_FILE_ID, whatsappLink } from "@/config/site";
+import {
+  REVIEWS,
+  PARTNERS,
+  EXPERIENCES_ONSITE,
+  SITE,
+  whatsappLink,
+} from "@/config/site";
 import { getMinNightlyFromCalendar } from "@/lib/hostaway";
 import { formatBRL } from "@/lib/cn";
 
@@ -45,16 +50,14 @@ export default async function Home() {
     <main>
       {/* HERO */}
       <section className="relative h-screen min-h-[640px] w-full overflow-hidden">
-        <HeroVideo
-          videoFileId={HERO_VIDEO_FILE_ID}
-          fallbackImageId="1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8"
-          alt="Banheira com vista para o pôr do sol na Serra da Mantiqueira"
-          imageObjectPosition="70%_center"
+        <SmartImage
+          src="/images/comum/hero-banheira-por-do-sol.jpg"
+          alt="SPA com piscina infinita aquecida e vista para a Serra da Mantiqueira ao pôr do sol"
+          priority
+          sizes="100vw"
+          className="object-[70%_center] md:object-center"
         />
-        {/* base overlay - stronger on mobile, lighter on desktop */}
-        <div className="absolute inset-0 bg-charcoal/50 md:bg-charcoal/30" />
-        {/* bottom gradient for text legibility */}
-        <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-charcoal/75 via-charcoal/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-charcoal/55 via-charcoal/20 to-transparent sm:from-charcoal/40" />
 
         <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center text-cream">
           <Kicker tone="cream" className="mb-6 opacity-90">{SITE.region}</Kicker>
@@ -128,8 +131,8 @@ export default async function Home() {
                   className="group flex flex-col bg-cream transition-all duration-300 hover:-translate-y-1"
                 >
                   <div className="relative aspect-[4/5] overflow-hidden bg-charcoal/5">
-                    <DriveImage
-                      fileId={p.cardImageId}
+                    <SmartImage
+                      src={p.cardImage}
                       alt={p.name}
                       sizes="(max-width: 1024px) 100vw, 33vw"
                     />
@@ -240,8 +243,8 @@ export default async function Home() {
         <Container>
           <div className="grid gap-16 lg:grid-cols-2 lg:gap-20">
             <div className="relative aspect-[4/5] overflow-hidden">
-              <DriveImage
-                fileId="1iCDdn8uREEmp5LHyMmhVqDgAkb-EtEao"
+              <SmartImage
+                src="/images/solarium-1/03-cafe-na-rede.jpg"
                 alt="Café da manhã na rede com vista para a serra"
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { LOGO } from "@/config/site";
-import { driveThumbnailUrl } from "@/lib/drive-image";
 
 const NAV = [
   { href: "/#nossas-casas", label: "Nossas Casas" },
@@ -52,12 +52,13 @@ export default function Header() {
           onClick={() => setOpen(false)}
           aria-label="Solarium Mantiqueira — início"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={driveThumbnailUrl(useDarkLogo ? LOGO.black : LOGO.white, 480)}
+          <Image
+            src={useDarkLogo ? LOGO.black : LOGO.white}
             alt="Solarium Mantiqueira"
-            className="max-h-10 w-auto object-contain md:max-h-12"
-            draggable={false}
+            width={200}
+            height={56}
+            priority
+            className="h-10 w-auto object-contain md:h-12"
           />
         </Link>
 

@@ -6,7 +6,7 @@ import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
-import DriveImage from "@/components/ui/DriveImage";
+import SmartImage from "@/components/ui/SmartImage";
 import Gallery from "@/components/property/Gallery";
 import AmenitiesGrouped from "@/components/property/AmenitiesGrouped";
 import BookingForm from "@/components/booking/BookingForm";
@@ -38,14 +38,13 @@ export async function generateMetadata({
   const property = getPropertyBySlug(params.propertyId);
   if (!property) return { title: "Não encontrado" };
   const title = SEO_TITLES[property.slug] ?? property.name;
-  const ogImage = `https://drive.google.com/thumbnail?id=${property.heroImageId}&sz=w1600`;
   return {
     title,
     description: property.description.slice(0, 160),
     openGraph: {
       title,
       description: property.description.slice(0, 160),
-      images: [{ url: ogImage, width: 1600, height: 900, alt: property.name }],
+      images: [{ url: property.heroImage, width: 1600, height: 900, alt: property.name }],
     },
   };
 }
@@ -72,7 +71,7 @@ export default async function PropertyPage({
     <main>
       {/* HERO */}
       <section className="relative h-[80vh] min-h-[560px] w-full overflow-hidden">
-        <DriveImage fileId={property.heroImageId} alt={property.name} priority sizes="100vw" />
+        <SmartImage src={property.heroImage} alt={property.name} priority sizes="100vw" />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-transparent to-charcoal/70" />
         <div className="relative z-10 flex h-full flex-col items-start justify-end px-6 pb-20 text-cream sm:px-16 sm:pb-24">
           <Kicker tone="cream" className="mb-4 opacity-90">
@@ -95,12 +94,12 @@ export default async function PropertyPage({
               {SOLARIUM_COMPLETO_GALLERY_GROUPS.map((group) => (
                 <div key={group.title}>
                   <h3 className="mb-5 font-serif text-xl text-charcoal/70">{group.title}</h3>
-                  <Gallery imageIds={group.ids} altPrefix={`${property.name} — ${group.title}`} />
+                  <Gallery images={group.images} altPrefix={`${property.name} — ${group.title}`} />
                 </div>
               ))}
             </div>
           ) : (
-            <Gallery imageIds={property.galleryImageIds} altPrefix={property.name} />
+            <Gallery images={property.galleryImages} altPrefix={property.name} />
           )}
         </Container>
       </Section>
@@ -196,7 +195,7 @@ export default async function PropertyPage({
           <Kicker className="mb-4">Política de cancelamento</Kicker>
           <Heading level={3}>Flexível para a sua tranquilidade.</Heading>
           <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
-            Cancelamento sem custo em até 7 dias após a confirmação da reserva, desde que reste pelo menos 24h antes do check-in (conforme CDC). Reagendamentos podem ser solicitados com 15 dias de antecedência. Veja os termos completos para detalhes específicos.
+            Cancelamento sem custo em até 7 dias após a confirmação da reserva, desde que reste pelo menos 24h antes do check-in. Reagendamentos podem ser solicitados com 15 dias de antecedência. Veja os termos completos para detalhes específicos.
           </p>
           <Link
             href="/termos#cancelamento"
