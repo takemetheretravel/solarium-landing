@@ -34,7 +34,11 @@
       "Bash(rm -f /tmp/solarium-dev.log)",
       "Bash(curl -s \"http://localhost:3000/api/debug/price-test?key=lucas2026&propertyId=316007&checkin=2026-06-15&checkout=2026-06-18&guests=2\")",
       "Bash(node -e \"let s=''; process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\); console.log\\('approach:',r.approach\\); console.log\\('result:', JSON.stringify\\(r.result,null,2\\).slice\\(0,500\\)\\); console.log\\('rawDays:', r.rawDays.length,'days'\\);}\\)\")",
-      "Bash(node scripts/download-images.mjs)"
+      "Bash(node scripts/download-images.mjs)",
+      "Bash(git push *)",
+      "Bash(git remote *)",
+      "Bash(curl -s \"http://localhost:3000/api/calendar?property=solarium-1&start=2026-05-06&end=2026-05-21\")",
+      "Bash(git -c user.name=Lucas -c user.email=lucas@solariummantiqueira.com commit -m ' *)"
     ]
   }
 }

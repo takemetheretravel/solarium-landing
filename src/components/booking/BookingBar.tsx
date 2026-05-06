@@ -78,7 +78,7 @@ export default function BookingBar() {
     const noArrivalSet = new Set<string>();
     for (const d of days) {
       if (!d.anyAvailable) fullyBlockedSet.add(d.date);
-      else if (!d.anyArrival) noArrivalSet.add(d.date);
+      if (!d.anyArrival) noArrivalSet.add(d.date);
     }
     return { fullyBlockedSet, noArrivalSet };
   }, [days]);
@@ -90,8 +90,8 @@ export default function BookingBar() {
     const today = toISO(todayPlus(0));
     const maxDate = toISO(todayPlus(MAX_DAYS_AHEAD));
     if (iso < today || iso > maxDate) return true;
-    if (fullyBlockedSet.has(iso)) return true;
-    if (!isChoosingCheckout) return noArrivalSet.has(iso);
+    if (!isChoosingCheckout) return fullyBlockedSet.has(iso) || noArrivalSet.has(iso);
+    // Phase 2: don't check fullyBlockedSet — fully blocked dates can still be valid checkouts
     if (range.from && date <= range.from) return true;
     return false;
   }, [isChoosingCheckout, fullyBlockedSet, noArrivalSet, range.from]);

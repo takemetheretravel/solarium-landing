@@ -89,10 +89,16 @@ export default function BookingForm({
   maxCapacity,
 }: Props) {
   const router = useRouter();
-  const [range, setRange] = useState<{ from?: Date; to?: Date }>({
-    from: initialCheckin ? fromISO(initialCheckin) : undefined,
-    to: initialCheckout ? fromISO(initialCheckout) : undefined,
-  });
+
+  // Explicit two-phase state — no reliance on DayPicker's internal range logic
+  const [phase, setPhase] = useState<"checkin" | "checkout">("checkin");
+  const [checkinDate, setCheckinDate] = useState<Date | undefined>(
+    initialCheckin ? fromISO(initialCheckin) : undefined
+  );
+  const [checkoutDate, setCheckoutDate] = useState<Date | undefined>(
+    initialCheckout ? fromISO(initialCheckout) : undefined
+  );
+
   const [guests, setGuests] = useState(initialGuests);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">("card");
   const [couponInput, setCouponInput] = useState("");
@@ -101,6 +107,9 @@ export default function BookingForm({
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [response, setResponse] = useState<PriceResponse | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Range for DayPicker visual rendering only
+  const range = useMemo(() => ({ from: checkinDate, to: checkoutDate }), [checkinDate, checkoutDate]);
 
   useEffect(() => {
     const start = toISO(todayPlus(0));
@@ -113,59 +122,111 @@ export default function BookingForm({
       .catch(() => {});
   }, [propertySlug]);
 
+  // Read all flags independently — no if/else that hides flags for unavailable days
   const { fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO } = useMemo(() => {
     const fullyBlockedSet = new Set<string>();
     const noArrivalSet = new Set<string>();
     const noDepartureSet = new Set<string>();
     const minNightsByISO = new Map<string, number>();
     for (const d of calendarDays) {
-      if (!d.isAvailable) {
-        fullyBlockedSet.add(d.date);
-      } else {
-        if (d.closedOnArrival) noArrivalSet.add(d.date);
-        if (d.closedOnDeparture) noDepartureSet.add(d.date);
-      }
+      if (!d.isAvailable) fullyBlockedSet.add(d.date);
+      if (d.closedOnArrival) noArrivalSet.add(d.date);
+      if (d.closedOnDeparture) noDepartureSet.add(d.date);
       minNightsByISO.set(d.date, d.minimumStay || 1);
     }
     return { fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO };
   }, [calendarDays]);
 
-  const isChoosingCheckout = Boolean(range.from && !range.to);
-
-  const isDateDisabled = useCallback((date: Date): boolean => {
+  function isValidCheckin(date: Date): boolean {
     const iso = toISO(date);
     const today = toISO(todayPlus(0));
     const maxDate = toISO(todayPlus(MAX_DAYS_AHEAD));
-    if (iso < today || iso > maxDate) return true;
-    if (fullyBlockedSet.has(iso)) return true;
-    if (!isChoosingCheckout) {
-      return noArrivalSet.has(iso);
+    if (iso < today || iso > maxDate) return false;
+    if (fullyBlockedSet.has(iso)) return false;
+    if (noArrivalSet.has(iso)) return false;
+    return true;
+  }
+
+  function isValidCheckout(date: Date, from: Date): boolean {
+    const iso = toISO(date);
+    const maxDate = toISO(todayPlus(MAX_DAYS_AHEAD));
+    if (iso > maxDate) return false;
+    if (date <= from) return false;
+    const minStay = minNightsByISO.get(toISO(from)) ?? 1;
+    if (date < addDays(from, minStay)) return false;
+    // Don't check fullyBlockedSet — isAvailable=false dates can be valid checkouts
+    // (same-day turnover: our guests leave, next reservation starts same day)
+    if (noDepartureSet.has(iso)) return false;
+    return true;
+  }
+
+  function handleDayClick(day: Date) {
+    const iso = toISO(day);
+    const today = toISO(todayPlus(0));
+    if (iso < today) return;
+
+    if (phase === "checkin") {
+      if (!isValidCheckin(day)) return;
+      setCheckinDate(day);
+      setCheckoutDate(undefined);
+      setPhase("checkout");
+      return;
     }
-    if (range.from) {
-      if (date <= range.from) return true;
-      const minStay = minNightsByISO.get(toISO(range.from)) ?? 1;
-      if (date < addDays(range.from, minStay)) return true;
+
+    if (!checkinDate) {
+      setPhase("checkin");
+      return;
+    }
+
+    if (day <= checkinDate) {
+      if (isValidCheckin(day)) {
+        setCheckinDate(day);
+        setCheckoutDate(undefined);
+        setPhase("checkout");
+      }
+      return;
+    }
+
+    if (!isValidCheckout(day, checkinDate)) return;
+    setCheckoutDate(day);
+    setPhase("checkin");
+  }
+
+  // Visual only — onDayClick handles actual logic
+  const isDateDisabledVisual = useCallback((date: Date): boolean => {
+    const iso = toISO(date);
+    const today = toISO(todayPlus(0));
+    if (iso < today) return true;
+
+    if (phase === "checkin") {
+      return fullyBlockedSet.has(iso) || noArrivalSet.has(iso);
+    }
+
+    if (checkinDate) {
+      if (date <= checkinDate) return true;
+      const minStay = minNightsByISO.get(toISO(checkinDate)) ?? 1;
+      if (date < addDays(checkinDate, minStay)) return true;
     }
     return noDepartureSet.has(iso);
-  }, [isChoosingCheckout, fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO, range.from]);
+  }, [phase, fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO, checkinDate]);
 
   const smartDefaultMonth = useMemo(() => {
-    if (range.from) return range.from;
+    if (checkinDate) return checkinDate;
     if (calendarDays.length === 0) return todayPlus(14);
     for (let i = 0; i < 30; i++) {
       const target = todayPlus(i);
       const iso = toISO(target);
       const day = calendarDays.find((d) => d.date === iso);
-      if (day?.isAvailable) return target;
+      if (day?.isAvailable && !day.closedOnArrival) return target;
     }
     return todayPlus(14);
-  }, [calendarDays, range.from]);
+  }, [calendarDays, checkinDate]);
 
-  const checkinISO = toISO(range.from);
-  const checkoutISO = toISO(range.to);
+  const checkinISO = toISO(checkinDate);
+  const checkoutISO = toISO(checkoutDate);
 
   useEffect(() => {
-    if (!range.from || !range.to || sameDay(range.from, range.to)) {
+    if (!checkinDate || !checkoutDate || sameDay(checkinDate, checkoutDate)) {
       setResponse(null);
       return;
     }
@@ -188,18 +249,18 @@ export default function BookingForm({
       .catch(() => setResponse(null))
       .finally(() => setLoading(false));
     return () => ctrl.abort();
-  }, [propertySlug, checkinISO, checkoutISO, guests, paymentMethod, couponApplied, range.from, range.to]);
+  }, [propertySlug, checkinISO, checkoutISO, guests, paymentMethod, couponApplied, checkinDate, checkoutDate]);
 
   function applyCoupon() {
     setCouponApplied(couponInput.trim().toUpperCase());
   }
 
   function handleContinue() {
-    if (!range.from || !range.to || !response || response.ok !== true) return;
+    if (!checkinDate || !checkoutDate || !response || response.ok !== true) return;
     const params = new URLSearchParams({
       propertyId: propertySlug,
-      checkin: toISO(range.from),
-      checkout: toISO(range.to),
+      checkin: toISO(checkinDate),
+      checkout: toISO(checkoutDate),
       guests: String(guests),
       payment: paymentMethod,
     });
@@ -213,9 +274,9 @@ export default function BookingForm({
 
   return (
     <div id="reservar" className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">
-      <div className="mb-6 flex items-baseline justify-between">
+      <div className="mb-4 flex items-baseline justify-between">
         <span className="font-sans text-[0.65rem] uppercase tracking-[0.3em] text-copper">
-          Reserve diretamente
+          {phase === "checkin" ? "Selecione o check-in" : "Selecione o check-out"}
         </span>
         {okQuote && (
           <span className="font-serif text-2xl text-charcoal">
@@ -231,20 +292,22 @@ export default function BookingForm({
           numberOfMonths={1}
           locale={ptBR}
           defaultMonth={smartDefaultMonth}
-          selected={range as { from: Date | undefined; to: Date | undefined }}
-          onSelect={(r) => setRange({ from: r?.from, to: r?.to })}
-          disabled={isDateDisabled}
+          selected={range}
+          onSelect={() => {}}
+          onDayClick={handleDayClick}
+          disabled={isDateDisabledVisual}
           modifiers={{
-            noArrival: (d: Date) => !fullyBlockedSet.has(toISO(d)) && noArrivalSet.has(toISO(d)),
-            noDeparture: (d: Date) => !fullyBlockedSet.has(toISO(d)) && noDepartureSet.has(toISO(d)),
+            noArrival: (d: Date) => noArrivalSet.has(toISO(d)) && !noDepartureSet.has(toISO(d)),
+            checkoutOnly: (d: Date) => fullyBlockedSet.has(toISO(d)) && !noDepartureSet.has(toISO(d)) && !noArrivalSet.has(toISO(d)),
           }}
           modifiersClassNames={{
             noArrival: "rdp-no-arrival",
-            noDeparture: "rdp-no-departure",
+            checkoutOnly: "rdp-checkout-only",
           }}
           weekStartsOn={0}
         />
       </div>
+
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-charcoal/5 pt-3 font-sans text-[0.6rem] uppercase tracking-[0.15em] text-charcoal/50">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-copper/50" />
@@ -260,13 +323,13 @@ export default function BookingForm({
         <div>
           <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Check-in</span>
           <span className="font-serif text-lg text-charcoal">
-            {range.from ? range.from.toLocaleDateString("pt-BR") : "—"}
+            {checkinDate ? checkinDate.toLocaleDateString("pt-BR") : "—"}
           </span>
         </div>
         <div>
           <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Check-out</span>
           <span className="font-serif text-lg text-charcoal">
-            {range.to ? range.to.toLocaleDateString("pt-BR") : "—"}
+            {checkoutDate ? checkoutDate.toLocaleDateString("pt-BR") : "—"}
           </span>
         </div>
         <label className="col-span-2 mt-2 block">
@@ -393,7 +456,7 @@ export default function BookingForm({
       </button>
 
       <a
-        href={`https://wa.me/5535984075652?text=${encodeURIComponent(`Olá! Gostaria de reservar o ${propertySlug} de ${range.from?.toLocaleDateString("pt-BR") ?? "?"} a ${range.to?.toLocaleDateString("pt-BR") ?? "?"} para ${guests} hóspedes.`)}`}
+        href={`https://wa.me/5535984075652?text=${encodeURIComponent(`Olá! Gostaria de reservar o ${propertySlug} de ${checkinDate?.toLocaleDateString("pt-BR") ?? "?"} a ${checkoutDate?.toLocaleDateString("pt-BR") ?? "?"} para ${guests} hóspedes.`)}`}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-3 flex w-full items-center justify-center gap-2 border border-charcoal/20 py-3 font-sans text-xs uppercase tracking-[0.25em] text-charcoal hover:border-charcoal hover:bg-charcoal hover:text-cream"

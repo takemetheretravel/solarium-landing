@@ -24,15 +24,13 @@ export async function GET(req: NextRequest) {
   }
 
   const days = await getCalendar(property.id, startDate, endDate);
-  return NextResponse.json({
-    propertySlug: property.slug,
-    days: days.map((d) => ({
-      date: d.date,
-      isAvailable: d.isAvailable === 1,
-      price: d.price,
-      minimumStay: d.minimumStay,
-      closedOnArrival: d.closedOnArrival === 1,
-      closedOnDeparture: d.closedOnDeparture === 1,
-    })),
-  });
+  const mapped = days.map((d) => ({
+    date: d.date,
+    isAvailable: d.isAvailable === 1,
+    price: d.price,
+    minimumStay: d.minimumStay,
+    closedOnArrival: d.closedOnArrival === 1,
+    closedOnDeparture: d.closedOnDeparture === 1,
+  }));
+  return NextResponse.json({ propertySlug: property.slug, days: mapped });
 }

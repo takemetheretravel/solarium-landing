@@ -139,9 +139,12 @@ function ChooseProperty({
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
           {PROPERTIES.map((p) => {
             const total = prices?.[p.slug];
-            const href = hasDates
-              ? `/reservar?propertyId=${p.slug}&checkin=${checkin}&checkout=${checkout}&guests=${guests}`
-              : `/${p.slug}`;
+            const qs = new URLSearchParams();
+            if (checkin) qs.set("checkin", checkin);
+            if (checkout) qs.set("checkout", checkout);
+            if (guests) qs.set("guests", String(guests));
+            const query = qs.toString();
+            const href = `/${p.slug}${query ? `?${query}` : ""}`;
 
             return (
               <Link

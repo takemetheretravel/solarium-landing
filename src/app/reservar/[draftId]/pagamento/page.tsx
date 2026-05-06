@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { MessageCircle, AlertCircle, ArrowLeft } from "lucide-react";
@@ -6,7 +5,7 @@ import Container from "@/components/ui/Container";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import { getDraft } from "@/lib/reservations-store";
-import { SITE } from "@/config/site";
+import { SITE, whatsappLink } from "@/config/site";
 import { formatBRLPrecise } from "@/lib/cn";
 
 export const metadata: Metadata = {
@@ -47,7 +46,39 @@ function buildWhatsappMessage(d: ReturnType<typeof getDraft> & object): string {
 
 export default function PagamentoPage({ params }: { params: { draftId: string } }) {
   const draft = getDraft(params.draftId);
-  if (!draft) notFound();
+  if (!draft) {
+    return (
+      <main className="bg-cream pt-32 pb-20">
+        <Container size="narrow">
+          <div className="mx-auto max-w-lg text-center">
+            <Kicker className="mb-4">Sessão expirada</Kicker>
+            <Heading level={2} className="text-3xl">
+              Sua reserva temporária expirou.
+            </Heading>
+            <p className="mt-4 font-sans text-base text-charcoal/70">
+              Não se preocupe — suas datas não foram perdidas. Basta recomeçar a reserva ou falar com o concierge.
+            </p>
+            <div className="mt-8 flex flex-col gap-4">
+              <Link
+                href="/"
+                className="block bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream hover:bg-copper/90"
+              >
+                Voltar ao início
+              </Link>
+              <a
+                href={whatsappLink("Olá! Tive um problema para finalizar minha reserva. A sessão expirou.")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 border border-charcoal py-4 font-sans text-xs uppercase tracking-[0.25em] text-charcoal hover:bg-charcoal hover:text-cream"
+              >
+                <MessageCircle className="h-4 w-4" /> Falar com o concierge
+              </a>
+            </div>
+          </div>
+        </Container>
+      </main>
+    );
+  }
 
   const wppHref = `https://wa.me/${SITE.whatsappNumber}?text=${encodeURIComponent(
     buildWhatsappMessage(draft),
