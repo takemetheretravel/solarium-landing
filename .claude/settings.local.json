@@ -39,7 +39,13 @@
       "Bash(git remote *)",
       "Bash(curl -s \"http://localhost:3000/api/calendar?property=solarium-1&start=2026-05-06&end=2026-05-21\")",
       "Bash(git -c user.name=Lucas -c user.email=lucas@solariummantiqueira.com commit -m ' *)",
-      "Bash(npm uninstall *)"
+      "Bash(npm uninstall *)",
+      "Bash(Get-Process -Name \"node\" -ErrorAction SilentlyContinue)",
+      "Bash(Stop-Process -Force)",
+      "Bash(Start-Sleep -Seconds 2)",
+      "Bash(git commit -m ' *)",
+      "PowerShell(Start-Process -NoNewWindow powershell -ArgumentList \"-Command\", \"cd 'C:\\\\Projetos\\\\solarium-landing'; npm run dev\" ; Start-Sleep -Seconds 5; Write-Output \"Dev server iniciado\")",
+      "Bash(git commit *)"
     ]
   }
 }
