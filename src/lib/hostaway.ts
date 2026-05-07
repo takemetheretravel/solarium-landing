@@ -383,6 +383,24 @@ export async function calculatePrice(
   return "quote" in r ? r.quote : null;
 }
 
+export async function getChannels(): Promise<unknown[]> {
+  try {
+    const token = await getAccessToken();
+    const res = await fetch(`${BASE_URL}/channels`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+      },
+    });
+    const data = await res.json();
+    console.log("[Hostaway:channels]", JSON.stringify(data?.result?.slice(0, 10)));
+    return data?.result || [];
+  } catch (err) {
+    console.error("[Hostaway:getChannels]", err);
+    return [];
+  }
+}
+
 export async function createHostawayReservation(params: {
   listingMapId: number;
   arrivalDate: string;
