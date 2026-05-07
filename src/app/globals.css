@@ -7,9 +7,6 @@
   --color-charcoal: #1a1a1a;
   --color-serra: #3d5a47;
   --color-copper: #b8865b;
-
-  --rdp-accent-color: var(--color-serra);
-  --rdp-background-color: rgba(184, 134, 91, 0.12);
 }
 
 html {
@@ -34,75 +31,6 @@ body {
   }
 }
 
-/* react-day-picker brand overrides */
-.rdp-wrapper .rdp {
-  --rdp-cell-size: 36px;
-  margin: 0;
-  font-family: var(--font-sans), Inter, system-ui, sans-serif;
-}
-.rdp-wrapper .rdp-caption_label {
-  font-family: var(--font-serif), Cormorant Garamond, Georgia, serif;
-  font-size: 1.25rem;
-  font-weight: 500;
-  color: var(--color-charcoal);
-  text-transform: capitalize;
-}
-.rdp-wrapper .rdp-head_cell {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: rgba(26, 26, 26, 0.5);
-  font-weight: 500;
-}
-.rdp-wrapper .rdp-day {
-  border-radius: 0;
-  color: var(--color-charcoal);
-}
-.rdp-wrapper .rdp-day_selected,
-.rdp-wrapper .rdp-day_selected:focus-visible,
-.rdp-wrapper .rdp-day_selected:hover {
-  background-color: var(--color-serra);
-  color: var(--color-cream);
-}
-.rdp-wrapper .rdp-day_range_middle {
-  background-color: rgba(61, 90, 71, 0.15);
-  color: var(--color-charcoal);
-}
-.rdp-wrapper .rdp-day_disabled {
-  color: rgba(26, 26, 26, 0.25);
-  text-decoration: line-through;
-}
-.rdp-wrapper .rdp-no-arrival,
-.rdp-legend-no-arrival {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 3px,
-    rgba(184, 134, 91, 0.35) 3px,
-    rgba(184, 134, 91, 0.35) 5px
-  );
-}
-.rdp-wrapper .rdp-no-departure {
-  background-image: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 3px,
-    rgba(61, 90, 71, 0.3) 3px,
-    rgba(61, 90, 71, 0.3) 5px
-  );
-}
-.rdp-wrapper .rdp-checkout-only {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 3px,
-    rgba(184, 134, 91, 0.2) 3px,
-    rgba(184, 134, 91, 0.2) 5px
-  );
-}
-.rdp-wrapper .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
-  background-color: rgba(184, 134, 91, 0.12);
-}
 
 /* Reviews marquee */
 .solarium-marquee {

@@ -1,22 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DayPicker } from "react-day-picker";
-import "react-day-picker/dist/style.css";
-import { addDays } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { ChevronDown, Tag, MessageCircle, ArrowRight } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
-
-type CalendarDay = {
-  date: string;
-  isAvailable: boolean;
-  price: number;
-  minimumStay: number;
-  closedOnArrival?: boolean;
-  closedOnDeparture?: boolean;
-};
 
 type PriceFailure = {
   reason: "missing-data" | "unavailable-day" | "min-stay-not-met" | "max-stay-exceeded" | "api-error";
@@ -53,32 +40,21 @@ type Props = {
   idealCapacity?: number;
 };
 
-const MAX_DAYS_AHEAD = 540;
-
-function todayPlus(days: number): Date {
+function isoToday(): string {
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function isoPlus(days: number): string {
+  const d = new Date();
   d.setDate(d.getDate() + days);
-  return d;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function toISO(d: Date | undefined): string {
-  if (!d) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function fromISO(s: string): Date | undefined {
-  if (!s) return undefined;
-  const [y, m, d] = s.split("-").map(Number);
-  if (!y || !m || !d) return undefined;
-  return new Date(y, m - 1, d);
-}
-
-function sameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+function isoNextDay(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export default function BookingForm({
@@ -90,151 +66,34 @@ export default function BookingForm({
 }: Props) {
   const router = useRouter();
 
-  // Explicit two-phase state — no reliance on DayPicker's internal range logic
-  const [phase, setPhase] = useState<"checkin" | "checkout">("checkin");
-  const [checkinDate, setCheckinDate] = useState<Date | undefined>(
-    initialCheckin ? fromISO(initialCheckin) : undefined
-  );
-  const [checkoutDate, setCheckoutDate] = useState<Date | undefined>(
-    initialCheckout ? fromISO(initialCheckout) : undefined
-  );
-
+  const [checkin, setCheckin] = useState(initialCheckin || "");
+  const [checkout, setCheckout] = useState(initialCheckout || "");
   const [guests, setGuests] = useState(initialGuests);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">("card");
   const [couponInput, setCouponInput] = useState("");
   const [couponApplied, setCouponApplied] = useState("");
   const [showCoupon, setShowCoupon] = useState(false);
-  const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [response, setResponse] = useState<PriceResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
 
-  // Range for DayPicker visual rendering only
-  const range = useMemo(() => ({ from: checkinDate, to: checkoutDate }), [checkinDate, checkoutDate]);
-
-  useEffect(() => {
-    const start = toISO(todayPlus(0));
-    const end = toISO(todayPlus(MAX_DAYS_AHEAD));
-    fetch(`/api/calendar?property=${propertySlug}&start=${start}&end=${end}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.days) setCalendarDays(data.days);
-      })
-      .catch(() => {});
-  }, [propertySlug]);
-
-  // Read all flags independently — no if/else that hides flags for unavailable days
-  const { fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO } = useMemo(() => {
-    const fullyBlockedSet = new Set<string>();
-    const noArrivalSet = new Set<string>();
-    const noDepartureSet = new Set<string>();
-    const minNightsByISO = new Map<string, number>();
-    for (const d of calendarDays) {
-      if (!d.isAvailable) fullyBlockedSet.add(d.date);
-      if (d.closedOnArrival) noArrivalSet.add(d.date);
-      if (d.closedOnDeparture) noDepartureSet.add(d.date);
-      minNightsByISO.set(d.date, d.minimumStay || 1);
-    }
-    return { fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO };
-  }, [calendarDays]);
-
-  function isValidCheckin(date: Date): boolean {
-    const iso = toISO(date);
-    const today = toISO(todayPlus(0));
-    const maxDate = toISO(todayPlus(MAX_DAYS_AHEAD));
-    if (iso < today || iso > maxDate) return false;
-    if (fullyBlockedSet.has(iso)) return false;
-    if (noArrivalSet.has(iso)) return false;
-    return true;
-  }
-
-  function isValidCheckout(date: Date, from: Date): boolean {
-    const iso = toISO(date);
-    const maxDate = toISO(todayPlus(MAX_DAYS_AHEAD));
-    if (iso > maxDate) return false;
-    if (date <= from) return false;
-    const minStay = minNightsByISO.get(toISO(from)) ?? 1;
-    if (date < addDays(from, minStay)) return false;
-    // Don't check fullyBlockedSet — isAvailable=false dates can be valid checkouts
-    // (same-day turnover: our guests leave, next reservation starts same day)
-    if (noDepartureSet.has(iso)) return false;
-    return true;
-  }
-
-  function handleDayClick(day: Date) {
-    const iso = toISO(day);
-    const today = toISO(todayPlus(0));
-    if (iso < today) return;
-
-    if (phase === "checkin") {
-      if (!isValidCheckin(day)) return;
-      setCheckinDate(day);
-      setCheckoutDate(undefined);
-      setPhase("checkout");
-      return;
-    }
-
-    if (!checkinDate) {
-      setPhase("checkin");
-      return;
-    }
-
-    if (day <= checkinDate) {
-      if (isValidCheckin(day)) {
-        setCheckinDate(day);
-        setCheckoutDate(undefined);
-        setPhase("checkout");
-      }
-      return;
-    }
-
-    if (!isValidCheckout(day, checkinDate)) return;
-    setCheckoutDate(day);
-    setPhase("checkin");
-  }
-
-  // Visual only — onDayClick handles actual logic
-  const isDateDisabledVisual = useCallback((date: Date): boolean => {
-    const iso = toISO(date);
-    const today = toISO(todayPlus(0));
-    if (iso < today) return true;
-
-    if (phase === "checkin") {
-      return fullyBlockedSet.has(iso) || noArrivalSet.has(iso);
-    }
-
-    if (checkinDate) {
-      if (date <= checkinDate) return true;
-      const minStay = minNightsByISO.get(toISO(checkinDate)) ?? 1;
-      if (date < addDays(checkinDate, minStay)) return true;
-    }
-    return noDepartureSet.has(iso);
-  }, [phase, fullyBlockedSet, noArrivalSet, noDepartureSet, minNightsByISO, checkinDate]);
-
-  const smartDefaultMonth = useMemo(() => {
-    if (checkinDate) return checkinDate;
-    if (calendarDays.length === 0) return todayPlus(14);
-    for (let i = 0; i < 30; i++) {
-      const target = todayPlus(i);
-      const iso = toISO(target);
-      const day = calendarDays.find((d) => d.date === iso);
-      if (day?.isAvailable && !day.closedOnArrival) return target;
-    }
-    return todayPlus(14);
-  }, [calendarDays, checkinDate]);
-
-  const checkinISO = toISO(checkinDate);
-  const checkoutISO = toISO(checkoutDate);
+  const todayISO = useMemo(() => isoToday(), []);
+  const maxDateISO = useMemo(() => isoPlus(540), []);
+  const minCheckoutISO = useMemo(() => (checkin ? isoNextDay(checkin) : todayISO), [checkin, todayISO]);
 
   useEffect(() => {
-    if (!checkinDate || !checkoutDate || sameDay(checkinDate, checkoutDate)) {
+    if (!checkin || !checkout || checkin >= checkout) {
       setResponse(null);
       return;
     }
     setLoading(true);
+    setValidationError(null);
+
     const params = new URLSearchParams({
       property: propertySlug,
-      checkin: checkinISO,
-      checkout: checkoutISO,
+      checkin,
+      checkout,
       guests: String(guests),
       payment: paymentMethod,
     });
@@ -249,23 +108,45 @@ export default function BookingForm({
       .catch(() => setResponse(null))
       .finally(() => setLoading(false));
     return () => ctrl.abort();
-  }, [propertySlug, checkinISO, checkoutISO, guests, paymentMethod, couponApplied, checkinDate, checkoutDate]);
+  }, [propertySlug, checkin, checkout, guests, paymentMethod, couponApplied]);
 
   function applyCoupon() {
     setCouponApplied(couponInput.trim().toUpperCase());
   }
 
-  function handleContinue() {
-    if (!checkinDate || !checkoutDate || !response || response.ok !== true) return;
-    const params = new URLSearchParams({
-      propertyId: propertySlug,
-      checkin: toISO(checkinDate),
-      checkout: toISO(checkoutDate),
-      guests: String(guests),
-      payment: paymentMethod,
-    });
-    if (couponApplied) params.set("coupon", couponApplied);
-    router.push(`/reservar?${params.toString()}`);
+  async function handleContinue() {
+    if (!checkin || !checkout || !response || response.ok !== true) return;
+
+    setIsValidating(true);
+    setValidationError(null);
+
+    try {
+      const res = await fetch("/api/availability/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId: propertySlug, checkin, checkout, guests }),
+      });
+      const data = await res.json();
+
+      if (!data.available) {
+        setValidationError(data.reason || "Estas datas não estão disponíveis. Tente outras ou fale com nosso concierge.");
+        setIsValidating(false);
+        return;
+      }
+
+      const params = new URLSearchParams({
+        propertyId: propertySlug,
+        checkin,
+        checkout,
+        guests: String(guests),
+        payment: paymentMethod,
+      });
+      if (couponApplied) params.set("coupon", couponApplied);
+      router.push(`/reservar?${params.toString()}`);
+    } catch {
+      setValidationError("Erro ao verificar disponibilidade. Tente novamente ou fale com o concierge.");
+      setIsValidating(false);
+    }
   }
 
   const okQuote = response && response.ok === true ? response : null;
@@ -274,9 +155,9 @@ export default function BookingForm({
 
   return (
     <div id="reservar" className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">
-      <div className="mb-4 flex items-baseline justify-between">
+      <div className="mb-6 flex items-baseline justify-between">
         <span className="font-sans text-[0.65rem] uppercase tracking-[0.3em] text-copper">
-          {phase === "checkin" ? "Selecione o check-in" : "Selecione o check-out"}
+          Reserve diretamente
         </span>
         {okQuote && (
           <span className="font-serif text-2xl text-charcoal">
@@ -286,51 +167,42 @@ export default function BookingForm({
         )}
       </div>
 
-      <div className="rdp-wrapper mb-2">
-        <DayPicker
-          mode="range"
-          numberOfMonths={1}
-          locale={ptBR}
-          defaultMonth={smartDefaultMonth}
-          selected={range}
-          onSelect={() => {}}
-          onDayClick={handleDayClick}
-          disabled={isDateDisabledVisual}
-          modifiers={{
-            noArrival: (d: Date) => noArrivalSet.has(toISO(d)) && !noDepartureSet.has(toISO(d)),
-            checkoutOnly: (d: Date) => fullyBlockedSet.has(toISO(d)) && !noDepartureSet.has(toISO(d)) && !noArrivalSet.has(toISO(d)),
-          }}
-          modifiersClassNames={{
-            noArrival: "rdp-no-arrival",
-            checkoutOnly: "rdp-checkout-only",
-          }}
-          weekStartsOn={0}
-        />
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-charcoal/5 pt-3 font-sans text-[0.6rem] uppercase tracking-[0.15em] text-charcoal/50">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-copper/50" />
-          Só check-out
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-charcoal/15" />
-          Indisponível
-        </span>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 border-y border-charcoal/10 py-4 text-sm">
+      <div className="grid grid-cols-2 gap-3 border-y border-charcoal/10 py-4">
         <div>
-          <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Check-in</span>
-          <span className="font-serif text-lg text-charcoal">
-            {checkinDate ? checkinDate.toLocaleDateString("pt-BR") : "—"}
-          </span>
+          <label htmlFor="checkin" className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+            Check-in
+          </label>
+          <input
+            id="checkin"
+            type="date"
+            value={checkin}
+            min={todayISO}
+            max={maxDateISO}
+            onChange={(e) => {
+              setCheckin(e.target.value);
+              setValidationError(null);
+              if (checkout && e.target.value && e.target.value >= checkout) setCheckout("");
+            }}
+            className="mt-1 w-full border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper"
+          />
         </div>
         <div>
-          <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Check-out</span>
-          <span className="font-serif text-lg text-charcoal">
-            {checkoutDate ? checkoutDate.toLocaleDateString("pt-BR") : "—"}
-          </span>
+          <label htmlFor="checkout" className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+            Check-out
+          </label>
+          <input
+            id="checkout"
+            type="date"
+            value={checkout}
+            min={minCheckoutISO}
+            max={maxDateISO}
+            disabled={!checkin}
+            onChange={(e) => {
+              setCheckout(e.target.value);
+              setValidationError(null);
+            }}
+            className="mt-1 w-full border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper disabled:opacity-40"
+          />
         </div>
         <label className="col-span-2 mt-2 block">
           <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Hóspedes</span>
@@ -347,6 +219,18 @@ export default function BookingForm({
           </select>
         </label>
       </div>
+
+      <p className="mt-3 font-sans text-[0.7rem] text-charcoal/50">
+        Não tem certeza?{" "}
+        <a
+          href="https://wa.me/5535984075652?text=Ol%C3%A1!%20Gostaria%20de%20verificar%20disponibilidade%20no%20Solarium%20Mantiqueira."
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-copper underline underline-offset-2 hover:text-copper/80"
+        >
+          Veja datas livres com nosso concierge
+        </a>
+      </p>
 
       <div className="mt-4 flex gap-2">
         <button
@@ -441,22 +325,35 @@ export default function BookingForm({
 
       {loading && <p className="mt-4 font-sans text-xs text-charcoal/50">Calculando preço…</p>}
       {failure && (
-        <p className="mt-4 font-sans text-xs text-copper">
-          {failure.message}
-        </p>
+        <p className="mt-4 font-sans text-xs text-copper">{failure.message}</p>
       )}
 
       <button
         type="button"
         onClick={handleContinue}
-        disabled={!canContinue}
+        disabled={!canContinue || isValidating}
         className="mt-6 flex w-full items-center justify-center gap-2 bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream transition-colors hover:bg-copper/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Continuar para reserva <ArrowRight className="h-4 w-4" />
+        {isValidating ? "Verificando…" : "Continuar para reserva"}
+        {!isValidating && <ArrowRight className="h-4 w-4" />}
       </button>
 
+      {validationError && (
+        <div className="mt-3 border border-copper/30 bg-copper/5 p-3">
+          <p className="font-sans text-xs text-charcoal">{validationError}</p>
+          <a
+            href={`https://wa.me/5535984075652?text=${encodeURIComponent(`Olá! Tentei reservar o ${propertySlug} de ${checkin} a ${checkout} mas as datas não estão disponíveis. Pode me ajudar?`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-block font-sans text-xs text-copper underline"
+          >
+            Falar com o concierge no WhatsApp
+          </a>
+        </div>
+      )}
+
       <a
-        href={`https://wa.me/5535984075652?text=${encodeURIComponent(`Olá! Gostaria de reservar o ${propertySlug} de ${checkinDate?.toLocaleDateString("pt-BR") ?? "?"} a ${checkoutDate?.toLocaleDateString("pt-BR") ?? "?"} para ${guests} hóspedes.`)}`}
+        href={`https://wa.me/5535984075652?text=${encodeURIComponent(`Olá! Gostaria de reservar o ${propertySlug} de ${checkin || "?"} a ${checkout || "?"} para ${guests} hóspedes.`)}`}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-3 flex w-full items-center justify-center gap-2 border border-charcoal/20 py-3 font-sans text-xs uppercase tracking-[0.25em] text-charcoal hover:border-charcoal hover:bg-charcoal hover:text-cream"
