@@ -64,9 +64,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ available: false, reason: "Não foi possível verificar a data de check-in." });
     }
     if (checkinDay.closedOnArrival === 1) {
+      const diaSemana = new Date(checkin + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long" });
       return NextResponse.json({
         available: false,
-        reason: `Check-in em ${fmtBR(checkin)} não está disponível. Tente outra data.`,
+        reason: `Não realizamos check-in em ${diaSemana}s. Por favor, escolha outra data de entrada.`,
       });
     }
 

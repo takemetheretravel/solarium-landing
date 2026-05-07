@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, FormEvent } from "react";
+import { useMemo, useRef, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Users, ArrowRight } from "lucide-react";
 
@@ -23,6 +23,8 @@ function isoNextDay(iso: string): string {
 
 export default function BookingBar() {
   const router = useRouter();
+  const checkinRef = useRef<HTMLInputElement>(null);
+  const checkoutRef = useRef<HTMLInputElement>(null);
   const [checkin, setCheckin] = useState("");
   const [checkout, setCheckout] = useState("");
   const [guests, setGuests] = useState(2);
@@ -47,32 +49,38 @@ export default function BookingBar() {
         <span className="flex items-center gap-2 font-sans text-[0.65rem] uppercase tracking-[0.25em] text-charcoal/60">
           <CalendarDays className="h-3.5 w-3.5" /> Check-in
         </span>
-        <input
-          type="date"
-          value={checkin}
-          min={todayISO}
-          max={maxDateISO}
-          onChange={(e) => {
-            setCheckin(e.target.value);
-            if (checkout && e.target.value && e.target.value >= checkout) setCheckout("");
-          }}
-          className="bg-transparent font-serif text-lg text-charcoal outline-none focus:text-serra"
-        />
+        <div className="cursor-pointer" onClick={() => (checkinRef.current as any)?.showPicker?.()}>
+          <input
+            ref={checkinRef}
+            type="date"
+            value={checkin}
+            min={todayISO}
+            max={maxDateISO}
+            onChange={(e) => {
+              setCheckin(e.target.value);
+              if (checkout && e.target.value && e.target.value >= checkout) setCheckout("");
+            }}
+            className="w-full cursor-pointer bg-transparent font-serif text-lg text-charcoal outline-none focus:text-serra"
+          />
+        </div>
       </label>
 
       <label className="flex flex-col gap-1 border-b border-charcoal/10 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-6">
         <span className="flex items-center gap-2 font-sans text-[0.65rem] uppercase tracking-[0.25em] text-charcoal/60">
           <CalendarDays className="h-3.5 w-3.5" /> Check-out
         </span>
-        <input
-          type="date"
-          value={checkout}
-          min={minCheckoutISO}
-          max={maxDateISO}
-          disabled={!checkin}
-          onChange={(e) => setCheckout(e.target.value)}
-          className="bg-transparent font-serif text-lg text-charcoal outline-none focus:text-serra disabled:opacity-40"
-        />
+        <div className="cursor-pointer" onClick={() => (checkoutRef.current as any)?.showPicker?.()}>
+          <input
+            ref={checkoutRef}
+            type="date"
+            value={checkout}
+            min={minCheckoutISO}
+            max={maxDateISO}
+            disabled={!checkin}
+            onChange={(e) => setCheckout(e.target.value)}
+            className="w-full cursor-pointer bg-transparent font-serif text-lg text-charcoal outline-none focus:text-serra disabled:opacity-40"
+          />
+        </div>
       </label>
 
       <label className="flex flex-col gap-2">
