@@ -135,7 +135,12 @@ export async function POST(req: NextRequest) {
     expiresAt: expiresAt.toISOString(),
   };
 
-  await saveDraft(draft);
+  try {
+    await saveDraft(draft);
+  } catch (err) {
+    console.error("[draft:POST] saveDraft failed:", err);
+    return NextResponse.json({ error: "Erro ao salvar reserva. Tente novamente em instantes." }, { status: 500 });
+  }
 
   return NextResponse.json({
     draftId: draft.id,

@@ -1,16 +1,19 @@
 import { Redis } from "@upstash/redis";
 
+if (!process.env.KV_REST_API_URL && !process.env.UPSTASH_REDIS_REST_URL) {
+  console.error("[kv-store] Nenhuma variável Redis configurada (KV_REST_API_URL ou UPSTASH_REDIS_REST_URL)");
+}
+
 let _redis: Redis | null = null;
 
 function getRedis(): Redis {
   if (!_redis) {
-    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-      throw new Error("[kv-store] UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN são obrigatórios");
+    const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+    const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
+    if (!url || !token) {
+      throw new Error("[kv-store] Redis não configurado — defina KV_REST_API_URL e KV_REST_API_TOKEN");
     }
-    _redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
+    _redis = new Redis({ url, token });
   }
   return _redis;
 }
@@ -45,7 +48,12 @@ export type ReservationDraft = {
 };
 
 export async function saveDraft(draft: ReservationDraft): Promise<void> {
-  await getRedis().set(`draft:${draft.id}`, JSON.stringify(draft), { ex: DRAFT_TTL });
+  try {
+    await getRedis().set(`draft:${draft.id}`, JSON.stringify(draft), { ex: DRAFT_TTL });
+  } catch (err) {
+    console.error("[kv-store:saveDraft] Failed:", err);
+    throw err;
+  }
 }
 
 export async function getDraft(id: string): Promise<ReservationDraft | null> {
@@ -53,14 +61,20 @@ export async function getDraft(id: string): Promise<ReservationDraft | null> {
     const raw = await getRedis().get<string>(`draft:${id}`);
     if (!raw) return null;
     return typeof raw === "string" ? (JSON.parse(raw) as ReservationDraft) : (raw as unknown as ReservationDraft);
-  } catch {
+  } catch (err) {
+    console.error("[kv-store:getDraft] Failed:", err);
     return null;
   }
 }
 
 export async function updateDraft(id: string, updates: Partial<ReservationDraft>): Promise<void> {
-  const existing = await getDraft(id);
-  if (!existing) return;
-  const updated = { ...existing, ...updates };
-  await getRedis().set(`draft:${id}`, JSON.stringify(updated), { ex: DRAFT_TTL });
+  try {
+    const existing = await getDraft(id);
+    if (!existing) return;
+    const updated = { ...existing, ...updates };
+    await getRedis().set(`draft:${id}`, JSON.stringify(updated), { ex: DRAFT_TTL });
+  } catch (err) {
+    console.error("[kv-store:updateDraft] Failed:", err);
+    throw err;
+  }
 }
