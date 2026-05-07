@@ -78,7 +78,11 @@ export async function POST(req: Request) {
       redirectTo: `/reservar/${draftId}/confirmacao`,
     });
   } catch (err) {
-    console.error("[/api/payments/credit]", err);
-    return NextResponse.json({ error: "Erro ao processar pagamento" }, { status: 500 });
+    console.error("[/api/payments/credit] Exception:", err);
+    const message =
+      (err as Error)?.message?.startsWith("Cielo:")
+        ? (err as Error).message.replace("Cielo: ", "")
+        : "Erro ao processar pagamento. Tente novamente ou fale com o concierge.";
+    return NextResponse.json({ approved: false, returnMessage: message, error: message }, { status: 500 });
   }
 }

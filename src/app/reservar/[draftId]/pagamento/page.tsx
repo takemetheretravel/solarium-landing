@@ -33,6 +33,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   const [pixCopied, setPixCopied] = useState(false);
   const [pixError, setPixError] = useState<string | null>(null);
   const [pixStarted, setPixStarted] = useState(false);
+  const [showManualCheck, setShowManualCheck] = useState(false);
+  const [manualChecking, setManualChecking] = useState(false);
 
   const [cardNumber, setCardNumber] = useState("");
   const [cardHolder, setCardHolder] = useState("");
@@ -75,22 +77,59 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
 
   useEffect(() => {
     if (pixStatus !== "pending") return;
-    const interval = setInterval(async () => {
+    let intervalId: ReturnType<typeof setInterval>;
+
+    async function checkStatus() {
       try {
         const res = await fetch(`/api/payments/pix/status?draftId=${params.draftId}`);
         const data = await res.json();
         if (data.status === "paid") {
-          setPixStatus("paid");
-          clearInterval(interval);
+          clearInterval(intervalId);
           router.push(`/reservar/${params.draftId}/confirmacao`);
         } else if (data.status === "failed") {
           setPixStatus("failed");
-          clearInterval(interval);
+          clearInterval(intervalId);
         }
       } catch {}
-    }, 5000);
-    return () => clearInterval(interval);
+    }
+
+    intervalId = setInterval(checkStatus, 5000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") checkStatus();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [pixStatus, params.draftId, router]);
+
+  useEffect(() => {
+    if (pixStatus !== "pending") return;
+    const timer = setTimeout(() => setShowManualCheck(true), 30000);
+    return () => clearTimeout(timer);
+  }, [pixStatus]);
+
+  async function handleManualCheck() {
+    setManualChecking(true);
+    try {
+      const res = await fetch(`/api/payments/pix/status?draftId=${params.draftId}`);
+      const data = await res.json();
+      if (data.status === "paid") {
+        router.push(`/reservar/${params.draftId}/confirmacao`);
+      } else if (data.status === "pending") {
+        alert("Pagamento ainda não confirmado. Aguarde alguns instantes e tente novamente.");
+      } else {
+        setPixStatus("failed");
+      }
+    } catch {
+      alert("Erro ao verificar. Tente novamente.");
+    } finally {
+      setManualChecking(false);
+    }
+  }
 
   async function handleCardSubmit() {
     if (!draft) return;
@@ -106,10 +145,10 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       if (data.approved) {
         router.push(`/reservar/${params.draftId}/confirmacao`);
       } else {
-        setCardError(data.returnMessage || "Pagamento não aprovado. Verifique os dados e tente novamente.");
+        setCardError(data.returnMessage || data.error || "Pagamento não aprovado. Verifique os dados e tente novamente.");
       }
-    } catch {
-      setCardError("Erro ao processar pagamento. Tente novamente ou fale com o concierge.");
+    } catch (err) {
+      setCardError((err as Error)?.message || "Erro de conexão. Verifique sua internet e tente novamente.");
     } finally {
       setCardProcessing(false);
     }
@@ -258,6 +297,15 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                     <div className="h-2 w-2 animate-pulse rounded-full bg-copper" />
                     <p className="font-sans text-xs">Aguardando confirmação do pagamento...</p>
                   </div>
+                  {showManualCheck && (
+                    <button
+                      onClick={handleManualCheck}
+                      disabled={manualChecking}
+                      className="mt-4 w-full border border-charcoal py-3 font-sans text-xs uppercase tracking-widest text-charcoal transition-colors hover:bg-charcoal hover:text-cream disabled:opacity-50"
+                    >
+                      {manualChecking ? "Verificando..." : "Já paguei — confirmar pagamento"}
+                    </button>
+                  )}
                 </div>
               )}
 

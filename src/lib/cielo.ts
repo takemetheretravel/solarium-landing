@@ -88,12 +88,14 @@ export async function createCreditPayment(params: {
       CreditCard: {
         CardNumber: params.cardNumber.replace(/\s/g, ""),
         Holder: params.cardHolder,
-        ExpirationDate: params.cardExpiration,
+        ExpirationDate: normalizeExpiration(params.cardExpiration),
         SecurityCode: params.cardCvv,
         Brand: detectBrand(params.cardNumber),
       },
     },
   };
+
+  console.log("[Cielo:Credit] ExpirationDate enviado:", normalizeExpiration(params.cardExpiration));
 
   const res = await fetch(`${BASE_URL}/1/sales/`, {
     method: "POST",
@@ -104,7 +106,9 @@ export async function createCreditPayment(params: {
   const data = await res.json();
   if (!res.ok) {
     console.error("[Cielo:Credit] Error:", JSON.stringify(data));
-    throw new Error(`Cielo Credit error: ${res.status}`);
+    const errors = Array.isArray(data) ? data : [data];
+    const errorMsg = errors.map((e: Record<string, unknown>) => (e.Message as string) || (e.message as string) || JSON.stringify(e)).join(", ");
+    throw new Error(`Cielo: ${errorMsg}`);
   }
 
   return {
@@ -125,6 +129,15 @@ export async function getPaymentStatus(paymentId: string) {
     paymentId,
     status: data.Payment?.Status as number,
   };
+}
+
+function normalizeExpiration(exp: string): string {
+  const clean = exp.replace(/[^\d/]/g, "");
+  const parts = clean.split("/");
+  if (parts.length !== 2) return exp;
+  const [month, year] = parts;
+  const fullYear = year.length === 2 ? `20${year}` : year;
+  return `${month.padStart(2, "0")}/${fullYear}`;
 }
 
 function detectBrand(cardNumber: string): string {

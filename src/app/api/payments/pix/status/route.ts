@@ -13,6 +13,7 @@ export async function GET(req: Request) {
   if (!draftId) return NextResponse.json({ status: "error" });
 
   const draft = await getDraft(draftId);
+  console.log("[Pix:status] draftId:", draftId, "cieloPaymentId:", draft?.cieloPaymentId, "status:", draft?.status);
   if (!draft) return NextResponse.json({ status: "expired" });
   if (!draft.cieloPaymentId) return NextResponse.json({ status: "pending" });
 
@@ -21,6 +22,7 @@ export async function GET(req: Request) {
   }
 
   const cieloStatus = await getPaymentStatus(draft.cieloPaymentId);
+  console.log("[Pix:status] Cielo status:", cieloStatus.status, "for paymentId:", draft.cieloPaymentId);
 
   if (cieloStatus.status === 2) {
     await updateDraft(draftId, { status: "paid" });
