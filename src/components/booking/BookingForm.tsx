@@ -77,6 +77,7 @@ export default function BookingForm({
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [checkinError, setCheckinError] = useState<string | null>(null);
 
   const todayISO = useMemo(() => isoToday(), []);
   const maxDateISO = useMemo(() => isoPlus(540), []);
@@ -115,7 +116,7 @@ export default function BookingForm({
   }
 
   async function handleContinue() {
-    if (!checkin || !checkout || !response || response.ok !== true) return;
+    if (!checkin || !checkout || !response || response.ok !== true || checkinError) return;
 
     setIsValidating(true);
     setValidationError(null);
@@ -151,7 +152,7 @@ export default function BookingForm({
 
   const okQuote = response && response.ok === true ? response : null;
   const failure = response && response.ok === false ? response.failure : null;
-  const canContinue = Boolean(okQuote && !loading);
+  const canContinue = Boolean(okQuote && !loading && !checkinError);
 
   return (
     <div id="reservar" className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">
@@ -181,23 +182,22 @@ export default function BookingForm({
               max={maxDateISO}
               onChange={(e) => {
                 const val = e.target.value;
-                if (val) {
-                  const dow = new Date(val + "T12:00:00").getDay();
-                  if (dow === 0) {
-                    setValidationError("Atenção: não realizamos check-in aos domingos. O checkout nessa data é possível.");
-                  } else {
-                    setValidationError(null);
-                  }
-                } else {
-                  setValidationError(null);
-                }
                 setCheckin(val);
+                setValidationError(null);
                 if (checkout && val && val >= checkout) setCheckout("");
+                if (val) {
+                  setCheckinError(new Date(val + "T12:00:00").getDay() === 0 ? "Não realizamos check-in aos domingos." : null);
+                } else {
+                  setCheckinError(null);
+                }
               }}
               className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper"
             />
           </div>
         </div>
+        {checkinError && (
+          <p className="col-span-2 mt-1 font-sans text-xs text-red-600">{checkinError}</p>
+        )}
         <div>
           <label htmlFor="checkout" className="block cursor-pointer font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
             Check-out
