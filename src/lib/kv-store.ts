@@ -1,0 +1,66 @@
+import { Redis } from "@upstash/redis";
+
+let _redis: Redis | null = null;
+
+function getRedis(): Redis {
+  if (!_redis) {
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error("[kv-store] UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN são obrigatórios");
+    }
+    _redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+  return _redis;
+}
+
+const DRAFT_TTL = 60 * 60 * 2; // 2 horas
+
+export type ReservationDraft = {
+  id: string;
+  propertyId: string;
+  propertyName: string;
+  checkin: string;
+  checkout: string;
+  guests: number;
+  nights: number;
+  totalPrice: number;
+  pixDiscount: number;
+  couponCode?: string;
+  couponDiscount: number;
+  finalTotal: number;
+  paymentMethod: "pix" | "card";
+  guestFirstName: string;
+  guestLastName: string;
+  guestEmail: string;
+  guestPhone: string;
+  guestCpf: string;
+  guestNotes?: string;
+  status: "pending" | "paid" | "failed";
+  cieloPaymentId?: string;
+  hostawayReservationId?: number;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export async function saveDraft(draft: ReservationDraft): Promise<void> {
+  await getRedis().set(`draft:${draft.id}`, JSON.stringify(draft), { ex: DRAFT_TTL });
+}
+
+export async function getDraft(id: string): Promise<ReservationDraft | null> {
+  try {
+    const raw = await getRedis().get<string>(`draft:${id}`);
+    if (!raw) return null;
+    return typeof raw === "string" ? (JSON.parse(raw) as ReservationDraft) : (raw as unknown as ReservationDraft);
+  } catch {
+    return null;
+  }
+}
+
+export async function updateDraft(id: string, updates: Partial<ReservationDraft>): Promise<void> {
+  const existing = await getDraft(id);
+  if (!existing) return;
+  const updated = { ...existing, ...updates };
+  await getRedis().set(`draft:${id}`, JSON.stringify(updated), { ex: DRAFT_TTL });
+}

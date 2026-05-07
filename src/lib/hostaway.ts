@@ -383,6 +383,73 @@ export async function calculatePrice(
   return "quote" in r ? r.quote : null;
 }
 
+export async function createHostawayReservation(params: {
+  listingMapId: number;
+  arrivalDate: string;
+  departureDate: string;
+  numberOfGuests: number;
+  guestFirstName: string;
+  guestLastName: string;
+  guestEmail: string;
+  phone: string;
+  totalPrice: number;
+  currency: string;
+  notes?: string;
+  source?: string;
+}): Promise<{ reservationId: number } | null> {
+  try {
+    const token = await getAccessToken();
+    if (!token) return null;
+
+    const body = {
+      channelId: 2013,
+      channelName: "bookingengine",
+      source: params.source || "solarium-direct",
+      listingMapId: params.listingMapId,
+      arrivalDate: params.arrivalDate,
+      departureDate: params.departureDate,
+      checkInTime: 15,
+      checkOutTime: 11,
+      numberOfGuests: params.numberOfGuests,
+      adults: params.numberOfGuests,
+      children: 0,
+      infants: 0,
+      guestFirstName: params.guestFirstName,
+      guestLastName: params.guestLastName,
+      guestEmail: params.guestEmail,
+      phone: params.phone,
+      totalPrice: Math.round(params.totalPrice),
+      currency: params.currency || "BRL",
+      isPaid: true,
+      paymentStatus: "Paid",
+      guestNote: params.notes || "",
+      status: "confirmed",
+    };
+
+    const res = await fetch(`${BASE_URL}/reservations`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("[Hostaway:createReservation] Error:", res.status, JSON.stringify(data));
+      return null;
+    }
+
+    console.log("[Hostaway:createReservation] Created:", data.result?.id);
+    return { reservationId: data.result?.id as number };
+  } catch (err) {
+    console.error("[Hostaway:createReservation] Exception:", err);
+    return null;
+  }
+}
+
 export function nightsBetween(checkin: string, checkout: string): number {
   const a = new Date(checkin + "T00:00:00Z").getTime();
   const b = new Date(checkout + "T00:00:00Z").getTime();

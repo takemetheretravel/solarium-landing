@@ -10,6 +10,7 @@
     "download:images": "node scripts/download-images.mjs"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
     "lucide-react": "^1.14.0",
     "next": "14.2.35",
     "react": "^18",

@@ -1,77 +1,150 @@
-import Link from "next/link";
-import type { Metadata } from "next";
-import { MessageCircle, AlertCircle, ArrowLeft } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import Container from "@/components/ui/Container";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
-import { getDraft } from "@/lib/reservations-store";
-import { SITE, whatsappLink } from "@/config/site";
 import { formatBRLPrecise } from "@/lib/cn";
+import { PROPERTIES } from "@/config/properties";
+import type { ReservationDraft } from "@/lib/kv-store";
 
-export const metadata: Metadata = {
-  title: "Reserva — Pagamento",
-  description: "Sua reserva está pronta. Finalize pelo WhatsApp.",
-  robots: { index: false, follow: false },
-};
-
-export const dynamic = "force-dynamic";
-
-function fmtBR(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR");
+function formatBR(iso: string) {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
 }
 
-function buildWhatsappMessage(d: ReturnType<typeof getDraft> & object): string {
-  const lines = [
-    "Olá! Quero finalizar minha reserva no Solarium Mantiqueira.",
-    "",
-    `Casa: ${d.propertyName}`,
-    `Check-in: ${fmtBR(d.checkin)}`,
-    `Check-out: ${fmtBR(d.checkout)}`,
-    `Hóspedes: ${d.guests}`,
-    `Total: ${formatBRLPrecise(d.totals.total)}`,
-    `Método preferido: ${d.paymentMethod === "pix" ? "Pix" : "Cartão de Crédito"}`,
-  ];
-  if (d.couponCode) lines.push(`Cupom: ${d.couponCode}`);
-  lines.push("", "Meus dados:");
-  lines.push(`Nome: ${d.guest.name}`);
-  lines.push(`E-mail: ${d.guest.email}`);
-  lines.push(`CPF: ${d.guest.cpf}`);
-  lines.push(`Telefone: ${d.guest.phone}`);
-  if (d.guest.notes) {
-    lines.push("", `Observações: ${d.guest.notes}`);
-  }
-  lines.push("", "Aguardo retorno para confirmar!");
-  return lines.join("\n");
+function formatCardNumber(value: string) {
+  return value.replace(/\D/g, "").replace(/(\d{4})(?=\d)/g, "$1 ").slice(0, 19);
+}
+
+function formatExpiration(value: string) {
+  return value.replace(/\D/g, "").replace(/(\d{2})(\d)/, "$1/$2").slice(0, 7);
 }
 
 export default function PagamentoPage({ params }: { params: { draftId: string } }) {
-  const draft = getDraft(params.draftId);
-  if (!draft) {
+  const router = useRouter();
+  const [draft, setDraft] = useState<ReservationDraft | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [pixData, setPixData] = useState<{ qrCodeBase64: string; qrCodeString: string } | null>(null);
+  const [pixStatus, setPixStatus] = useState<"loading" | "pending" | "paid" | "failed">("loading");
+  const [pixCopied, setPixCopied] = useState(false);
+  const [pixError, setPixError] = useState<string | null>(null);
+  const [pixStarted, setPixStarted] = useState(false);
+
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardHolder, setCardHolder] = useState("");
+  const [cardExpiration, setCardExpiration] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [installments, setInstallments] = useState(1);
+  const [cardProcessing, setCardProcessing] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/reservations/draft?id=${params.draftId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.draft) setDraft(data.draft);
+        else setLoadError("Sessão expirada. Por favor, volte e refaça a reserva.");
+      })
+      .catch(() => setLoadError("Erro ao carregar reserva."));
+  }, [params.draftId]);
+
+  useEffect(() => {
+    if (!draft || draft.paymentMethod !== "pix" || pixStarted) return;
+    setPixStarted(true);
+
+    fetch("/api/payments/pix", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ draftId: params.draftId }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) throw new Error(data.error);
+        setPixData({ qrCodeBase64: data.qrCodeBase64, qrCodeString: data.qrCodeString });
+        setPixStatus("pending");
+      })
+      .catch((err) => {
+        setPixStatus("failed");
+        setPixError((err as Error).message || "Erro ao gerar QR Code Pix.");
+      });
+  }, [draft, params.draftId, pixStarted]);
+
+  useEffect(() => {
+    if (pixStatus !== "pending") return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/payments/pix/status?draftId=${params.draftId}`);
+        const data = await res.json();
+        if (data.status === "paid") {
+          setPixStatus("paid");
+          clearInterval(interval);
+          router.push(`/reservar/${params.draftId}/confirmacao`);
+        } else if (data.status === "failed") {
+          setPixStatus("failed");
+          clearInterval(interval);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [pixStatus, params.draftId, router]);
+
+  async function handleCardSubmit() {
+    if (!draft) return;
+    setCardProcessing(true);
+    setCardError(null);
+    try {
+      const res = await fetch("/api/payments/credit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId: params.draftId, cardNumber, cardHolder, cardExpiration, cardCvv, installments }),
+      });
+      const data = await res.json();
+      if (data.approved) {
+        router.push(`/reservar/${params.draftId}/confirmacao`);
+      } else {
+        setCardError(data.returnMessage || "Pagamento não aprovado. Verifique os dados e tente novamente.");
+      }
+    } catch {
+      setCardError("Erro ao processar pagamento. Tente novamente ou fale com o concierge.");
+    } finally {
+      setCardProcessing(false);
+    }
+  }
+
+  const property = draft ? PROPERTIES.find((p) => p.slug === draft.propertyId) : null;
+
+  if (!draft && !loadError) {
     return (
-      <main className="bg-cream pt-32 pb-20">
-        <Container size="narrow">
+      <main className="min-h-screen bg-cream pt-32 pb-20">
+        <Container>
+          <p className="text-center font-sans text-charcoal/60">Carregando reserva...</p>
+        </Container>
+      </main>
+    );
+  }
+
+  if (loadError || !draft) {
+    return (
+      <main className="min-h-screen bg-cream pt-32 pb-20">
+        <Container>
           <div className="mx-auto max-w-lg text-center">
-            <Kicker className="mb-4">Sessão expirada</Kicker>
-            <Heading level={2} className="text-3xl">
-              Sua reserva temporária expirou.
-            </Heading>
-            <p className="mt-4 font-sans text-base text-charcoal/70">
-              Não se preocupe — suas datas não foram perdidas. Basta recomeçar a reserva ou falar com o concierge.
-            </p>
-            <div className="mt-8 flex flex-col gap-4">
-              <Link
-                href="/"
-                className="block bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream hover:bg-copper/90"
-              >
+            <Heading level={2} className="text-3xl">Sessão expirada</Heading>
+            <p className="mt-4 font-sans text-charcoal/70">{loadError}</p>
+            <div className="mt-8 flex flex-col items-center gap-4">
+              <a href="/" className="bg-copper px-8 py-4 font-sans text-xs uppercase tracking-widest text-cream hover:bg-copper/90">
                 Voltar ao início
-              </Link>
+              </a>
               <a
-                href={whatsappLink("Olá! Tive um problema para finalizar minha reserva. A sessão expirou.")}
+                href="https://wa.me/5535984075652?text=Ol%C3%A1%21+Tive+um+problema+ao+finalizar+minha+reserva."
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 border border-charcoal py-4 font-sans text-xs uppercase tracking-[0.25em] text-charcoal hover:bg-charcoal hover:text-cream"
+                className="font-sans text-xs text-copper underline"
               >
-                <MessageCircle className="h-4 w-4" /> Falar com o concierge
+                Falar com o concierge
               </a>
             </div>
           </div>
@@ -80,118 +153,258 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     );
   }
 
-  const wppHref = `https://wa.me/${SITE.whatsappNumber}?text=${encodeURIComponent(
-    buildWhatsappMessage(draft),
-  )}`;
-
-  return (
-    <main className="bg-cream pt-32 pb-20">
-      <Container size="narrow">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 font-sans text-xs uppercase tracking-[0.25em] text-charcoal/60 hover:text-copper"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar para a home
-        </Link>
-
-        <Kicker className="mt-8 mb-4">Reserva — etapa 2 de 2</Kicker>
-        <Heading level={1} className="text-4xl sm:text-5xl">
-          Sua reserva está pronta.
-        </Heading>
-        <p className="mt-4 font-sans text-base text-charcoal/70">
-          O pagamento online (Pix e cartão) entra em operação em breve. Por enquanto,
-          finalize comigo pelo WhatsApp — confirmamos rapidinho.
-        </p>
-
-        <div className="mt-8 flex items-start gap-4 border border-copper/40 bg-copper/10 p-5 font-sans text-sm">
-          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-copper" />
-          <div>
-            <p className="font-medium text-charcoal">
-              Pagamento direto pelo site em construção
-            </p>
-            <p className="mt-1 text-charcoal/75">
-              Toque no botão verde abaixo e a mensagem já vai pronta com todos os
-              detalhes da sua reserva. Mando o link de pagamento na hora.
-            </p>
+  function ResumoCard() {
+    return (
+      <div className="border border-charcoal/10 bg-white">
+        {property && (
+          <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
+            <Image src={property.heroImage} alt={draft!.propertyName} fill sizes="420px" className="object-cover" />
           </div>
-        </div>
-
-        <div className="mt-10 border border-charcoal/10 bg-white p-8">
-          <Kicker className="mb-2">Resumo</Kicker>
-          <h2 className="font-serif text-3xl text-charcoal">{draft.propertyName}</h2>
-
-          <ul className="mt-6 space-y-3 border-y border-charcoal/10 py-5 font-sans text-sm">
+        )}
+        <div className="p-6">
+          {property && <Kicker className="mb-2">{property.badge}</Kicker>}
+          <h2 className="font-serif text-2xl text-charcoal">{draft!.propertyName}</h2>
+          <ul className="mt-5 space-y-3 border-y border-charcoal/10 py-5 font-sans text-sm">
             <li className="flex justify-between">
               <span className="text-charcoal/60">Check-in</span>
-              <span className="text-charcoal">{fmtBR(draft.checkin)}</span>
+              <span>{formatBR(draft!.checkin)} às 15h</span>
             </li>
             <li className="flex justify-between">
               <span className="text-charcoal/60">Check-out</span>
-              <span className="text-charcoal">{fmtBR(draft.checkout)}</span>
-            </li>
-            <li className="flex justify-between">
-              <span className="text-charcoal/60">Noites</span>
-              <span className="text-charcoal">{draft.totals.nights}</span>
+              <span>{formatBR(draft!.checkout)} às 11h</span>
             </li>
             <li className="flex justify-between">
               <span className="text-charcoal/60">Hóspedes</span>
-              <span className="text-charcoal">{draft.guests}</span>
+              <span>{draft!.guests}</span>
             </li>
             <li className="flex justify-between">
-              <span className="text-charcoal/60">Forma de pagamento</span>
-              <span className="text-charcoal">{draft.paymentMethod === "pix" ? "Pix" : "Cartão"}</span>
+              <span className="text-charcoal/60">Noites</span>
+              <span>{draft!.nights}</span>
             </li>
-            {draft.couponCode && (
-              <li className="flex justify-between">
-                <span className="text-charcoal/60">Cupom</span>
-                <span className="text-charcoal">{draft.couponCode}</span>
-              </li>
-            )}
           </ul>
-
           <div className="mt-5 space-y-2 font-sans text-sm">
-            <div className="flex justify-between text-charcoal/80">
+            <div className="flex justify-between text-charcoal/70">
               <span>Subtotal</span>
-              <span>{formatBRLPrecise(draft.totals.subtotal)}</span>
+              <span>{formatBRLPrecise(draft!.totalPrice)}</span>
             </div>
-            {draft.totals.couponDiscount > 0 && (
+            {draft!.couponDiscount > 0 && (
               <div className="flex justify-between text-serra">
-                <span>Cupom {draft.couponCode}</span>
-                <span>− {formatBRLPrecise(draft.totals.couponDiscount)}</span>
+                <span>Cupom {draft!.couponCode}</span>
+                <span>− {formatBRLPrecise(draft!.couponDiscount)}</span>
               </div>
             )}
-            {draft.totals.pixDiscount > 0 && (
+            {draft!.pixDiscount > 0 && (
               <div className="flex justify-between text-serra">
                 <span>Desconto Pix (3%)</span>
-                <span>− {formatBRLPrecise(draft.totals.pixDiscount)}</span>
+                <span>− {formatBRLPrecise(draft!.pixDiscount)}</span>
               </div>
             )}
-            <div className="mt-3 flex items-baseline justify-between border-t border-charcoal/10 pt-3 font-serif">
+            <div className="flex items-baseline justify-between border-t border-charcoal/10 pt-4 font-serif">
               <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
-              <span className="text-3xl text-charcoal">{formatBRLPrecise(draft.totals.total)}</span>
+              <span className="text-3xl text-charcoal">{formatBRLPrecise(draft!.finalTotal)}</span>
             </div>
           </div>
-
-          <div className="mt-8 border-t border-charcoal/10 pt-6">
-            <Kicker className="mb-3">Hóspede principal</Kicker>
-            <p className="font-serif text-lg text-charcoal">{draft.guest.name}</p>
-            <p className="mt-1 font-sans text-sm text-charcoal/70">
-              {draft.guest.email} · {draft.guest.phone}
-            </p>
-          </div>
         </div>
+      </div>
+    );
+  }
 
-        <a
-          href={wppHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-10 flex w-full items-center justify-center gap-3 bg-[#25D366] py-5 font-sans text-sm uppercase tracking-[0.3em] text-white transition-all hover:opacity-90"
-        >
-          <MessageCircle className="h-5 w-5" /> Finalizar pelo WhatsApp
-        </a>
-        <p className="mt-3 text-center font-sans text-xs text-charcoal/50">
-          {SITE.whatsappDisplay} · resposta em minutos
-        </p>
+  if (draft.paymentMethod === "pix") {
+    return (
+      <main className="bg-cream pt-32 pb-20">
+        <Container size="wide">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_420px] lg:gap-12">
+            <section>
+              <Kicker className="mb-4">Pagamento via Pix</Kicker>
+              <Heading level={1} className="mb-8 text-4xl">Pague com Pix</Heading>
+
+              {pixStatus === "loading" && (
+                <div className="border border-charcoal/10 p-12 text-center">
+                  <p className="font-sans text-charcoal/60">Gerando QR Code...</p>
+                </div>
+              )}
+
+              {pixStatus === "pending" && pixData && (
+                <div className="border border-charcoal/10 p-8">
+                  <p className="mb-6 font-sans text-sm text-charcoal/70">
+                    Escaneie o QR Code abaixo ou copie o código Pix. Após o pagamento, a confirmação é automática.
+                  </p>
+                  <div className="mb-6 flex justify-center">
+                    <img
+                      src={`data:image/png;base64,${pixData.qrCodeBase64}`}
+                      alt="QR Code Pix"
+                      className="h-56 w-56 border border-charcoal/10 p-2"
+                    />
+                  </div>
+                  <div className="mb-4 rounded-sm bg-charcoal/5 p-4">
+                    <p className="mb-2 font-sans text-[0.6rem] uppercase tracking-[0.2em] text-charcoal/60">
+                      Pix copia e cola
+                    </p>
+                    <p className="mb-3 break-all font-mono text-xs text-charcoal">
+                      {pixData.qrCodeString.slice(0, 60)}...
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(pixData.qrCodeString);
+                        setPixCopied(true);
+                        setTimeout(() => setPixCopied(false), 3000);
+                      }}
+                      className="w-full border border-charcoal bg-charcoal py-3 font-sans text-xs uppercase tracking-widest text-cream transition-colors hover:bg-serra"
+                    >
+                      {pixCopied ? "✓ Copiado!" : "Copiar código Pix"}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3 text-charcoal/60">
+                    <div className="h-2 w-2 animate-pulse rounded-full bg-copper" />
+                    <p className="font-sans text-xs">Aguardando confirmação do pagamento...</p>
+                  </div>
+                </div>
+              )}
+
+              {pixStatus === "failed" && (
+                <div className="border border-red-200 bg-red-50 p-8 text-center">
+                  <p className="mb-4 font-sans text-sm text-charcoal">
+                    {pixError || "Pagamento não confirmado. Tente novamente ou fale com o concierge."}
+                  </p>
+                  <a
+                    href={`https://wa.me/5535984075652?text=${encodeURIComponent(`Olá! Tive um problema ao pagar via Pix minha reserva no ${draft.propertyName}.`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block bg-[#25D366] px-6 py-3 font-sans text-xs uppercase tracking-widest text-white"
+                  >
+                    Falar com o concierge
+                  </a>
+                </div>
+              )}
+            </section>
+            <aside className="lg:sticky lg:top-24 lg:self-start">
+              <ResumoCard />
+            </aside>
+          </div>
+        </Container>
+      </main>
+    );
+  }
+
+  return (
+    <main className="bg-cream pt-32 pb-20">
+      <Container size="wide">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_420px] lg:gap-12">
+          <section>
+            <Kicker className="mb-4">Pagamento com Cartão</Kicker>
+            <Heading level={1} className="mb-8 text-4xl">Dados do cartão</Heading>
+
+            <div className="space-y-5">
+              <div>
+                <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                  Número do cartão
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                  placeholder="0000 0000 0000 0000"
+                  maxLength={19}
+                  className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                  Nome impresso no cartão
+                </label>
+                <input
+                  type="text"
+                  value={cardHolder}
+                  onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                  placeholder="NOME COMPLETO"
+                  className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                    Validade
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={cardExpiration}
+                    onChange={(e) => setCardExpiration(formatExpiration(e.target.value))}
+                    placeholder="MM/AAAA"
+                    maxLength={7}
+                    className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                    CVV
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={cardCvv}
+                    onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    placeholder="000"
+                    maxLength={4}
+                    className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                  Parcelamento
+                </label>
+                <select
+                  value={installments}
+                  onChange={(e) => setInstallments(Number(e.target.value))}
+                  className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal focus:border-copper focus:outline-none"
+                >
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={n}>
+                      {n === 1
+                        ? `À vista — ${formatBRLPrecise(draft.finalTotal)}`
+                        : `${n}x de ${formatBRLPrecise(draft.finalTotal / n)} sem juros`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {cardError && (
+                <div className="border border-red-200 bg-red-50 p-4">
+                  <p className="font-sans text-xs text-red-700">{cardError}</p>
+                  <a
+                    href={`https://wa.me/5535984075652?text=${encodeURIComponent(`Olá! Tive um problema ao pagar com cartão minha reserva no ${draft.propertyName}.`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block font-sans text-xs text-copper underline"
+                  >
+                    Falar com o concierge
+                  </a>
+                </div>
+              )}
+
+              <button
+                onClick={handleCardSubmit}
+                disabled={!cardNumber || !cardHolder || !cardExpiration || !cardCvv || cardProcessing}
+                className="w-full bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream transition-colors hover:bg-copper/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {cardProcessing ? "Processando..." : `Pagar ${formatBRLPrecise(draft.finalTotal)}`}
+              </button>
+
+              <p className="text-center font-sans text-[0.65rem] text-charcoal/40">
+                Pagamento processado com segurança pela Cielo. Seus dados estão protegidos.
+              </p>
+            </div>
+          </section>
+
+          <aside className="lg:sticky lg:top-24 lg:self-start">
+            <ResumoCard />
+          </aside>
+        </div>
       </Container>
     </main>
   );

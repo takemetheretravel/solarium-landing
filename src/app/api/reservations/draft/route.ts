@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDraft, getDraft } from "@/lib/reservations-store";
+import { randomUUID } from "crypto";
+import { saveDraft, getDraft } from "@/lib/kv-store";
 import { calculatePrice } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
   if (!body.checkin || !body.checkout) {
     return NextResponse.json({ error: "Missing dates" }, { status: 400 });
   }
+
   const guest = body.guest || { name: "", email: "", cpf: "", phone: "" };
   if (!guest.name || guest.name.trim().length < 3) {
     return NextResponse.json({ error: "Nome inválido" }, { status: 400 });
@@ -98,46 +100,53 @@ export async function POST(req: NextRequest) {
   }
 
   const paymentMethod: "card" | "pix" = body.paymentMethod === "pix" ? "pix" : "card";
-  const pixDiscount = paymentMethod === "pix" ? runningTotal * 0.03 : 0;
+  const pixDiscount = paymentMethod === "pix" ? Math.round(runningTotal * 0.03) : 0;
   runningTotal -= pixDiscount;
 
-  const draft = createDraft({
-    propertyId: property.id,
-    propertySlug: property.slug,
+  const nameParts = guest.name.trim().split(/\s+/);
+  const guestFirstName = nameParts[0] || "";
+  const guestLastName = nameParts.slice(1).join(" ") || "";
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+
+  const draft = {
+    id: randomUUID(),
+    propertyId: property.slug,
     propertyName: property.name,
     checkin: body.checkin,
     checkout: body.checkout,
     guests,
-    paymentMethod,
+    nights: quote.nights,
+    totalPrice: quote.totalPrice,
+    pixDiscount,
     couponCode: body.couponCode?.trim().toUpperCase() || undefined,
-    totals: {
-      nights: quote.nights,
-      subtotal: quote.totalPrice,
-      cleaningFee: quote.cleaningFee,
-      discount: quote.discount,
-      couponDiscount,
-      pixDiscount,
-      total: runningTotal,
-    },
-    guest: {
-      name: guest.name.trim(),
-      email: guest.email.trim().toLowerCase(),
-      cpf: digitsOnly(guest.cpf),
-      phone: digitsOnly(guest.phone),
-      notes: guest.notes?.trim() || undefined,
-    },
-  });
+    couponDiscount,
+    finalTotal: Math.round(runningTotal),
+    paymentMethod,
+    guestFirstName,
+    guestLastName,
+    guestEmail: guest.email.trim().toLowerCase(),
+    guestPhone: digitsOnly(guest.phone),
+    guestCpf: digitsOnly(guest.cpf),
+    guestNotes: guest.notes?.trim() || undefined,
+    status: "pending" as const,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+
+  await saveDraft(draft);
 
   return NextResponse.json({
     draftId: draft.id,
-    expiresAt: new Date(draft.expiresAt).toISOString(),
+    expiresAt: draft.expiresAt,
   });
 }
 
 export async function GET(req: NextRequest) {
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  const draft = getDraft(id);
-  if (!draft) return NextResponse.json({ error: "Not found or expired" }, { status: 404 });
-  return NextResponse.json(draft);
+  const draft = await getDraft(id);
+  if (!draft) return NextResponse.json({ draft: null }, { status: 404 });
+  return NextResponse.json({ draft });
 }
