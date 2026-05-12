@@ -15,7 +15,7 @@ import {
   getPropertyBySlug,
   SOLARIUM_COMPLETO_GALLERY_GROUPS,
 } from "@/config/properties";
-import { REVIEWS, SITE, whatsappLink } from "@/config/site";
+import { REVIEWS, SITE, AIRBNB_LINKS, whatsappLink } from "@/config/site";
 import { getListing } from "@/lib/hostaway";
 
 export const revalidate = 300;
@@ -67,8 +67,35 @@ export default async function PropertyPage({
   const initialGuests = searchParams?.guests ? Number(searchParams.guests) : property.capacity.ideal;
   const isCompleto = property.slug === "solarium-completo";
 
+  const airbnbUrl = AIRBNB_LINKS[property.slug] || "";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "LodgingBusiness",
+    name: `${property.name} — Solarium Mantiqueira`,
+    description: property.description.slice(0, 300),
+    url: `${process.env.NEXT_PUBLIC_SITE_URL || "https://solariummantiqueira.com"}/${property.slug}`,
+    image: property.heroImage,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "Itanhandu",
+      addressRegion: "MG",
+      addressCountry: "BR",
+    },
+    priceRange: "R$$",
+    telephone: `+${SITE.whatsappNumber}`,
+    amenityFeature: fullAmenities.slice(0, 20).map((name) => ({
+      "@type": "LocationFeatureSpecification",
+      name,
+      value: true,
+    })),
+  };
+
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* HERO */}
       <section className="relative h-[80vh] min-h-[560px] w-full overflow-hidden">
         <SmartImage src={property.heroImage} alt={property.name} priority sizes="100vw" />
@@ -164,9 +191,21 @@ export default async function PropertyPage({
       {propertyReviews.length > 0 && (
         <Section id="reviews" className="border-t border-charcoal/10 bg-serra/5">
           <Container>
-            <div className="mb-12">
-              <Kicker className="mb-4">Avaliações</Kicker>
-              <Heading level={2}>Quem ficou aqui.</Heading>
+            <div className="mb-12 flex items-end justify-between gap-6">
+              <div>
+                <Kicker className="mb-4">Avaliações</Kicker>
+                <Heading level={2}>Quem ficou aqui.</Heading>
+              </div>
+              {airbnbUrl && (
+                <a
+                  href={airbnbUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 font-sans text-xs uppercase tracking-[0.2em] text-charcoal/50 hover:text-copper"
+                >
+                  Ver no Airbnb →
+                </a>
+              )}
             </div>
             <div className="grid gap-6 md:grid-cols-2">
               {propertyReviews.map((r) => (

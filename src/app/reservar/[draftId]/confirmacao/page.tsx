@@ -5,6 +5,7 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import { getDraft } from "@/lib/kv-store";
 import { formatBRLPrecise } from "@/lib/cn";
+import { TrackPurchase } from "@/components/booking/TrackPurchase";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function ConfirmacaoPage({ params }: { params: { draftId: s
 
   return (
     <main className="bg-cream pt-32 pb-20">
+      <TrackPurchase total={draft.finalTotal} draftId={params.draftId} />
       <Container>
         <div className="mx-auto max-w-2xl">
           <div className="mx-auto mb-8 flex h-16 w-16 items-center justify-center rounded-full bg-serra/10">

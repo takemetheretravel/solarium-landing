@@ -25,6 +25,7 @@ import {
   PARTNERS,
   EXPERIENCES_ONSITE,
   SITE,
+  AIRBNB_LINKS,
   whatsappLink,
 } from "@/config/site";
 import { getMinNightlyFromCalendar } from "@/lib/hostaway";
@@ -106,6 +107,27 @@ export default async function Home() {
                 </p>
               </div>
             ))}
+          </div>
+        </Container>
+      </Section>
+
+      {/* BANNER CUPONS */}
+      <Section spacing="tight" className="bg-charcoal/5 border-b border-charcoal/10">
+        <Container>
+          <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
+            <div className="flex items-center gap-4">
+              <Tag className="h-5 w-5 flex-shrink-0 text-copper" strokeWidth={1.5} />
+              <p className="font-sans text-sm text-charcoal/80">
+                <strong className="font-sans font-semibold text-charcoal">Cupons exclusivos:</strong>{" "}
+                até 15% de desconto + 3% extra no Pix para reservas diretas.
+              </p>
+            </div>
+            <Link
+              href="/ofertas"
+              className="flex-shrink-0 inline-flex items-center gap-2 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
+            >
+              Ver cupons <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </Container>
       </Section>
@@ -236,6 +258,23 @@ export default async function Home() {
           </div>
         </Container>
         <ReviewsMarquee reviews={marqueeReviews} />
+        {Object.values(AIRBNB_LINKS).some(Boolean) && (
+          <div className="mt-10 flex flex-wrap justify-center gap-6">
+            {Object.entries(AIRBNB_LINKS).map(([slug, url]) =>
+              url ? (
+                <a
+                  key={slug}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-sans text-xs uppercase tracking-[0.2em] text-charcoal/50 hover:text-copper"
+                >
+                  Ver avaliações no Airbnb →
+                </a>
+              ) : null,
+            )}
+          </div>
+        )}
       </Section>
 
       {/* EXPERIÊNCIAS */}

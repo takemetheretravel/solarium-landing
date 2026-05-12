@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronDown, Tag } from "lucide-react";
 import SmartImage from "@/components/ui/SmartImage";
@@ -8,6 +8,7 @@ import Kicker from "@/components/ui/Kicker";
 import GuestForm from "@/components/booking/GuestForm";
 import { SITE, whatsappLink, validateCoupon, type CouponValidation } from "@/config/site";
 import { formatBRLPrecise } from "@/lib/cn";
+import { trackInitiateCheckout } from "@/lib/tracking";
 
 type Quote = {
   totalPrice: number;
@@ -46,18 +47,37 @@ export default function BookingPageClient({
   const [couponInput, setCouponInput] = useState(initialCouponCode ?? "");
   const [appliedCoupon, setAppliedCoupon] = useState(() => {
     if (!initialCouponCode || !quote) return "";
-    const r = validateCoupon(initialCouponCode, quote.nights, quote.totalPrice);
+    const r = validateCoupon(initialCouponCode, { nights: quote.nights, subtotal: quote.totalPrice });
     return r.valid ? initialCouponCode : "";
   });
   const [couponResult, setCouponResult] = useState<CouponValidation | null>(() => {
     if (!initialCouponCode || !quote) return null;
-    return validateCoupon(initialCouponCode, quote.nights, quote.totalPrice);
+    return validateCoupon(initialCouponCode, { nights: quote.nights, subtotal: quote.totalPrice });
   });
+
+  useEffect(() => {
+    if (quote) trackInitiateCheckout({ value: quote.totalPrice, currency: "BRL" });
+  }, []);
+
+  useEffect(() => {
+    if (!appliedCoupon || !quote) return;
+    const result = validateCoupon(appliedCoupon, {
+      nights: quote.nights,
+      subtotal: quote.totalPrice,
+      paymentMethod,
+    });
+    setCouponResult(result);
+    if (!result.valid) setAppliedCoupon("");
+  }, [paymentMethod]);
 
   function applyCouponCode() {
     const code = couponInput.trim().toUpperCase();
     if (!code || !quote) return;
-    const result = validateCoupon(code, quote.nights, quote.totalPrice);
+    const result = validateCoupon(code, {
+      nights: quote.nights,
+      subtotal: quote.totalPrice,
+      paymentMethod,
+    });
     setCouponResult(result);
     setAppliedCoupon(result.valid ? code : "");
   }

@@ -92,7 +92,13 @@ export async function POST(req: NextRequest) {
   let couponDiscount = 0;
   let runningTotal = quote.totalPrice;
   if (body.couponCode) {
-    const v = validateCoupon(body.couponCode, quote.nights, quote.totalPrice);
+    const v = validateCoupon(body.couponCode, {
+      nights: quote.nights,
+      subtotal: quote.totalPrice,
+      paymentMethod: body.paymentMethod === "pix" ? "pix" : "card",
+      propertySlug: property.slug,
+      checkin: body.checkin,
+    });
     if (v.valid) {
       couponDiscount = v.discountAmount;
       runningTotal -= couponDiscount;

@@ -46,7 +46,13 @@ export async function GET(req: NextRequest) {
   let runningTotal = quote.totalPrice;
 
   if (couponCode) {
-    const v = validateCoupon(couponCode, quote.nights, quote.totalPrice);
+    const v = validateCoupon(couponCode, {
+      nights: quote.nights,
+      subtotal: quote.totalPrice,
+      paymentMethod: (paymentMethod === "pix" || paymentMethod === "card") ? paymentMethod : undefined,
+      propertySlug: property.slug,
+      checkin,
+    });
     if (v.valid) {
       couponApplied = {
         code: v.coupon.code,

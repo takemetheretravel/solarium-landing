@@ -1,0 +1,95 @@
+export type Coupon = {
+  code: string;
+  discount: number;
+  type: "percentage" | "fixed";
+  minNights: number;
+  maxNights?: number;
+  validFrom?: string;
+  validUntil?: string;
+  paymentMethods?: ("pix" | "card")[];
+  properties?: string[];
+  maxInstallments?: number;
+  isPublic: boolean;
+  description: string;
+};
+
+export const COUPONS: Coupon[] = [
+  {
+    code: "DUASNOITES",
+    discount: 8,
+    type: "percentage",
+    minNights: 2,
+    isPublic: true,
+    description: "8% de desconto em estadias de 2+ noites",
+  },
+  {
+    code: "EXPERIENCIACOMPLETA",
+    discount: 12,
+    type: "percentage",
+    minNights: 3,
+    isPublic: true,
+    description: "12% de desconto em estadias de 3+ noites",
+  },
+  {
+    code: "COMEMORACAO",
+    discount: 15,
+    type: "percentage",
+    minNights: 5,
+    isPublic: false,
+    description: "15% de desconto em estadias de 5+ noites",
+  },
+];
+
+export type CouponValidation =
+  | { valid: true; coupon: Coupon; discountAmount: number }
+  | { valid: false; reason: string };
+
+export type ValidateCouponContext = {
+  nights: number;
+  subtotal: number;
+  paymentMethod?: "pix" | "card";
+  propertySlug?: string;
+  checkin?: string;
+};
+
+export function validateCoupon(code: string, context: ValidateCouponContext): CouponValidation {
+  const normalized = code.trim().toUpperCase();
+  const coupon = COUPONS.find((c) => c.code === normalized);
+  if (!coupon) return { valid: false, reason: "Cupom não encontrado." };
+
+  if (context.nights < coupon.minNights) {
+    return {
+      valid: false,
+      reason: `Este cupom é válido para estadias de ${coupon.minNights}+ noites.`,
+    };
+  }
+  if (coupon.maxNights && context.nights > coupon.maxNights) {
+    return {
+      valid: false,
+      reason: `Este cupom é válido para estadias de até ${coupon.maxNights} noites.`,
+    };
+  }
+  if (
+    coupon.paymentMethods &&
+    context.paymentMethod &&
+    !coupon.paymentMethods.includes(context.paymentMethod)
+  ) {
+    const names = coupon.paymentMethods.map((m) => (m === "pix" ? "Pix" : "cartão")).join(" ou ");
+    return { valid: false, reason: `Este cupom é válido apenas para pagamento via ${names}.` };
+  }
+  if (coupon.properties && context.propertySlug && !coupon.properties.includes(context.propertySlug)) {
+    return { valid: false, reason: "Este cupom não é válido para esta propriedade." };
+  }
+  if (coupon.validFrom && context.checkin && context.checkin < coupon.validFrom) {
+    return { valid: false, reason: "Este cupom ainda não está ativo." };
+  }
+  if (coupon.validUntil && context.checkin && context.checkin > coupon.validUntil) {
+    return { valid: false, reason: "Este cupom expirou." };
+  }
+
+  const discountAmount =
+    coupon.type === "percentage"
+      ? context.subtotal * (coupon.discount / 100)
+      : Math.min(coupon.discount, context.subtotal);
+  return { valid: true, coupon, discountAmount };
+}

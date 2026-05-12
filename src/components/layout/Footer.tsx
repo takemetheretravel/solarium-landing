@@ -42,6 +42,7 @@ export default function Footer() {
           <div>
             <Kicker tone="charcoal">Políticas</Kicker>
             <ul className="mt-5 space-y-3 font-sans text-sm">
+              <li><Link href="/ofertas" className="text-charcoal/80 hover:text-copper">Ofertas e Cupons</Link></li>
               <li><Link href="/termos" className="text-charcoal/80 hover:text-copper">Termos e Condições</Link></li>
               <li><Link href="/privacidade" className="text-charcoal/80 hover:text-copper">Política de Privacidade</Link></li>
               <li><Link href="/termos#cancelamento" className="text-charcoal/80 hover:text-copper">Política de Cancelamento</Link></li>

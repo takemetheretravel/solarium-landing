@@ -60,38 +60,14 @@ export const REVIEWS: Review[] = [
   { id: 15, author: "Amund", from: "Internacional", date: "Abril 2025", property: "solarium-1", text: "Este lugar é uma joia no interior do Brasil! Extremamente tranquilo e uma escapadinha perfeita da cidade. Lucas é extremamente atencioso às suas necessidades e um ótimo anfitrião.", source: "Airbnb" },
 ];
 
-export type Coupon = {
-  code: string;
-  discount: number;
-  type: "percentage" | "fixed";
-  minNights: number;
-  description: string;
+export type { Coupon, CouponValidation, ValidateCouponContext } from "@/config/coupons";
+export { COUPONS, validateCoupon } from "@/config/coupons";
+
+export const AIRBNB_LINKS: Record<string, string> = {
+  "solarium-1": "",
+  "solarium-2": "",
+  "solarium-completo": "",
 };
-
-export const COUPONS: Coupon[] = [
-  { code: "DUASNOITES", discount: 8, type: "percentage", minNights: 2, description: "8% de desconto em estadias de 2+ noites" },
-  { code: "EXPERIENCIACOMPLETA", discount: 12, type: "percentage", minNights: 3, description: "12% de desconto em estadias de 3+ noites" },
-  { code: "COMEMORACAO", discount: 15, type: "percentage", minNights: 5, description: "15% de desconto em estadias de 5+ noites" },
-];
-
-export type CouponValidation =
-  | { valid: true; coupon: Coupon; discountAmount: number }
-  | { valid: false; reason: string };
-
-export function validateCoupon(code: string, nights: number, subtotal: number): CouponValidation {
-  const normalized = code.trim().toUpperCase();
-  const coupon = COUPONS.find((c) => c.code === normalized);
-  if (!coupon) return { valid: false, reason: "Cupom não encontrado." };
-  if (nights < coupon.minNights) {
-    return {
-      valid: false,
-      reason: `Este cupom é válido para estadias de ${coupon.minNights}+ noites.`,
-    };
-  }
-  const discountAmount =
-    coupon.type === "percentage" ? subtotal * (coupon.discount / 100) : coupon.discount;
-  return { valid: true, coupon, discountAmount };
-}
 
 export type Partner = {
   name: string;
