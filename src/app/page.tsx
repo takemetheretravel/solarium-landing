@@ -7,7 +7,6 @@ import {
   Heart,
   Coffee,
   Flower2,
-  Percent,
   Tag,
   MessageCircle,
 } from "lucide-react";
@@ -92,8 +91,8 @@ export default async function Home() {
           </div>
           <div className="grid grid-cols-2 gap-10 lg:grid-cols-4 lg:gap-8">
             {[
-              { icon: Percent, title: "3% de desconto no Pix", text: "Aplicado automaticamente ao escolher Pix no checkout." },
-              { icon: Tag, title: "Cupons exclusivos", text: "Descontos progressivos por estadias mais longas." },
+              { icon: Tag, title: "Até 17% de desconto", text: "Estadias mais longas têm preços melhores — desconto progressivo por noite." },
+              { icon: Sparkles, title: "Cupons exclusivos", text: "Códigos de desconto disponíveis para reservas diretas." },
               { icon: MessageCircle, title: "Atendimento direto com o anfitrião", text: "Sem intermediários, sem fila — falamos com você." },
               { icon: Sparkles, title: "Concierge proativo", text: "Da chegada à partida, cuidamos dos detalhes." },
             ].map((item) => (
@@ -112,25 +111,24 @@ export default async function Home() {
       </Section>
 
       {/* BANNER CUPONS */}
-      <Section spacing="tight" className="bg-charcoal/5 border-b border-charcoal/10">
+      <div className="border-b border-charcoal/10 bg-charcoal/5 py-4">
         <Container>
-          <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <div className="flex items-center gap-4">
-              <Tag className="h-5 w-5 flex-shrink-0 text-copper" strokeWidth={1.5} />
-              <p className="font-sans text-sm text-charcoal/80">
-                <strong className="font-sans font-semibold text-charcoal">Cupons exclusivos:</strong>{" "}
-                até 15% de desconto + 3% extra no Pix para reservas diretas.
+          <div className="mx-auto flex max-w-xl flex-col items-center justify-between gap-3 sm:flex-row">
+            <div className="flex items-center gap-3">
+              <Tag className="h-4 w-4 flex-shrink-0 text-copper" strokeWidth={1.5} />
+              <p className="font-sans text-xs text-charcoal/70">
+                Cupons exclusivos: até 17% de desconto para reservas diretas.
               </p>
             </div>
             <Link
               href="/ofertas"
-              className="flex-shrink-0 inline-flex items-center gap-2 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
+              className="flex-shrink-0 inline-flex items-center gap-1 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
             >
-              Ver cupons <ArrowRight className="h-3.5 w-3.5" />
+              Ver cupons <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
         </Container>
-      </Section>
+      </div>
 
       {/* NOSSAS CASAS */}
       <Section id="nossas-casas">
@@ -258,23 +256,28 @@ export default async function Home() {
           </div>
         </Container>
         <ReviewsMarquee reviews={marqueeReviews} />
-        {Object.values(AIRBNB_LINKS).some(Boolean) && (
-          <div className="mt-10 flex flex-wrap justify-center gap-6">
-            {Object.entries(AIRBNB_LINKS).map(([slug, url]) =>
-              url ? (
-                <a
-                  key={slug}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-sans text-xs uppercase tracking-[0.2em] text-charcoal/50 hover:text-copper"
-                >
-                  Ver avaliações no Airbnb →
-                </a>
-              ) : null,
-            )}
+        <div className="mt-12 text-center">
+          <p className="font-sans text-sm text-charcoal/60 mb-5">
+            Mais de 47 avaliações 5 estrelas em diferentes plataformas
+          </p>
+          <div className="flex flex-wrap justify-center gap-6">
+            {[
+              { label: "Ver Solarium 1 no Airbnb", url: AIRBNB_LINKS["solarium-1"] },
+              { label: "Ver Solarium 2 no Airbnb", url: AIRBNB_LINKS["solarium-2"] },
+              { label: "Ver Solarium Completo no Airbnb", url: AIRBNB_LINKS["solarium-completo"] },
+            ].map((link) => (
+              <a
+                key={link.url}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-sans text-xs uppercase tracking-widest text-copper underline underline-offset-4 hover:text-copper/80"
+              >
+                {link.label}
+              </a>
+            ))}
           </div>
-        )}
+        </div>
       </Section>
 
       {/* EXPERIÊNCIAS */}

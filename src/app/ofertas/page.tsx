@@ -28,8 +28,8 @@ export default function OfertasPage() {
             Ofertas exclusivas.
           </Heading>
           <p className="mt-6 font-sans text-base leading-relaxed text-cream/75">
-            Ao reservar diretamente pelo nosso site você acumula vantagens que plataformas como
-            Airbnb e Booking não oferecem. Aplique um dos cupons abaixo no checkout.
+            Quanto mais tempo conosco, melhor o preço da sua estadia. Descontos aplicados
+            automaticamente no checkout.
           </p>
         </Container>
       </section>
@@ -130,7 +130,7 @@ export default function OfertasPage() {
                   {
                     n: "01",
                     title: "Escolha sua casa e datas",
-                    text: "Selecione o Solarium 1, Solarium 2 ou o Complexo completo e informe o período.",
+                    text: "Selecione o Solarium 1, Solarium 2 ou o Solarium Completo e informe o período.",
                   },
                   {
                     n: "02",

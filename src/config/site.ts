@@ -64,9 +64,9 @@ export type { Coupon, CouponValidation, ValidateCouponContext } from "@/config/c
 export { COUPONS, validateCoupon } from "@/config/coupons";
 
 export const AIRBNB_LINKS: Record<string, string> = {
-  "solarium-1": "",
-  "solarium-2": "",
-  "solarium-completo": "",
+  "solarium-1": "https://airbnb.com.br/h/solariummantiqueira1",
+  "solarium-2": "https://airbnb.com.br/h/solariummantiqueira2",
+  "solarium-completo": "https://airbnb.com.br/h/solariummantiqueira",
 };
 
 export type Partner = {

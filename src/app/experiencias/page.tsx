@@ -88,8 +88,8 @@ export default function ExperienciasPage() {
           <div className="grid gap-16 lg:grid-cols-2 lg:gap-20">
             <div className="relative aspect-[4/5] overflow-hidden">
               <SmartImage
-                src="/images/solarium-1/01-piscina-infinita-externa.jpg"
-                alt="Piscina infinita aquecida ao entardecer"
+                src="/images/solarium-1/09-deck-por-do-sol.jpg"
+                alt="Deck ao pôr do sol com vista para a Serra da Mantiqueira"
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />
             </div>
@@ -207,8 +207,8 @@ export default function ExperienciasPage() {
             </div>
             <div className="relative aspect-[4/5] overflow-hidden">
               <SmartImage
-                src="/images/solarium-2/01-sala-vista-serra.jpg"
-                alt="Vista panorâmica da Serra da Mantiqueira"
+                src="/images/solarium-2/01-deck-serra-fina.jpg"
+                alt="Vista panorâmica da Serra Fina"
                 sizes="(max-width: 1024px) 100vw, 55vw"
               />
             </div>
@@ -253,8 +253,8 @@ export default function ExperienciasPage() {
           <div className="grid gap-16 lg:grid-cols-2 lg:gap-20">
             <div className="relative order-2 aspect-[4/5] overflow-hidden lg:order-1">
               <SmartImage
-                src="/images/solarium-1/05-varanda-mesa.jpg"
-                alt="Varanda com mesa e vista para a serra"
+                src="/images/solarium-1/06-redario.jpg"
+                alt="Redário com vista para a Serra da Mantiqueira"
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />
             </div>

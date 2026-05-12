@@ -32,11 +32,14 @@ export const COUPONS: Coupon[] = [
   },
   {
     code: "COMEMORACAO",
-    discount: 15,
+    discount: 17,
     type: "percentage",
     minNights: 5,
-    isPublic: false,
-    description: "15% de desconto em estadias de 5+ noites",
+    maxInstallments: 6,
+    validFrom: "2026-01-01",
+    validUntil: "2027-12-31",
+    isPublic: true,
+    description: "17% de desconto em estadias de 5+ noites",
   },
 ];
 
