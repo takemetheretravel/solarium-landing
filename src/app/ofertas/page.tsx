@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Tag, Percent, Clock, MessageCircle } from "lucide-react";
+import { ArrowRight, Tag, Percent, MessageCircle } from "lucide-react";
 import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
@@ -28,8 +28,7 @@ export default function OfertasPage() {
             Ofertas exclusivas.
           </Heading>
           <p className="mt-6 font-sans text-base leading-relaxed text-cream/75">
-            Quanto mais tempo conosco, melhor o preço da sua estadia. Descontos aplicados
-            automaticamente no checkout.
+            Quanto mais tempo conosco, melhor o preço da sua estadia.
           </p>
         </Container>
       </section>
@@ -74,47 +73,13 @@ export default function OfertasPage() {
                   </code>
                 </div>
 
-                {coupon.paymentMethods && (
-                  <p className="mt-3 font-sans text-xs text-charcoal/50">
-                    Válido para:{" "}
-                    {coupon.paymentMethods.map((m) => (m === "pix" ? "Pix" : "Cartão")).join(" ou ")}
-                  </p>
-                )}
                 {coupon.maxInstallments && (
-                  <p className="mt-1 font-sans text-xs text-charcoal/50">
+                  <p className="mt-3 font-sans text-xs text-charcoal/50">
                     Cartão: até {coupon.maxInstallments}x
                   </p>
                 )}
               </article>
             ))}
-
-            {/* Pix discount card */}
-            <article className="flex flex-col border border-copper/30 bg-copper/5 p-8">
-              <div className="mb-6 flex items-start justify-between">
-                <Percent className="h-6 w-6 text-copper" strokeWidth={1.5} />
-                <span className="font-sans text-xs uppercase tracking-[0.25em] text-charcoal/40">
-                  Automático
-                </span>
-              </div>
-
-              <p className="font-sans text-xs uppercase tracking-[0.2em] text-charcoal/50">
-                Qualquer estadia
-              </p>
-              <p className="mt-1 font-serif text-4xl text-charcoal">
-                {SITE.pixDiscountPercent}
-                <span className="text-2xl text-copper">%</span>
-              </p>
-              <p className="mt-1 font-sans text-sm text-charcoal/70">
-                Desconto automático ao pagar com Pix
-              </p>
-
-              <div className="mt-8 flex items-center gap-3 border-t border-charcoal/10 pt-5">
-                <Clock className="h-4 w-4 flex-shrink-0 text-copper" strokeWidth={1.5} />
-                <span className="font-sans text-xs text-charcoal/60">
-                  Aplicado automaticamente no checkout
-                </span>
-              </div>
-            </article>
           </div>
         </Container>
       </Section>
@@ -140,7 +105,7 @@ export default function OfertasPage() {
                   {
                     n: "03",
                     title: "Finalize com Pix ou cartão",
-                    text: "Se escolher Pix, o desconto adicional de 3% é aplicado automaticamente.",
+                    text: "Escolha o método de pagamento de preferência e conclua a reserva.",
                   },
                 ].map((step) => (
                   <li key={step.n} className="flex gap-6">
@@ -163,8 +128,8 @@ export default function OfertasPage() {
                 <Kicker className="mb-4">Dúvidas?</Kicker>
                 <Heading level={3}>Fale com o concierge.</Heading>
                 <p className="mt-4 font-sans text-sm leading-relaxed text-charcoal/70">
-                  Se tiver dúvidas sobre como aplicar um cupom, sobre a combinação com o desconto
-                  Pix, ou sobre qualquer aspecto da reserva, fale diretamente conosco.
+                  Se tiver dúvidas sobre como aplicar um cupom ou sobre qualquer aspecto da
+                  reserva, fale diretamente conosco.
                 </p>
                 <a
                   href={whatsappLink("Olá! Tenho uma dúvida sobre os cupons de desconto do Solarium.")}

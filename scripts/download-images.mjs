@@ -42,6 +42,8 @@ const IMAGES = [
   { fileId: "1fRqaIpWbAf6BLmRRcryCR6QnEpJ4u54h", savePath: "public/images/solarium-completo/04-drone-serra-itatiaia.jpg" },
   { fileId: "1V4dG3DWLIOoCUfuNu13Iw23QE4Uu_ONM", savePath: "public/images/solarium-completo/05-drone-itatiaia.jpg" },
   { fileId: "1wDkVd1AOfckbf5iKyXC2-hKnrmJG74Gq", savePath: "public/images/solarium-completo/06-drone-serra-papagaio.jpg" },
+  // EXPERIÊNCIAS
+  { fileId: "1pbF1V36-ht-ydqugHAEK6FquqiM8Cdln", savePath: "public/images/experiencias/cesta-cafe-preparada.jpg" },
   // VÍDEO HERO
   { fileId: "1BgEtofXRwedGOi1jwpSZV9zd7WOIbWPR", savePath: "public/videos/hero-banheira-nascer-sol.mp4" },
 ];
