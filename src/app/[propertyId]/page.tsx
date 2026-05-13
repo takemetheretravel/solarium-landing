@@ -10,6 +10,7 @@ import SmartImage from "@/components/ui/SmartImage";
 import Gallery from "@/components/property/Gallery";
 import AmenitiesGrouped from "@/components/property/AmenitiesGrouped";
 import BookingForm from "@/components/booking/BookingForm";
+import VideoBlock from "@/components/ui/VideoBlock";
 import {
   PROPERTIES,
   getPropertyBySlug,
@@ -112,6 +113,18 @@ export default async function PropertyPage({
           </p>
         </div>
       </section>
+
+      {/* VÍDEO */}
+      {property.videoPublicId && (
+        <Section spacing="tight" className="border-t border-charcoal/10">
+          <Container size="wide">
+            <VideoBlock
+              publicId={property.videoPublicId}
+              title={`Tour pelo ${property.name}`}
+            />
+          </Container>
+        </Section>
+      )}
 
       {/* GALERIA */}
       <Section spacing="tight">

@@ -24,6 +24,7 @@ export type PropertyConfig = {
   heroImage: string;
   cardImage: string;
   galleryImages: string[];
+  videoPublicId?: string;
 };
 
 const TEC = (extras: string[] = []): AmenityGroup => ({
@@ -151,6 +152,7 @@ const SOLARIUM_2: PropertyConfig = {
   ],
   heroImage: "/images/solarium-2/01-deck-serra-fina.jpg",
   cardImage: "/images/solarium-2/05-spa-teto-retratil.jpg",
+  videoPublicId: "solarium/solarium-2-apresentacao",
   galleryImages: [
     "/images/solarium-2/01-deck-serra-fina.jpg",
     "/images/solarium-2/02-banheira-por-do-sol.jpg",

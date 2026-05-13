@@ -5,6 +5,7 @@ import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
+import VideoBlock from "@/components/ui/VideoBlock";
 
 export const metadata: Metadata = {
   title: "Experiências",
@@ -62,11 +63,12 @@ export default function ExperienciasPage() {
       {/* ── SEÇÃO 1: Hero ──────────────────────────────────────────── */}
       <section className="relative h-[60vh] min-h-[440px] w-full overflow-hidden">
         <SmartImage
-          src="/images/experiencias/decoracao-romantica.jpg"
-          alt="Decoração romântica no Solarium Mantiqueira"
+          src="/images/experiencias/cesta-cafe-preparada.jpg"
+          alt="Café da manhã preparado com produtos locais — Solarium Mantiqueira"
           priority
           fill
           sizes="100vw"
+          className="object-top"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-charcoal/20 to-charcoal/75" />
         <div className="relative z-10 flex h-full flex-col items-center justify-end px-6 pb-20 text-center text-cream">
@@ -89,47 +91,76 @@ export default function ExperienciasPage() {
             <Heading level={2}>Experiências na sua casa.</Heading>
           </div>
           <div className="grid gap-0 border border-charcoal/10 md:grid-cols-3">
-            {[
-              {
-                src: "/images/experiencias/cesta-cafe-preparada.jpg",
-                alt: "Cesta de café da manhã preparada com produtos locais",
-                title: "Café da manhã na varanda",
-                text: "Cesta preparada com produtos de produtores locais, entregue no horário que você escolher. Uma das experiências favoritas dos nossos hóspedes.",
-                msg: "Olá! Gostaria de incluir a cesta de café da manhã na minha estadia no Solarium Mantiqueira. Pode me ajudar?",
-              },
-              {
-                src: "/images/experiencias/massagem.jpg",
-                alt: "Sessão de massagem privativa no Solarium",
-                title: "Sessões de massagem",
-                text: "Profissional parceiro, sessão privativa no conforto da sua casa. Antecedência mínima de 24h para agendamento.",
-                msg: "Olá! Gostaria de agendar uma sessão de massagem durante minha estadia no Solarium Mantiqueira. Pode me ajudar?",
-              },
-              {
-                src: "/images/experiencias/decoracao-romantica.jpg",
-                alt: "Decoração especial para momentos românticos",
-                title: "Decoração para momentos especiais",
-                text: "Aniversários, pedidos, lua de mel. Preparamos o ambiente antes da sua chegada para tornar o momento inesquecível.",
-                msg: "Olá! Gostaria de solicitar uma decoração especial para minha estadia no Solarium Mantiqueira. Pode me ajudar?",
-              },
-            ].map((card) => (
-              <div key={card.title} className="flex flex-col border-r border-charcoal/10 last:border-r-0">
-                <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
-                  <SmartImage src={card.src} alt={card.alt} fill sizes="(max-width: 768px) 100vw, 33vw" />
-                </div>
-                <div className="flex flex-1 flex-col p-8">
-                  <h3 className="font-serif text-xl text-charcoal">{card.title}</h3>
-                  <p className="mt-3 flex-1 font-sans text-sm leading-relaxed text-charcoal/70">{card.text}</p>
-                  <a
-                    href={waLink(card.msg)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-6 inline-flex items-center gap-1 self-start font-sans text-xs uppercase tracking-[0.2em] text-copper hover:text-charcoal"
-                  >
-                    Solicitar <ArrowRight className="h-3.5 w-3.5" />
-                  </a>
-                </div>
+            {/* Café da manhã */}
+            <div className="flex flex-col border-r border-charcoal/10">
+              <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
+                <SmartImage
+                  src="/images/experiencias/cesta-cafe.jpg"
+                  alt="Cesta de café da manhã com produtos locais"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                />
               </div>
-            ))}
+              <div className="flex flex-1 flex-col p-8">
+                <h3 className="font-serif text-xl text-charcoal">Café da manhã na varanda</h3>
+                <p className="mt-3 flex-1 font-sans text-sm leading-relaxed text-charcoal/70">
+                  Cesta preparada com produtos de produtores locais, entregue no horário que você escolher. Uma das experiências favoritas dos nossos hóspedes.
+                </p>
+                <a
+                  href={waLink("Olá! Gostaria de incluir a cesta de café da manhã na minha estadia no Solarium Mantiqueira. Pode me ajudar?")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 inline-flex items-center gap-1 self-start font-sans text-xs uppercase tracking-[0.2em] text-copper hover:text-charcoal"
+                >
+                  Solicitar <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* Massagem — vídeo */}
+            <div className="flex flex-col border-r border-charcoal/10">
+              <VideoBlock publicId="solarium/exp-massagem" title="Sessões de massagem" />
+              <div className="flex flex-1 flex-col p-8">
+                <h3 className="font-serif text-xl text-charcoal">Sessões de massagem</h3>
+                <p className="mt-3 flex-1 font-sans text-sm leading-relaxed text-charcoal/70">
+                  Profissional parceiro, sessão privativa no conforto da sua casa. Antecedência mínima de 24h para agendamento.
+                </p>
+                <a
+                  href={waLink("Olá! Gostaria de agendar uma sessão de massagem durante minha estadia no Solarium Mantiqueira. Pode me ajudar?")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 inline-flex items-center gap-1 self-start font-sans text-xs uppercase tracking-[0.2em] text-copper hover:text-charcoal"
+                >
+                  Solicitar <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* Decoração */}
+            <div className="flex flex-col">
+              <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
+                <SmartImage
+                  src="/images/experiencias/decoracao-romantica.jpg"
+                  alt="Decoração especial para momentos românticos"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                />
+              </div>
+              <div className="flex flex-1 flex-col p-8">
+                <h3 className="font-serif text-xl text-charcoal">Decoração para momentos especiais</h3>
+                <p className="mt-3 flex-1 font-sans text-sm leading-relaxed text-charcoal/70">
+                  Aniversários, pedidos, lua de mel. Preparamos o ambiente antes da sua chegada para tornar o momento inesquecível.
+                </p>
+                <a
+                  href={waLink("Olá! Gostaria de solicitar uma decoração especial para minha estadia no Solarium Mantiqueira. Pode me ajudar?")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 inline-flex items-center gap-1 self-start font-sans text-xs uppercase tracking-[0.2em] text-copper hover:text-charcoal"
+                >
+                  Solicitar <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
           </div>
         </Container>
       </Section>
@@ -140,8 +171,8 @@ export default function ExperienciasPage() {
           <div className="grid grid-cols-1 items-stretch lg:grid-cols-2">
             <div className="relative aspect-[4/3] overflow-hidden lg:aspect-auto">
               <SmartImage
-                src="/images/experiencias/bike.jpg"
-                alt="Trilhas de bike e aventura na Serra da Mantiqueira"
+                src="/images/experiencias/cavalo.jpg"
+                alt="Cavalgada com vista para a Serra Fina"
                 fill
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />

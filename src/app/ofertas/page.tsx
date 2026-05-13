@@ -72,12 +72,6 @@ export default function OfertasPage() {
                     {coupon.code}
                   </code>
                 </div>
-
-                {coupon.maxInstallments && (
-                  <p className="mt-3 font-sans text-xs text-charcoal/50">
-                    Cartão: até {coupon.maxInstallments}x
-                  </p>
-                )}
               </article>
             ))}
           </div>

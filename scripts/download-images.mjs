@@ -44,6 +44,11 @@ const IMAGES = [
   { fileId: "1wDkVd1AOfckbf5iKyXC2-hKnrmJG74Gq", savePath: "public/images/solarium-completo/06-drone-serra-papagaio.jpg" },
   // EXPERIÊNCIAS
   { fileId: "1pbF1V36-ht-ydqugHAEK6FquqiM8Cdln", savePath: "public/images/experiencias/cesta-cafe-preparada.jpg" },
+  { fileId: "1OjIisa9i8ExpEZtA-t1K3WPTIDL2PyAO", savePath: "public/images/experiencias/cesta-cafe.jpg" },
+  { fileId: "1HC1FCgw117EQ_Q_V3GM550XCK33BIynv", savePath: "public/images/experiencias/cachoeira.jpg" },
+  // VÍDEOS BRUTOS (para upload ao Cloudinary — não entram no /public)
+  { fileId: "1D3UqHjnOPC12-lRo8_0q5yybteJ-ulsH", savePath: "temp/solarium-2-apresentacao.mp4" },
+  { fileId: "1NosHtjV9u3OzfaSxVUD7lk-MnyntGbvq", savePath: "temp/massagem.mp4" },
   // VÍDEO HERO
   { fileId: "1BgEtofXRwedGOi1jwpSZV9zd7WOIbWPR", savePath: "public/videos/hero-banheira-nascer-sol.mp4" },
 ];
