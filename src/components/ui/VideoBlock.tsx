@@ -9,9 +9,16 @@ type Props = {
   title?: string;
   posterPublicId?: string;
   className?: string;
+  orientation?: "landscape" | "portrait";
 };
 
-export default function VideoBlock({ publicId, title, posterPublicId, className }: Props) {
+export default function VideoBlock({
+  publicId,
+  title,
+  posterPublicId,
+  className,
+  orientation = "landscape",
+}: Props) {
   const [open, setOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -51,7 +58,11 @@ export default function VideoBlock({ publicId, title, posterPublicId, className 
         className={`group relative block w-full overflow-hidden bg-charcoal/5 ${className || ""}`}
         aria-label={title ? `Assistir vídeo: ${title}` : "Assistir vídeo"}
       >
-        <div className="relative aspect-video">
+        <div
+          className={`relative overflow-hidden ${
+            orientation === "portrait" ? "aspect-[9/16]" : "aspect-video"
+          }`}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={poster}
@@ -93,7 +104,7 @@ export default function VideoBlock({ publicId, title, posterPublicId, className 
             controls
             autoPlay
             playsInline
-            className="max-h-full max-w-full"
+            className={orientation === "portrait" ? "max-h-[85vh] w-auto" : "max-h-full max-w-full"}
           >
             Seu navegador não suporta vídeo HTML5.
           </video>

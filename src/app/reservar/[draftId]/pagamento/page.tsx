@@ -411,14 +411,21 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                   onChange={(e) => setInstallments(Number(e.target.value))}
                   className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal focus:border-copper focus:outline-none"
                 >
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <option value={1}>À vista — {formatBRLPrecise(draft.finalTotal)}</option>
+                  {[2, 3, 4, 5, 6].map((n) => (
                     <option key={n} value={n}>
-                      {n === 1
-                        ? `À vista — ${formatBRLPrecise(draft.finalTotal)}`
-                        : `${n}x de ${formatBRLPrecise(draft.finalTotal / n)} sem juros`}
+                      {n}x de {formatBRLPrecise(draft.finalTotal / n)} sem juros
+                    </option>
+                  ))}
+                  {[7, 8, 9, 10, 11, 12].map((n) => (
+                    <option key={n} value={n}>
+                      {n}x — sujeito a juros
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 font-sans text-[0.65rem] text-charcoal/40">
+                  Parcelamentos acima de 6x sujeitos a juros pela operadora do cartão.
+                </p>
               </div>
 
               {cardError && (

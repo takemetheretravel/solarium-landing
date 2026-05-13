@@ -18,6 +18,10 @@ const uploads = [
     publicId: "solarium/solarium-2-apresentacao",
   },
   {
+    file: "temp/solarium-1-apresentacao.mp4",
+    publicId: "solarium/solarium-1-apresentacao",
+  },
+  {
     file: "temp/massagem.mp4",
     publicId: "solarium/exp-massagem",
   },

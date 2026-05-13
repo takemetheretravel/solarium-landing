@@ -116,14 +116,30 @@ export default async function PropertyPage({
 
       {/* VÍDEO */}
       {property.videoPublicId && (
-        <Section spacing="tight" className="border-t border-charcoal/10">
+        <section className="border-t border-charcoal/10 bg-cream">
           <Container size="wide">
-            <VideoBlock
-              publicId={property.videoPublicId}
-              title={`Tour pelo ${property.name}`}
-            />
+            <div className="grid grid-cols-1 items-stretch lg:grid-cols-[400px_1fr]">
+              {/* Vídeo portrait à esquerda */}
+              <div className="flex items-stretch bg-charcoal">
+                <VideoBlock
+                  publicId={property.videoPublicId}
+                  orientation="portrait"
+                  className="min-h-[500px] w-full"
+                />
+              </div>
+              {/* Texto à direita */}
+              <div className="flex flex-col justify-center bg-white p-10 md:p-14">
+                <Kicker className="mb-3">Conheça em movimento</Kicker>
+                <Heading level={2} className="mb-5">
+                  Veja como é se hospedar aqui.
+                </Heading>
+                <p className="font-sans text-base leading-relaxed text-charcoal/70">
+                  Um reel com os melhores momentos de uma estadia. Clique para assistir com som.
+                </p>
+              </div>
+            </div>
           </Container>
-        </Section>
+        </section>
       )}
 
       {/* GALERIA */}

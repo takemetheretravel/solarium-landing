@@ -5,7 +5,6 @@ import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
-import VideoBlock from "@/components/ui/VideoBlock";
 
 export const metadata: Metadata = {
   title: "Experiências",
@@ -117,9 +116,16 @@ export default function ExperienciasPage() {
               </div>
             </div>
 
-            {/* Massagem — vídeo */}
+            {/* Massagem */}
             <div className="flex flex-col border-r border-charcoal/10">
-              <VideoBlock publicId="solarium/exp-massagem" title="Sessões de massagem" />
+              <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
+                <SmartImage
+                  src="/images/experiencias/massagem.jpg"
+                  alt="Sessão de massagem no deck com vista para a Serra"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                />
+              </div>
               <div className="flex flex-1 flex-col p-8">
                 <h3 className="font-serif text-xl text-charcoal">Sessões de massagem</h3>
                 <p className="mt-3 flex-1 font-sans text-sm leading-relaxed text-charcoal/70">

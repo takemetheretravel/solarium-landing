@@ -112,6 +112,7 @@ const SOLARIUM_1: PropertyConfig = {
     "/images/solarium-1/09-deck-por-do-sol.jpg",
     "/images/solarium-1/10-frente-rede-banheira.jpg",
   ],
+  videoPublicId: "solarium/solarium-1-apresentacao",
 };
 
 const SOLARIUM_2: PropertyConfig = {

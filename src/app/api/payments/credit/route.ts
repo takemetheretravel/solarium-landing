@@ -27,6 +27,13 @@ export async function POST(req: Request) {
     const draft = await getDraft(draftId);
     if (!draft) return NextResponse.json({ error: "Draft não encontrado ou expirado" }, { status: 404 });
 
+    if (draft.nights === 1) {
+      return NextResponse.json(
+        { approved: false, returnMessage: "Pagamento com cartão disponível apenas para estadias de 2 ou mais noites." },
+        { status: 400 },
+      );
+    }
+
     const amountCents = Math.round(draft.finalTotal * 100);
 
     const result = await createCreditPayment({

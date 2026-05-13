@@ -41,6 +41,17 @@ export const COUPONS: Coupon[] = [
     isPublic: true,
     description: "17% de desconto em estadias de 5+ noites",
   },
+  {
+    code: "PAULA15",
+    discount: 15,
+    type: "percentage",
+    minNights: 1,
+    maxInstallments: 1,
+    validFrom: "2026-01-01",
+    validUntil: "2027-12-31",
+    isPublic: false,
+    description: "15% de desconto exclusivo",
+  },
 ];
 
 export type CouponValidation =
@@ -53,6 +64,7 @@ export type ValidateCouponContext = {
   paymentMethod?: "pix" | "card";
   propertySlug?: string;
   checkin?: string;
+  installments?: number;
 };
 
 export function validateCoupon(code: string, context: ValidateCouponContext): CouponValidation {
@@ -88,6 +100,17 @@ export function validateCoupon(code: string, context: ValidateCouponContext): Co
   }
   if (coupon.validUntil && context.checkin && context.checkin > coupon.validUntil) {
     return { valid: false, reason: "Este cupom expirou." };
+  }
+  if (
+    coupon.maxInstallments !== undefined &&
+    context.installments !== undefined &&
+    context.paymentMethod === "card" &&
+    context.installments > coupon.maxInstallments
+  ) {
+    return {
+      valid: false,
+      reason: `Este cupom permite parcelamento em até ${coupon.maxInstallments}x${coupon.maxInstallments === 1 ? " (à vista)" : ""}.`,
+    };
   }
 
   const discountAmount =

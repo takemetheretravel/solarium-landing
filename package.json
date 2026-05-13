@@ -8,11 +8,14 @@
     "start": "next start",
     "lint": "next lint",
     "download:images": "node scripts/download-images.mjs",
+    "download:videos": "node scripts/download-videos.mjs",
     "upload:videos": "node scripts/upload-videos-to-cloudinary.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",
     "cloudinary": "^2.10.0",
+    "dotenv": "^17.4.2",
+    "googleapis": "^171.4.0",
     "lucide-react": "^1.14.0",
     "next": "14.2.35",
     "react": "^18",
