@@ -143,7 +143,7 @@ async function fetchAccessToken(): Promise<TokenInfo | null> {
   }
 }
 
-async function getAccessToken(forceRefresh = false): Promise<string | null> {
+export async function getAccessToken(forceRefresh = false): Promise<string | null> {
   if (!forceRefresh) {
     const cached = cacheGet<TokenInfo>(TOKEN_CACHE_KEY);
     if (cached && cached.expiresAt > Date.now() + 60_000) {
