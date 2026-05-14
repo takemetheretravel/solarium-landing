@@ -148,7 +148,15 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       const res = await fetch("/api/payments/credit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draftId: params.draftId, cardNumber, cardHolder, cardExpiration, cardCvv, installments }),
+        body: JSON.stringify({
+          draftId: params.draftId,
+          cardNumber,
+          cardHolder,
+          cardExpiration,
+          cardCvv,
+          installments,
+          amountOverride: valorACobrar,
+        }),
       });
       const data = await res.json();
       if (data.approved) {
@@ -350,14 +358,19 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   const semJurosLimite = appliedCoupon?.installmentsWithoutInterest ?? 6;
   const maxParcelas = appliedCoupon?.maxInstallments ?? 12;
 
-  const opcoesParcelas: { n: number; label: string }[] = [];
+  const opcoesParcelas: { n: number; label: string; totalCobrado: number }[] = [];
   for (let n = 1; n <= maxParcelas; n++) {
     if (n === 1) {
-      opcoesParcelas.push({ n, label: `À vista — ${formatBRLPrecise(totalAVista)}` });
+      opcoesParcelas.push({
+        n,
+        label: `À vista — ${formatBRLPrecise(totalAVista)}`,
+        totalCobrado: totalAVista,
+      });
     } else if (n <= semJurosLimite) {
       opcoesParcelas.push({
         n,
         label: `${n}x de ${formatBRLPrecise(totalAVista / n)} sem juros`,
+        totalCobrado: totalAVista,
       });
     } else {
       const valorParcela = calcParcela(totalAVista, n, TAXA_MENSAL_JUROS);
@@ -365,6 +378,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       opcoesParcelas.push({
         n,
         label: `${n}x de ${formatBRLPrecise(valorParcela)} (total ${formatBRLPrecise(totalComJuros)})`,
+        totalCobrado: totalComJuros,
       });
     }
   }
@@ -372,6 +386,9 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   const opcoesFiltradas = isSingleNight
     ? opcoesParcelas.filter((o) => o.n === 1)
     : opcoesParcelas;
+
+  const opcaoSelecionada = opcoesParcelas.find((o) => o.n === installments);
+  const valorACobrar = opcaoSelecionada?.totalCobrado ?? totalAVista;
 
   return (
     <main className="bg-cream pt-32 pb-20">
@@ -457,7 +474,9 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                   ))}
                 </select>
                 <p className="mt-1 font-sans text-[0.65rem] text-charcoal/40">
-                  Parcelamentos acima de 6x: valores estimados, sujeitos a confirmação pela operadora.
+                  {appliedCoupon?.installmentsWithoutInterest === 1
+                    ? "Cupom à vista — parcelamentos sujeitos a juros embutidos no valor cobrado."
+                    : `Parcelamentos acima de ${semJurosLimite}x: juros já inclusos no valor mostrado. Total final cobrado conforme exibido.`}
                 </p>
                 {isSingleNight && (
                   <p className="mt-2 font-sans text-xs italic text-charcoal/60">
@@ -494,7 +513,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                 disabled={!cardNumber || !cardHolder || !cardExpiration || !cardCvv || cardProcessing}
                 className="w-full bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream transition-colors hover:bg-copper/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {cardProcessing ? "Processando..." : `Pagar ${formatBRLPrecise(draft.finalTotal)}`}
+                {cardProcessing ? "Processando..." : `Pagar ${formatBRLPrecise(valorACobrar)}`}
               </button>
 
               <p className="text-center font-sans text-[0.65rem] text-charcoal/40">

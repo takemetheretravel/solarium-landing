@@ -55,6 +55,33 @@ export async function GET(req: Request) {
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
+      } else {
+        // Pix confirmado, Hostaway falhou → marca para criação manual
+        await updateDraft(draftId, { hostawayReservationId: -1 });
+        console.log("========================================");
+        console.log("🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY (Pix):");
+        console.log(
+          JSON.stringify(
+            {
+              propriedade: draft.propertyName,
+              listing: property.id,
+              checkin: draft.checkin,
+              checkout: draft.checkout,
+              hospedes: draft.guests,
+              nome: `${draft.guestFirstName} ${draft.guestLastName}`,
+              email: draft.guestEmail,
+              telefone: draft.guestPhone,
+              cpf: draft.guestCpf,
+              valor: draft.finalTotal,
+              pagamento: "Pix",
+              cieloPaymentId: draft.cieloPaymentId,
+              draftId,
+            },
+            null,
+            2,
+          ),
+        );
+        console.log("========================================");
       }
     }
 

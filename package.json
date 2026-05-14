@@ -10,7 +10,8 @@
     "download:images": "node scripts/download-images.mjs",
     "download:videos": "node scripts/download-videos.mjs",
     "upload:videos": "node scripts/upload-videos-to-cloudinary.mjs",
-    "upload:images": "node scripts/upload-images-to-cloudinary.mjs"
+    "upload:images": "node scripts/upload-images-to-cloudinary.mjs",
+    "sync:images": "node scripts/sync-drive-cloudinary.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",

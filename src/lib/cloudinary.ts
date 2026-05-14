@@ -17,7 +17,7 @@ export function videoPosterUrl(
 
 export function imageUrl(
   publicId: string,
-  opts?: { width?: number; height?: number; quality?: "auto" | number },
+  opts?: { width?: number; height?: number; quality?: "auto" | number; version?: number },
 ): string {
   const w = opts?.width;
   const h = opts?.height;
@@ -31,5 +31,6 @@ export function imageUrl(
   ]
     .filter(Boolean)
     .join(",");
-  return `${BASE_URL}/image/upload/${transforms}/${publicId}`;
+  const versionPart = opts?.version ? `v${opts.version}/` : "";
+  return `${BASE_URL}/image/upload/${transforms}/${versionPart}${publicId}`;
 }

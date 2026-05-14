@@ -444,6 +444,7 @@ export async function createHostawayReservation(params: {
       status: "confirmed",
     };
 
+    console.log("[Hostaway:createReservation] Token first chars:", token.substring(0, 20));
     console.log("[Hostaway:createReservation] Body sent:", JSON.stringify(body));
 
     const res = await fetch(`${BASE_URL}/reservations`, {
@@ -457,9 +458,15 @@ export async function createHostawayReservation(params: {
     });
 
     const data = await res.json();
-    console.log("[Hostaway:createReservation] Response:", res.status, JSON.stringify(data).slice(0, 800));
+    console.log("[Hostaway:createReservation] Response status:", res.status);
+    console.log("[Hostaway:createReservation] Response body:", JSON.stringify(data));
+    console.log(
+      "[Hostaway:createReservation] Response headers:",
+      JSON.stringify(Object.fromEntries(res.headers.entries())),
+    );
 
     if (!res.ok) {
+      console.error("[Hostaway:createReservation] FAILED with channelId:", body.channelId);
       console.error("[Hostaway:createReservation] Error:", res.status, JSON.stringify(data).slice(0, 500));
       return null;
     }

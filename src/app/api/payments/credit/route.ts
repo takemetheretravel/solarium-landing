@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const { draftId, cardNumber, cardHolder, cardExpiration, cardCvv, installments } =
+    const { draftId, cardNumber, cardHolder, cardExpiration, cardCvv, installments, amountOverride } =
       (await req.json()) as {
         draftId?: string;
         cardNumber?: string;
@@ -17,6 +17,7 @@ export async function POST(req: Request) {
         cardExpiration?: string;
         cardCvv?: string;
         installments?: number;
+        amountOverride?: number;
       };
 
     if (!draftId) return NextResponse.json({ error: "draftId required" }, { status: 400 });
@@ -34,7 +35,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const amountCents = Math.round(draft.finalTotal * 100);
+    // amountOverride = valor com juros embutidos (parcelamento > sem-juros do cupom)
+    if (
+      amountOverride !== undefined &&
+      (amountOverride < draft.finalTotal || amountOverride > draft.finalTotal * 2)
+    ) {
+      return NextResponse.json({ error: "Valor inválido" }, { status: 400 });
+    }
+    const valorACobrar = amountOverride && amountOverride > draft.finalTotal ? amountOverride : draft.finalTotal;
+    const amountCents = Math.round(valorACobrar * 100);
 
     const result = await createCreditPayment({
       orderId: draftId,
@@ -76,6 +85,35 @@ export async function POST(req: Request) {
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
+      } else {
+        // Pagamento aprovado, Hostaway falhou → marca para criação manual
+        await updateDraft(draftId, { hostawayReservationId: -1 });
+        console.log("========================================");
+        console.log("🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY:");
+        console.log(
+          JSON.stringify(
+            {
+              propriedade: draft.propertyName,
+              listing: property.id,
+              checkin: draft.checkin,
+              checkout: draft.checkout,
+              hospedes: draft.guests,
+              nome: `${draft.guestFirstName} ${draft.guestLastName}`,
+              email: draft.guestEmail,
+              telefone: draft.guestPhone,
+              cpf: draft.guestCpf,
+              valor: draft.finalTotal,
+              valorCobrado: valorACobrar,
+              pagamento: "Cartão",
+              parcelas: installments || 1,
+              cieloPaymentId: result.paymentId,
+              draftId,
+            },
+            null,
+            2,
+          ),
+        );
+        console.log("========================================");
       }
     }
 
