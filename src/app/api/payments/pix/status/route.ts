@@ -58,13 +58,13 @@ export async function GET(req: Request) {
       } else {
         // Pix confirmado, Hostaway falhou → marca para criação manual
         await updateDraft(draftId, { hostawayReservationId: -1 });
-        console.log("========================================");
-        console.log("🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY (Pix):");
-        console.log(
+        console.error("🚨🚨🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY 🚨🚨🚨");
+        console.error(
           JSON.stringify(
             {
+              ACAO_NECESSARIA: "Criar reserva manualmente no Hostaway",
               propriedade: draft.propertyName,
-              listing: property.id,
+              listingId: property.id,
               checkin: draft.checkin,
               checkout: draft.checkout,
               hospedes: draft.guests,
@@ -72,7 +72,7 @@ export async function GET(req: Request) {
               email: draft.guestEmail,
               telefone: draft.guestPhone,
               cpf: draft.guestCpf,
-              valor: draft.finalTotal,
+              valorTotal: draft.finalTotal,
               pagamento: "Pix",
               cieloPaymentId: draft.cieloPaymentId,
               draftId,
@@ -81,7 +81,6 @@ export async function GET(req: Request) {
             2,
           ),
         );
-        console.log("========================================");
       }
     }
 

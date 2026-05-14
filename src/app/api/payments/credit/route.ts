@@ -88,13 +88,13 @@ export async function POST(req: Request) {
       } else {
         // Pagamento aprovado, Hostaway falhou → marca para criação manual
         await updateDraft(draftId, { hostawayReservationId: -1 });
-        console.log("========================================");
-        console.log("🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY:");
-        console.log(
+        console.error("🚨🚨🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY 🚨🚨🚨");
+        console.error(
           JSON.stringify(
             {
+              ACAO_NECESSARIA: "Criar reserva manualmente no Hostaway",
               propriedade: draft.propertyName,
-              listing: property.id,
+              listingId: property.id,
               checkin: draft.checkin,
               checkout: draft.checkout,
               hospedes: draft.guests,
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
               email: draft.guestEmail,
               telefone: draft.guestPhone,
               cpf: draft.guestCpf,
-              valor: draft.finalTotal,
+              valorTotal: draft.finalTotal,
               valorCobrado: valorACobrar,
               pagamento: "Cartão",
               parcelas: installments || 1,
@@ -113,7 +113,6 @@ export async function POST(req: Request) {
             2,
           ),
         );
-        console.log("========================================");
       }
     }
 

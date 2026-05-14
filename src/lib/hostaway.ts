@@ -420,8 +420,8 @@ export async function createHostawayReservation(params: {
     if (!token) return null;
 
     const body = {
-      channelId: 2013,
-      channelName: "bookingengine",
+      channelId: null,
+      channelName: "direct",
       source: params.source || "solarium-direct",
       listingMapId: params.listingMapId,
       arrivalDate: params.arrivalDate,
