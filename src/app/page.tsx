@@ -141,14 +141,14 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="grid gap-16 lg:grid-cols-3 lg:gap-6">
+          <div className="grid gap-6 lg:grid-cols-3 lg:gap-6">
             {PROPERTIES.map((p, i) => {
               const min = minPrices[i];
               return (
                 <Link
                   key={p.slug}
                   href={`/${p.slug}`}
-                  className="group flex flex-col bg-cream transition-all duration-300 hover:-translate-y-1"
+                  className="group mb-12 flex flex-col rounded-sm bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 last:mb-0 md:mb-0 md:rounded-none md:bg-cream md:p-0 md:shadow-none"
                 >
                   <div className="relative aspect-[4/5] overflow-hidden bg-charcoal/5">
                     <SmartImage

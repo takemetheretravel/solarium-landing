@@ -347,30 +347,31 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   const isSingleNight = draft.nights === 1;
   const appliedCoupon = draft.couponCode ? COUPONS.find((c) => c.code === draft.couponCode) || null : null;
 
-  const opcoesParcelas = [
-    { n: 1, label: `À vista — ${formatBRLPrecise(totalAVista)}` },
-    ...[2, 3, 4, 5, 6].map((n) => ({
-      n,
-      label: `${n}x de ${formatBRLPrecise(totalAVista / n)} sem juros`,
-    })),
-    ...[7, 8, 9, 10, 11, 12].map((n) => {
+  const semJurosLimite = appliedCoupon?.installmentsWithoutInterest ?? 6;
+  const maxParcelas = appliedCoupon?.maxInstallments ?? 12;
+
+  const opcoesParcelas: { n: number; label: string }[] = [];
+  for (let n = 1; n <= maxParcelas; n++) {
+    if (n === 1) {
+      opcoesParcelas.push({ n, label: `À vista — ${formatBRLPrecise(totalAVista)}` });
+    } else if (n <= semJurosLimite) {
+      opcoesParcelas.push({
+        n,
+        label: `${n}x de ${formatBRLPrecise(totalAVista / n)} sem juros`,
+      });
+    } else {
       const valorParcela = calcParcela(totalAVista, n, TAXA_MENSAL_JUROS);
       const totalComJuros = valorParcela * n;
-      return {
+      opcoesParcelas.push({
         n,
         label: `${n}x de ${formatBRLPrecise(valorParcela)} (total ${formatBRLPrecise(totalComJuros)})`,
-      };
-    }),
-  ];
+      });
+    }
+  }
 
-  const opcoesFiltradas = opcoesParcelas
-    .filter(
-      (o) =>
-        !appliedCoupon ||
-        appliedCoupon.maxInstallments === undefined ||
-        o.n <= appliedCoupon.maxInstallments,
-    )
-    .filter((o) => !isSingleNight || o.n === 1);
+  const opcoesFiltradas = isSingleNight
+    ? opcoesParcelas.filter((o) => o.n === 1)
+    : opcoesParcelas;
 
   return (
     <main className="bg-cream pt-32 pb-20">
@@ -463,12 +464,12 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                     Estadias de 1 noite: pagamento à vista. Parcelamento a partir de 2 noites.
                   </p>
                 )}
-                {appliedCoupon && appliedCoupon.maxInstallments !== undefined && appliedCoupon.maxInstallments < 12 && (
+                {appliedCoupon && (
                   <p className="mt-2 font-sans text-xs text-copper">
                     Cupom {appliedCoupon.code}:{" "}
-                    {appliedCoupon.maxInstallments === 1
-                      ? "pagamento à vista"
-                      : `em até ${appliedCoupon.maxInstallments}x`}
+                    {appliedCoupon.installmentsWithoutInterest === 1
+                      ? "parcelamento de 2x a 12x com juros aplicáveis"
+                      : `parcelamento sem juros em até ${appliedCoupon.installmentsWithoutInterest ?? 6}x`}
                     .
                   </p>
                 )}

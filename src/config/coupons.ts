@@ -8,7 +8,10 @@ export type Coupon = {
   validUntil?: string;
   paymentMethods?: ("pix" | "card")[];
   properties?: string[];
+  /** Limite máximo absoluto de parcelas (1..12). Acima disso, validateCoupon rejeita. */
   maxInstallments?: number;
+  /** Até quantas parcelas SEM juros (apenas visual, não bloqueia). Default: 6. */
+  installmentsWithoutInterest?: number;
   isPublic: boolean;
   description: string;
 };
@@ -19,6 +22,8 @@ export const COUPONS: Coupon[] = [
     discount: 8,
     type: "percentage",
     minNights: 2,
+    maxInstallments: 12,
+    installmentsWithoutInterest: 6,
     isPublic: true,
     description: "8% de desconto em estadias de 2+ noites",
   },
@@ -27,6 +32,8 @@ export const COUPONS: Coupon[] = [
     discount: 12,
     type: "percentage",
     minNights: 3,
+    maxInstallments: 12,
+    installmentsWithoutInterest: 6,
     isPublic: true,
     description: "12% de desconto em estadias de 3+ noites",
   },
@@ -35,7 +42,8 @@ export const COUPONS: Coupon[] = [
     discount: 17,
     type: "percentage",
     minNights: 5,
-    maxInstallments: 6,
+    maxInstallments: 12,
+    installmentsWithoutInterest: 6,
     validFrom: "2026-01-01",
     validUntil: "2027-12-31",
     isPublic: true,
@@ -46,7 +54,8 @@ export const COUPONS: Coupon[] = [
     discount: 15,
     type: "percentage",
     minNights: 1,
-    maxInstallments: 1,
+    maxInstallments: 12,
+    installmentsWithoutInterest: 1,
     validFrom: "2026-01-01",
     validUntil: "2027-12-31",
     isPublic: false,

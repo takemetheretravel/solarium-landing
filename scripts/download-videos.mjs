@@ -13,7 +13,7 @@ const FOLDER_ID = "1BI06RVjQoL0_4aFQxFVrM2Xu-W263lwT";
 // Mapa: nome no Drive → caminho local
 const VIDEOS = [
   { driveName: "Vid_Solarium2_Apresentacao.mp4", localPath: "temp/solarium-2-apresentacao.mp4" },
-  { driveName: "Vid_Solarium1_Apresentacao", localPath: "temp/solarium-1-apresentacao.mp4" },
+  { driveName: "Vid_Solarium1_Apresentacao.mp4", localPath: "temp/solarium-1-apresentacao.mp4" },
 ];
 
 async function getAuthClient() {
@@ -33,23 +33,36 @@ async function getAuthClient() {
 }
 
 async function findFileByName(drive, name) {
-  // Primeiro: busca exata por título
+  // 1) Busca exata por título (com extensão)
   let res = await drive.files.list({
     q: `'${FOLDER_ID}' in parents and name = '${name}' and trashed = false`,
-    fields: "files(id, name, size)",
+    fields: "files(id, name, size, mimeType)",
     pageSize: 1,
   });
   let files = res.data.files || [];
   if (files.length > 0) return files[0];
 
-  // Fallback: busca por substring (caso título não tenha extensão exata)
+  // 2) Busca exata SEM extensão, filtrando por mimeType video/*
+  const nameWithoutExt = name.replace(/\.[^.]+$/, "");
+  if (nameWithoutExt !== name) {
+    res = await drive.files.list({
+      q: `'${FOLDER_ID}' in parents and name = '${nameWithoutExt}' and mimeType contains 'video/' and trashed = false`,
+      fields: "files(id, name, size, mimeType)",
+      pageSize: 1,
+    });
+    files = res.data.files || [];
+    if (files.length > 0) return files[0];
+  }
+
+  // 3) Fallback: busca por substring (com ou sem extensão)
   res = await drive.files.list({
-    q: `'${FOLDER_ID}' in parents and name contains '${name}' and trashed = false`,
-    fields: "files(id, name, size)",
+    q: `'${FOLDER_ID}' in parents and name contains '${nameWithoutExt}' and trashed = false`,
+    fields: "files(id, name, size, mimeType)",
     pageSize: 5,
   });
   files = res.data.files || [];
-  if (files.length === 0) throw new Error(`Arquivo não encontrado no Drive: "${name}"`);
+  if (files.length === 0)
+    throw new Error(`Arquivo não encontrado no Drive (com ou sem extensão): "${name}"`);
   return files[0];
 }
 
