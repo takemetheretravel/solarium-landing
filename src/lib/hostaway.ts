@@ -420,6 +420,9 @@ export async function createHostawayReservation(params: {
     if (!token) return null;
 
     const body = {
+      channelId: 2013,
+      channelName: "bookingengine",
+      source: params.source || "solarium-direct",
       listingMapId: params.listingMapId,
       arrivalDate: params.arrivalDate,
       departureDate: params.departureDate,
@@ -441,6 +444,8 @@ export async function createHostawayReservation(params: {
       status: "confirmed",
     };
 
+    console.log("[Hostaway:createReservation] Body sent:", JSON.stringify(body));
+
     const res = await fetch(`${BASE_URL}/reservations`, {
       method: "POST",
       headers: {
@@ -452,9 +457,10 @@ export async function createHostawayReservation(params: {
     });
 
     const data = await res.json();
+    console.log("[Hostaway:createReservation] Response:", res.status, JSON.stringify(data).slice(0, 800));
+
     if (!res.ok) {
       console.error("[Hostaway:createReservation] Error:", res.status, JSON.stringify(data).slice(0, 500));
-      console.error("[Hostaway:createReservation] Body sent:", JSON.stringify(body).slice(0, 500));
       return null;
     }
 

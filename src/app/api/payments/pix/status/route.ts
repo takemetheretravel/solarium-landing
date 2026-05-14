@@ -23,6 +23,16 @@ export async function GET(req: Request) {
 
   const cieloStatus = await getPaymentStatus(draft.cieloPaymentId);
   console.log("[Pix:status] Cielo status:", cieloStatus.status, "for paymentId:", draft.cieloPaymentId);
+  // Mapeamento de status Cielo:
+  // 1  = NotFinished  (pendente)
+  // 2  = PaymentConfirmed  (PAGO — produção e sandbox)
+  // 3  = Denied
+  // 10 = Voided
+  // 11 = Refunded
+  // 12 = Pending (legado — alguns gateways retornam isso em vez de 1)
+  // 13 = Aborted
+  // Sandbox Pix: para confirmar pagamento, use o simulador da Cielo:
+  // https://developercielo.github.io/manual/cielo-ecommerce#simulação-de-pagamentos
 
   if (cieloStatus.status === 2) {
     await updateDraft(draftId, { status: "paid" });

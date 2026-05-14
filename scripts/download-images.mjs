@@ -1,13 +1,26 @@
 // Download Drive images to /public.
-// Idempotent: skips files already present. Handles Drive's HTML "download warning"
-// page for large files by parsing the confirmation token and re-requesting.
+// Suporta duas estratégias por item:
+//   1) { fileId, savePath }                 — legacy: download via URL pública (sem auth)
+//   2) { driveName, local, minSize? }       — busca por nome via Drive API com desambiguação por tamanho
+//
+// Entradas driveName requerem GOOGLE_SERVICE_ACCOUNT_JSON em .env.local e que a pasta
+// 1BI06RVjQoL0_4aFQxFVrM2Xu-W263lwT esteja compartilhada com o e-mail do service account.
+//
+// Idempotente:
+//  - fileId: pula se arquivo local existir
+//  - driveName: pula se tamanho local == tamanho remoto; senão baixa de novo
 import { mkdir, stat, writeFile } from "node:fs/promises";
+import { existsSync, statSync, createWriteStream, unlinkSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { google } from "googleapis";
+import { config } from "dotenv";
+config({ path: ".env.local" });
 
 const ROOT = resolve(process.cwd());
+const FOLDER_ID = "1BI06RVjQoL0_4aFQxFVrM2Xu-W263lwT";
 
 const IMAGES = [
-  // LOGOS
+  // LOGOS (fileId — não mudam)
   { fileId: "1IZbgrnYYsZi8Z_EUgUvcS8Ve16ZO777w", savePath: "public/images/comum/logo-preto.png" },
   { fileId: "1OV15NPns0IWYMPXZuyiOUEz7PUe5Dr8l", savePath: "public/images/comum/logo-branco.png" },
   { fileId: "1gA8QD3kvKfcYpKmDn4eOIFqIAGxs7YIx", savePath: "public/images/comum/logo-quadrado.png" },
@@ -42,11 +55,19 @@ const IMAGES = [
   { fileId: "1fRqaIpWbAf6BLmRRcryCR6QnEpJ4u54h", savePath: "public/images/solarium-completo/04-drone-serra-itatiaia.jpg" },
   { fileId: "1V4dG3DWLIOoCUfuNu13Iw23QE4Uu_ONM", savePath: "public/images/solarium-completo/05-drone-itatiaia.jpg" },
   { fileId: "1wDkVd1AOfckbf5iKyXC2-hKnrmJG74Gq", savePath: "public/images/solarium-completo/06-drone-serra-papagaio.jpg" },
-  // EXPERIÊNCIAS
-  { fileId: "1pbF1V36-ht-ydqugHAEK6FquqiM8Cdln", savePath: "public/images/experiencias/cesta-cafe-preparada.jpg" },
-  { fileId: "1OjIisa9i8ExpEZtA-t1K3WPTIDL2PyAO", savePath: "public/images/experiencias/cesta-cafe.jpg" },
-  { fileId: "1HC1FCgw117EQ_Q_V3GM550XCK33BIynv", savePath: "public/images/experiencias/cachoeira.jpg" },
-  // VÍDEOS BRUTOS (para upload ao Cloudinary — não entram no /public)
+  // EXPERIÊNCIAS (driveName — usuário troca foto no Drive, script detecta diff de tamanho e re-baixa)
+  { driveName: "Exp_Cesta de Café preparada.jpg", local: "public/images/experiencias/cesta-cafe-preparada.jpg", minSize: 900000 },
+  { driveName: "Exp_Cesta de Café.jpg",           local: "public/images/experiencias/cesta-cafe.jpg" },
+  { driveName: "Exp_Sessão de Massagem.jpg",      local: "public/images/experiencias/massagem.jpg" },
+  { driveName: "Exp_Passeio de Bike.jpg",         local: "public/images/experiencias/bike.jpg" },
+  { driveName: "Exp_Passeio à Cavalo.jpg",        local: "public/images/experiencias/cavalo.jpg" },
+  { driveName: "Exp_Decoração Romântica.jpg",     local: "public/images/experiencias/decoracao-romantica.jpg" },
+  { driveName: "Exp_Cachoeira.jpg",               local: "public/images/experiencias/cachoeira.jpg" },
+  { driveName: "Exp_Montanha.jpg",                local: "public/images/experiencias/montanha.jpg" },
+  // Existem 2 "Exp_Queijaria.jpg" no Drive (5.2MB e 7.8MB). minSize garante que pegamos a maior/correta.
+  { driveName: "Exp_Queijaria.jpg",               local: "public/images/experiencias/queijaria.jpg", minSize: 7000000 },
+  { driveName: "Exp_Passeio de Trem.jpg",         local: "public/images/experiencias/maria-fumaca.jpg" },
+  // VÍDEOS BRUTOS (legacy fileId)
   { fileId: "1D3UqHjnOPC12-lRo8_0q5yybteJ-ulsH", savePath: "temp/solarium-2-apresentacao.mp4" },
   { fileId: "1NosHtjV9u3OzfaSxVUD7lk-MnyntGbvq", savePath: "temp/massagem.mp4" },
   // VÍDEO HERO
@@ -68,13 +89,13 @@ function fmtSize(bytes) {
   return `${bytes}B`;
 }
 
+// ====================== fileId (legacy URL pública) ======================
 async function fetchDriveFile(fileId) {
   const baseUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
   let res = await fetch(baseUrl, { redirect: "follow" });
   let buf = Buffer.from(await res.arrayBuffer());
   const contentType = res.headers.get("content-type") || "";
 
-  // Drive returns an HTML "download warning" for large files. Parse the confirmation token.
   if (contentType.includes("text/html")) {
     const html = buf.toString("utf-8");
     const tokenMatch =
@@ -88,7 +109,6 @@ async function fetchDriveFile(fileId) {
       res = await fetch(url, { redirect: "follow" });
       buf = Buffer.from(await res.arrayBuffer());
     } else {
-      // Try the alternate "usercontent" host
       const alt = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
       res = await fetch(alt, { redirect: "follow" });
       buf = Buffer.from(await res.arrayBuffer());
@@ -98,27 +118,128 @@ async function fetchDriveFile(fileId) {
   return { buf, status: res.status, contentType: res.headers.get("content-type") || "" };
 }
 
+async function processFileIdItem(item, summary) {
+  const abs = resolve(ROOT, item.savePath);
+  if (await fileExists(abs)) {
+    console.log(`↷ skip  ${item.savePath} (já existe)`);
+    summary.skipped++;
+    return;
+  }
+  try {
+    await mkdir(dirname(abs), { recursive: true });
+    const { buf, status, contentType } = await fetchDriveFile(item.fileId);
+    if (status !== 200 || buf.length < 1024 || contentType.includes("text/html")) {
+      throw new Error(`HTTP ${status}, contentType=${contentType}, size=${buf.length}`);
+    }
+    await writeFile(abs, buf);
+    console.log(`✓ ${item.savePath} (${fmtSize(buf.length)})`);
+    summary.ok++;
+  } catch (err) {
+    console.error(`✗ ${item.savePath}: ${err.message}`);
+    summary.failed.push({ path: item.savePath, fileId: item.fileId, error: err.message });
+  }
+}
+
+// ====================== driveName (Drive API com auth) ======================
+async function getDriveClient() {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) {
+    throw new Error(
+      "GOOGLE_SERVICE_ACCOUNT_JSON não encontrado em .env.local.\n" +
+        "Adicione a chave de serviço Google com leitura no Drive.\n" +
+        "Compartilhe a pasta do Drive com o e-mail do service account.",
+    );
+  }
+  const credentials = JSON.parse(raw);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/drive.readonly"],
+  });
+  return google.drive({ version: "v3", auth });
+}
+
+async function findFileByName(drive, name, minSize = 0) {
+  const res = await drive.files.list({
+    q: `'${FOLDER_ID}' in parents and name = '${name.replace(/'/g, "\\'")}' and trashed = false`,
+    fields: "files(id, name, size, mimeType, modifiedTime)",
+    pageSize: 10,
+    orderBy: "modifiedTime desc",
+  });
+  const files = res.data.files || [];
+  if (files.length === 0) throw new Error(`Não encontrado: ${name}`);
+
+  if (minSize > 0) {
+    const match = files.find((f) => parseInt(f.size || "0") >= minSize);
+    if (match) return match;
+    console.warn(`  ⚠ Nenhum arquivo "${name}" com tamanho >= ${minSize}. Usando o maior disponível.`);
+    return files.sort((a, b) => parseInt(b.size || "0") - parseInt(a.size || "0"))[0];
+  }
+  return files[0];
+}
+
+async function downloadDriveStream(drive, fileId, localPath) {
+  await mkdir(dirname(localPath), { recursive: true });
+  const dest = createWriteStream(localPath);
+  const res = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
+  await new Promise((resolveDl, rejectDl) => {
+    res.data.pipe(dest);
+    res.data.on("error", rejectDl);
+    dest.on("finish", resolveDl);
+  });
+}
+
+async function processDriveNameItem(drive, item, summary) {
+  const abs = resolve(ROOT, item.local);
+  try {
+    const file = await findFileByName(drive, item.driveName, item.minSize || 0);
+    const driveSize = parseInt(file.size || "0");
+
+    if (existsSync(abs)) {
+      const localSize = statSync(abs).size;
+      if (localSize === driveSize) {
+        console.log(`↷ skip  ${item.local} (sem alterações)`);
+        summary.skipped++;
+        return;
+      }
+      console.log(`↻ alterado ${item.local} (local ${fmtSize(localSize)} → drive ${fmtSize(driveSize)})`);
+      unlinkSync(abs);
+    }
+
+    console.log(`  Baixando ${item.driveName} (${fmtSize(driveSize)}) → ${item.local}...`);
+    await downloadDriveStream(drive, file.id, abs);
+    console.log(`✓ ${item.local} (${fmtSize(statSync(abs).size)})`);
+    summary.ok++;
+  } catch (err) {
+    console.error(`✗ ${item.local}: ${err.message}`);
+    summary.failed.push({ path: item.local, driveName: item.driveName, error: err.message });
+  }
+}
+
+// ====================== main ======================
 async function main() {
   const summary = { ok: 0, skipped: 0, failed: [] };
-  for (const item of IMAGES) {
-    const abs = resolve(ROOT, item.savePath);
-    if (await fileExists(abs)) {
-      console.log(`↷ skip  ${item.savePath} (já existe)`);
-      summary.skipped++;
-      continue;
-    }
+
+  const hasDriveNameEntries = IMAGES.some((i) => i.driveName);
+  let drive = null;
+  if (hasDriveNameEntries) {
     try {
-      await mkdir(dirname(abs), { recursive: true });
-      const { buf, status, contentType } = await fetchDriveFile(item.fileId);
-      if (status !== 200 || buf.length < 1024 || contentType.includes("text/html")) {
-        throw new Error(`HTTP ${status}, contentType=${contentType}, size=${buf.length}`);
-      }
-      await writeFile(abs, buf);
-      console.log(`✓ ${item.savePath} (${fmtSize(buf.length)})`);
-      summary.ok++;
+      drive = await getDriveClient();
     } catch (err) {
-      console.error(`✗ ${item.savePath}: ${err.message}`);
-      summary.failed.push({ path: item.savePath, fileId: item.fileId, error: err.message });
+      console.warn(`⚠ Drive API indisponível: ${err.message}`);
+      console.warn("  → Entradas driveName serão puladas. Entradas fileId continuam funcionando.");
+    }
+  }
+
+  for (const item of IMAGES) {
+    if (item.fileId) {
+      await processFileIdItem(item, summary);
+    } else if (item.driveName) {
+      if (!drive) {
+        console.log(`↷ skip  ${item.local} (Drive API indisponível)`);
+        summary.skipped++;
+        continue;
+      }
+      await processDriveNameItem(drive, item, summary);
     }
   }
 
@@ -128,7 +249,7 @@ async function main() {
   console.log(`Falhas:  ${summary.failed.length}`);
   if (summary.failed.length) {
     console.log("\nFalhas detalhadas:");
-    summary.failed.forEach((f) => console.log(`  - ${f.path} (${f.fileId}): ${f.error}`));
+    summary.failed.forEach((f) => console.log(`  - ${f.path}: ${f.error}`));
     process.exit(1);
   }
 }
