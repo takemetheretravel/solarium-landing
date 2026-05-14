@@ -83,6 +83,36 @@ export default function BookingForm({
   const maxDateISO = useMemo(() => isoPlus(540), []);
   const minCheckoutISO = useMemo(() => (checkin ? isoNextDay(checkin) : todayISO), [checkin, todayISO]);
 
+  // Validação leve do check-in via API (debounced) — substitui a checagem hardcoded de domingo.
+  useEffect(() => {
+    if (!checkin) {
+      setCheckinError(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const dummy = new Date(checkin + "T12:00:00");
+        dummy.setDate(dummy.getDate() + 1);
+        const dummyCheckout = `${dummy.getFullYear()}-${String(dummy.getMonth() + 1).padStart(2, "0")}-${String(dummy.getDate()).padStart(2, "0")}`;
+        const res = await fetch("/api/availability/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ propertyId: propertySlug, checkin, checkout: dummyCheckout, guests }),
+        });
+        const data = await res.json();
+        if (!data.available && typeof data.reason === "string" && data.reason.toLowerCase().includes("check-in")) {
+          const [y, m, d] = checkin.split("-");
+          setCheckinError(`Check-in não disponível para a data ${d}/${m}/${y}.`);
+        } else {
+          setCheckinError(null);
+        }
+      } catch {
+        setCheckinError(null);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [checkin, propertySlug, guests]);
+
   useEffect(() => {
     if (!checkin || !checkout || checkin >= checkout) {
       setResponse(null);
@@ -184,12 +214,8 @@ export default function BookingForm({
                 const val = e.target.value;
                 setCheckin(val);
                 setValidationError(null);
+                setCheckinError(null);
                 if (checkout && val && val >= checkout) setCheckout("");
-                if (val) {
-                  setCheckinError(new Date(val + "T12:00:00").getDay() === 0 ? "Não realizamos check-in aos domingos." : null);
-                } else {
-                  setCheckinError(null);
-                }
               }}
               className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper"
             />

@@ -216,25 +216,13 @@ export default function GuestForm(props: Props) {
           </button>
           <button
             type="button"
-            onClick={() => !isSingleNight && setPaymentMethod("card")}
-            disabled={isSingleNight}
-            title={isSingleNight ? "Disponível a partir de 2 noites" : undefined}
-            className={`border p-5 text-left transition-all ${
-              isSingleNight
-                ? "cursor-not-allowed border-charcoal/10 opacity-40"
-                : paymentMethod === "card"
-                  ? "border-charcoal bg-charcoal/5"
-                  : "border-charcoal/15 hover:border-charcoal/30"
-            }`}
+            onClick={() => setPaymentMethod("card")}
+            className={`border p-5 text-left transition-all ${paymentMethod === "card" ? "border-charcoal bg-charcoal/5" : "border-charcoal/15 hover:border-charcoal/30"}`}
           >
             <span className="block font-serif text-xl text-charcoal">Cartão de Crédito</span>
-            {isSingleNight ? (
-              <span className="mt-1 block font-sans text-xs text-charcoal/50">
-                A partir de 2 noites
-              </span>
-            ) : (
-              <span className="mt-1 block font-sans text-xs text-charcoal/60">Em até 12x</span>
-            )}
+            <span className="mt-1 block font-sans text-xs text-charcoal/60">
+              {isSingleNight ? "À vista (1 noite)" : "Em até 12x"}
+            </span>
           </button>
         </div>
       </div>

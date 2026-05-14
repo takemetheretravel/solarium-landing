@@ -13,7 +13,7 @@ const FOLDER_ID = "1BI06RVjQoL0_4aFQxFVrM2Xu-W263lwT";
 // Mapa: nome no Drive → caminho local
 const VIDEOS = [
   { driveName: "Vid_Solarium2_Apresentacao.mp4", localPath: "temp/solarium-2-apresentacao.mp4" },
-  { driveName: "Vid_Solarium1_Apresentacao.mp4", localPath: "temp/solarium-1-apresentacao.mp4" },
+  { driveName: "Vid_Solarium1_Apresentacao", localPath: "temp/solarium-1-apresentacao.mp4" },
 ];
 
 async function getAuthClient() {
@@ -33,12 +33,22 @@ async function getAuthClient() {
 }
 
 async function findFileByName(drive, name) {
-  const res = await drive.files.list({
+  // Primeiro: busca exata por título
+  let res = await drive.files.list({
     q: `'${FOLDER_ID}' in parents and name = '${name}' and trashed = false`,
     fields: "files(id, name, size)",
     pageSize: 1,
   });
-  const files = res.data.files || [];
+  let files = res.data.files || [];
+  if (files.length > 0) return files[0];
+
+  // Fallback: busca por substring (caso título não tenha extensão exata)
+  res = await drive.files.list({
+    q: `'${FOLDER_ID}' in parents and name contains '${name}' and trashed = false`,
+    fields: "files(id, name, size)",
+    pageSize: 5,
+  });
+  files = res.data.files || [];
   if (files.length === 0) throw new Error(`Arquivo não encontrado no Drive: "${name}"`);
   return files[0];
 }

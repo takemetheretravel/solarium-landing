@@ -5,6 +5,10 @@ import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
+import { imageUrl } from "@/lib/cloudinary";
+
+const EXP = (name: string, w?: number, h?: number) =>
+  imageUrl(`solarium/experiencias/${name}`, w && h ? { width: w, height: h } : undefined);
 
 export const metadata: Metadata = {
   title: "Experiências",
@@ -62,7 +66,7 @@ export default function ExperienciasPage() {
       {/* ── SEÇÃO 1: Hero ──────────────────────────────────────────── */}
       <section className="relative h-[60vh] min-h-[440px] w-full overflow-hidden">
         <SmartImage
-          src="/images/experiencias/cesta-cafe-preparada.jpg"
+          src={EXP("cesta-cafe-preparada", 1920, 1080)}
           alt="Café da manhã preparado com produtos locais — Solarium Mantiqueira"
           priority
           fill
@@ -94,7 +98,7 @@ export default function ExperienciasPage() {
             <div className="flex flex-col border-r border-charcoal/10">
               <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
                 <SmartImage
-                  src="/images/experiencias/cesta-cafe.jpg"
+                  src={EXP("cesta-cafe", 800, 600)}
                   alt="Cesta de café da manhã com produtos locais"
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
@@ -120,7 +124,7 @@ export default function ExperienciasPage() {
             <div className="flex flex-col border-r border-charcoal/10">
               <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
                 <SmartImage
-                  src="/images/experiencias/massagem.jpg"
+                  src={EXP("massagem", 800, 600)}
                   alt="Sessão de massagem no deck com vista para a Serra"
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
@@ -146,7 +150,7 @@ export default function ExperienciasPage() {
             <div className="flex flex-col">
               <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
                 <SmartImage
-                  src="/images/experiencias/decoracao-romantica.jpg"
+                  src={EXP("decoracao-romantica", 800, 600)}
                   alt="Decoração especial para momentos românticos"
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
@@ -177,7 +181,7 @@ export default function ExperienciasPage() {
           <div className="grid grid-cols-1 items-stretch lg:grid-cols-2">
             <div className="relative aspect-[4/3] overflow-hidden lg:aspect-auto">
               <SmartImage
-                src="/images/experiencias/cavalo.jpg"
+                src={EXP("cavalo", 1200, 900)}
                 alt="Cavalgada com vista para a Serra Fina"
                 fill
                 sizes="(max-width: 1024px) 100vw, 50vw"
@@ -211,7 +215,7 @@ export default function ExperienciasPage() {
       {/* ── SEÇÃO 4: Cachoeiras — foto full-width overlay ─────────── */}
       <div className="relative h-[55vh] min-h-[380px] w-full overflow-hidden">
         <SmartImage
-          src="/images/experiencias/cachoeira.jpg"
+          src={EXP("cachoeira", 1920, 1080)}
           alt="Cachoeira na Serra da Mantiqueira"
           fill
           sizes="100vw"
@@ -296,7 +300,7 @@ export default function ExperienciasPage() {
             </div>
             <div className="relative aspect-[4/3] overflow-hidden lg:order-2 lg:aspect-auto">
               <SmartImage
-                src="/images/experiencias/montanha.jpg"
+                src={EXP("montanha", 1200, 900)}
                 alt="Vista aérea da Serra da Mantiqueira"
                 fill
                 sizes="(max-width: 1024px) 100vw, 50vw"
@@ -309,7 +313,7 @@ export default function ExperienciasPage() {
       {/* ── SEÇÃO 6: Rota do Queijo — foto full-width + lista ──────── */}
       <div className="relative h-[45vh] min-h-[320px] w-full overflow-hidden">
         <SmartImage
-          src="/images/experiencias/queijaria.jpg"
+          src={EXP("queijaria", 1920, 1080)}
           alt="Rota do queijo artesanal na Serra da Mantiqueira"
           fill
           sizes="100vw"
@@ -371,7 +375,7 @@ export default function ExperienciasPage() {
           </div>
           <div className="relative mx-auto mt-10 aspect-[16/9] max-w-3xl overflow-hidden">
             <SmartImage
-              src="/images/experiencias/maria-fumaca.jpg"
+              src={EXP("maria-fumaca", 1600, 900)}
               alt="Maria Fumaça na Estrada Real em Passa Quatro"
               fill
               sizes="(max-width: 768px) 100vw, 800px"

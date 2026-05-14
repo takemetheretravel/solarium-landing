@@ -141,7 +141,7 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-3 lg:gap-6">
+          <div className="grid gap-16 lg:grid-cols-3 lg:gap-6">
             {PROPERTIES.map((p, i) => {
               const min = minPrices[i];
               return (

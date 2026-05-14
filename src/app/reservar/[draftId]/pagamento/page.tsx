@@ -8,7 +8,16 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import { formatBRLPrecise } from "@/lib/cn";
 import { PROPERTIES } from "@/config/properties";
+import { COUPONS } from "@/config/coupons";
 import type { ReservationDraft } from "@/lib/kv-store";
+
+const TAXA_MENSAL_JUROS = 1.99; // estimativa típica Cielo (% ao mês)
+
+function calcParcela(valor: number, parcelas: number, taxaMensal: number): number {
+  if (taxaMensal === 0 || parcelas === 1) return valor / parcelas;
+  const i = taxaMensal / 100;
+  return (valor * (i * Math.pow(1 + i, parcelas))) / (Math.pow(1 + i, parcelas) - 1);
+}
 
 function formatBR(iso: string) {
   const [y, m, d] = iso.split("-");
@@ -334,6 +343,35 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     );
   }
 
+  const totalAVista = draft.finalTotal;
+  const isSingleNight = draft.nights === 1;
+  const appliedCoupon = draft.couponCode ? COUPONS.find((c) => c.code === draft.couponCode) || null : null;
+
+  const opcoesParcelas = [
+    { n: 1, label: `À vista — ${formatBRLPrecise(totalAVista)}` },
+    ...[2, 3, 4, 5, 6].map((n) => ({
+      n,
+      label: `${n}x de ${formatBRLPrecise(totalAVista / n)} sem juros`,
+    })),
+    ...[7, 8, 9, 10, 11, 12].map((n) => {
+      const valorParcela = calcParcela(totalAVista, n, TAXA_MENSAL_JUROS);
+      const totalComJuros = valorParcela * n;
+      return {
+        n,
+        label: `${n}x de ${formatBRLPrecise(valorParcela)} (total ${formatBRLPrecise(totalComJuros)})`,
+      };
+    }),
+  ];
+
+  const opcoesFiltradas = opcoesParcelas
+    .filter(
+      (o) =>
+        !appliedCoupon ||
+        appliedCoupon.maxInstallments === undefined ||
+        o.n <= appliedCoupon.maxInstallments,
+    )
+    .filter((o) => !isSingleNight || o.n === 1);
+
   return (
     <main className="bg-cream pt-32 pb-20">
       <Container size="wide">
@@ -409,23 +447,31 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                 <select
                   value={installments}
                   onChange={(e) => setInstallments(Number(e.target.value))}
-                  className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal focus:border-copper focus:outline-none"
+                  className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-base text-charcoal focus:border-copper focus:outline-none md:text-lg"
                 >
-                  <option value={1}>À vista — {formatBRLPrecise(draft.finalTotal)}</option>
-                  {[2, 3, 4, 5, 6].map((n) => (
-                    <option key={n} value={n}>
-                      {n}x de {formatBRLPrecise(draft.finalTotal / n)} sem juros
-                    </option>
-                  ))}
-                  {[7, 8, 9, 10, 11, 12].map((n) => (
-                    <option key={n} value={n}>
-                      {n}x — sujeito a juros
+                  {opcoesFiltradas.map((o) => (
+                    <option key={o.n} value={o.n}>
+                      {o.label}
                     </option>
                   ))}
                 </select>
                 <p className="mt-1 font-sans text-[0.65rem] text-charcoal/40">
-                  Parcelamentos acima de 6x sujeitos a juros pela operadora do cartão.
+                  Parcelamentos acima de 6x: valores estimados, sujeitos a confirmação pela operadora.
                 </p>
+                {isSingleNight && (
+                  <p className="mt-2 font-sans text-xs italic text-charcoal/60">
+                    Estadias de 1 noite: pagamento à vista. Parcelamento a partir de 2 noites.
+                  </p>
+                )}
+                {appliedCoupon && appliedCoupon.maxInstallments !== undefined && appliedCoupon.maxInstallments < 12 && (
+                  <p className="mt-2 font-sans text-xs text-copper">
+                    Cupom {appliedCoupon.code}:{" "}
+                    {appliedCoupon.maxInstallments === 1
+                      ? "pagamento à vista"
+                      : `em até ${appliedCoupon.maxInstallments}x`}
+                    .
+                  </p>
+                )}
               </div>
 
               {cardError && (

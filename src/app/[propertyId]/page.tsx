@@ -114,28 +114,35 @@ export default async function PropertyPage({
         </div>
       </section>
 
-      {/* VÍDEO */}
+      {/* VÍDEO + GALERIA PRÉVIA */}
       {property.videoPublicId && (
-        <section className="border-t border-charcoal/10 bg-cream">
+        <section className="border-t border-charcoal/10 bg-cream py-12 md:py-16">
           <Container size="wide">
-            <div className="grid grid-cols-1 items-stretch lg:grid-cols-[400px_1fr]">
-              {/* Vídeo portrait à esquerda */}
-              <div className="flex items-stretch bg-charcoal">
-                <VideoBlock
-                  publicId={property.videoPublicId}
-                  orientation="portrait"
-                  className="min-h-[500px] w-full"
-                />
+            <div className="mb-8 text-center">
+              <Kicker className="mb-3">Conheça em movimento</Kicker>
+              <Heading level={2} className="text-3xl md:text-4xl">
+                Um vislumbre do {property.name}
+              </Heading>
+            </div>
+
+            <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[360px_1fr]">
+              {/* Vídeo portrait à esquerda — autoplay muted loop */}
+              <div className="mx-auto w-full max-w-xs lg:max-w-none">
+                <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
               </div>
-              {/* Texto à direita */}
-              <div className="flex flex-col justify-center bg-white p-10 md:p-14">
-                <Kicker className="mb-3">Conheça em movimento</Kicker>
-                <Heading level={2} className="mb-5">
-                  Veja como é se hospedar aqui.
-                </Heading>
-                <p className="font-sans text-base leading-relaxed text-charcoal/70">
-                  Um reel com os melhores momentos de uma estadia. Clique para assistir com som.
-                </p>
+
+              {/* Grid 2x2 de fotos à direita */}
+              <div className="grid grid-cols-2 gap-4">
+                {property.galleryImages.slice(0, 4).map((src, i) => (
+                  <div key={src} className="relative aspect-square overflow-hidden bg-charcoal/5">
+                    <SmartImage
+                      src={src}
+                      alt={`${property.name} — prévia ${i + 1}`}
+                      fill
+                      sizes="(max-width: 1024px) 50vw, 25vw"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           </Container>

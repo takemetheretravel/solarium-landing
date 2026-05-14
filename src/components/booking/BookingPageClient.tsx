@@ -41,18 +41,7 @@ export default function BookingPageClient({
   initialCouponCode,
   quote,
 }: Props) {
-  const isSingleNight = quote?.nights === 1;
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">(
-    isSingleNight ? "pix" : initialPaymentMethod,
-  );
-
-  // Auto-switch to Pix when 1 night (card not available)
-  useEffect(() => {
-    if (isSingleNight && paymentMethod === "card") {
-      setPaymentMethod("pix");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSingleNight]);
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">(initialPaymentMethod);
 
   const [couponExpanded, setCouponExpanded] = useState(Boolean(initialCouponCode));
   const [couponInput, setCouponInput] = useState(initialCouponCode ?? "");

@@ -27,9 +27,9 @@ export async function POST(req: Request) {
     const draft = await getDraft(draftId);
     if (!draft) return NextResponse.json({ error: "Draft não encontrado ou expirado" }, { status: 404 });
 
-    if (draft.nights === 1) {
+    if (draft.nights === 1 && (installments || 1) > 1) {
       return NextResponse.json(
-        { approved: false, returnMessage: "Pagamento com cartão disponível apenas para estadias de 2 ou mais noites." },
+        { approved: false, returnMessage: "Estadias de 1 noite só permitem pagamento à vista. Use 1x ou Pix." },
         { status: 400 },
       );
     }
