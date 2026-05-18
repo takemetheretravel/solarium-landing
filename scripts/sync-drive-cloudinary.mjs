@@ -1,18 +1,8 @@
-// Pipeline DIRETO: Drive → Cloudinary (sem armazenamento local intermediário).
-// Requer GOOGLE_SERVICE_ACCOUNT_JSON em .env.local + pasta do Drive compartilhada com o service account.
-// Imagens >10MB são comprimidas via sharp antes do upload ao Cloudinary (limite free tier).
-//
-// Protocolo de atualização:
-//   1) Trocar foto no Drive (mantendo o mesmo nome)
-//   2) npm run sync:images
-//   3) Aguardar 1-2 min para CDN propagar
-//   → Site atualiza automaticamente, SEM commit, SEM deploy.
-import { google } from "googleapis";
-import { v2 as cloudinary } from "cloudinary";
-import { config } from "dotenv";
-import sharp from "sharp";
+import { v2 as cloudinary } from 'cloudinary';
+import { config } from 'dotenv';
+import https from 'https';
 
-config({ path: ".env.local" });
+config({ path: '.env.local' });
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -21,163 +11,63 @@ cloudinary.config({
   secure: true,
 });
 
-const FOLDER_ID = "1BI06RVjQoL0_4aFQxFVrM2Xu-W263lwT";
-const MAX_BYTES = 9.5 * 1024 * 1024; // 9.5MB threshold (Cloudinary free = 10MB)
-
-// Mapa: nome no Drive → public_id Cloudinary
 const MAPPING = [
-  { driveName: "Exp_Cesta de Café preparada.jpg", publicId: "solarium/experiencias/cesta-cafe-preparada" },
-  { driveName: "Exp_Cesta de Café.jpg", publicId: "solarium/experiencias/cesta-cafe" },
-  { driveName: "Exp_Sessão de Massagem.jpg", publicId: "solarium/experiencias/massagem" },
-  { driveName: "Exp_Passeio de Bike.jpg", publicId: "solarium/experiencias/bike" },
-  { driveName: "Exp_Passeio à Cavalo.jpg", publicId: "solarium/experiencias/cavalo" },
-  { driveName: "Exp_Decoração Romântica.jpg", publicId: "solarium/experiencias/decoracao-romantica" },
-  { driveName: "Exp_Cachoeira.jpg", publicId: "solarium/experiencias/cachoeira" },
-  { driveName: "Exp_Montanha.jpg", publicId: "solarium/experiencias/montanha" },
-  // Existem 2 "Exp_Queijaria.jpg" no Drive (5.2MB e 7.8MB) — preferLarger pega o maior
-  { driveName: "Exp_Queijaria.jpg", publicId: "solarium/experiencias/queijaria", preferLarger: true },
-  { driveName: "Exp_Passeio de Trem.jpg", publicId: "solarium/experiencias/maria-fumaca" },
+  { fileId: '1pbF1V36-ht-ydqugHAEK6FquqiM8Cdln', publicId: 'solarium/experiencias/cesta-cafe-preparada', name: 'Cesta Café Preparada' },
+  { fileId: '1OjIisa9i8ExpEZtA-t1K3WPTIDL2PyAO', publicId: 'solarium/experiencias/cesta-cafe',            name: 'Cesta Café' },
+  { fileId: '1AndFJcz5BaRz5_FrdO98SG3g_wZ1gWBs', publicId: 'solarium/experiencias/massagem',             name: 'Massagem' },
+  { fileId: '1Jaa_3D7eTPuz8Q0giBhpeizAoyF_CE87',  publicId: 'solarium/experiencias/bike',                name: 'Bike' },
+  { fileId: '16KhoW6E8tcGo7vTCcHwC2r2SiA1zIQuc',  publicId: 'solarium/experiencias/cavalo',              name: 'Cavalo' },
+  { fileId: '1bgXPR1JqBKcAoPdy5E1cGtTZUgT_qa2x',  publicId: 'solarium/experiencias/decoracao-romantica', name: 'Decoração Romântica' },
+  { fileId: '1HC1FCgw117EQ_Q_V3GM550XCK33BIynv',  publicId: 'solarium/experiencias/cachoeira',           name: 'Cachoeira' },
+  { fileId: '1A7D0793gybf1DrwBQY34rnDyPCvuNNoX',  publicId: 'solarium/experiencias/montanha',            name: 'Montanha' },
+  { fileId: '1mWzdo8NgGqsDIny412SI3xPGSoFQABou',  publicId: 'solarium/experiencias/queijaria',           name: 'Queijaria' },
+  { fileId: '1i_GZJiPQZtcwCqTb9tTCxfS0okLKrNsm',  publicId: 'solarium/experiencias/maria-fumaca',       name: 'Maria Fumaça' },
 ];
 
-async function getAuthClient() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) {
-    throw new Error(
-      "GOOGLE_SERVICE_ACCOUNT_JSON não encontrado em .env.local.\n" +
-        "Adicione o JSON da chave de serviço Google com leitura no Drive.\n" +
-        "A pasta do Drive deve ser compartilhada com o e-mail do service account.",
-    );
-  }
-  const credentials = JSON.parse(raw);
-  return new google.auth.GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/drive.readonly"],
-  });
-}
-
-async function findInDrive(drive, name, preferLarger = false) {
-  const res = await drive.files.list({
-    q: `'${FOLDER_ID}' in parents and name = '${name.replace(/'/g, "\\'")}' and trashed = false`,
-    fields: "files(id, name, size, modifiedTime, mimeType)",
-    pageSize: 10,
-    orderBy: preferLarger ? undefined : "modifiedTime desc",
-  });
-  const files = res.data.files || [];
-  if (files.length === 0) return null;
-  if (preferLarger) {
-    return files.sort((a, b) => parseInt(b.size || "0") - parseInt(a.size || "0"))[0];
-  }
-  return files[0];
-}
-
-async function streamDriveToBuffer(drive, fileId) {
-  const res = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
-  const chunks = [];
+function downloadStream(fileId) {
   return new Promise((resolve, reject) => {
-    res.data.on("data", (chunk) => chunks.push(chunk));
-    res.data.on("end", () => resolve(Buffer.concat(chunks)));
-    res.data.on("error", reject);
+    const url = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+    const get = (u, hops = 0) => {
+      if (hops > 5) return reject(new Error('Too many redirects'));
+      https.get(u, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return get(res.headers.location, hops + 1);
+        }
+        if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
+        resolve(res);
+      }).on('error', reject);
+    };
+    get(url);
   });
 }
 
-async function compressIfNeeded(buffer) {
-  if (buffer.length <= MAX_BYTES) return { buffer, compressed: false };
-  let quality = 85;
-  let result;
-  while (quality >= 50) {
-    result = await sharp(buffer)
-      .resize({ width: 2400, height: 2400, fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality, mozjpeg: true })
-      .toBuffer();
-    if (result.length <= MAX_BYTES) break;
-    quality -= 10;
-  }
-  return { buffer: result, compressed: true, quality };
-}
-
-async function uploadBufferToCloudinary(buffer, publicId) {
-  return new Promise((resolveUpload, rejectUpload) => {
+async function upload(fileId, publicId) {
+  return new Promise(async (resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      {
-        public_id: publicId,
-        overwrite: true,
-        invalidate: true,
-        resource_type: "image",
-      },
-      (err, result) => {
-        if (err) rejectUpload(err);
-        else resolveUpload(result);
-      },
+      { public_id: publicId, overwrite: true, invalidate: true, resource_type: 'image' },
+      (err, result) => { if (err) reject(err); else resolve(result); }
     );
-    stream.end(buffer);
+    const res = await downloadStream(fileId);
+    res.pipe(stream);
   });
-}
-
-function fmtSize(bytes) {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-  return `${bytes}B`;
 }
 
 async function main() {
-  let auth;
-  try {
-    auth = await getAuthClient();
-  } catch (err) {
-    console.error(`✗ Autenticação Drive: ${err.message}`);
-    process.exit(1);
-  }
-
-  const drive = google.drive({ version: "v3", auth });
-  const summary = { ok: 0, failed: [], notFound: [] };
-
+  console.log('🔄 Sync Drive → Cloudinary\n');
+  let ok = 0, fail = 0;
   for (const item of MAPPING) {
-    console.log(`\nSync: ${item.driveName} → ${item.publicId}`);
+    process.stdout.write(`→ ${item.name} ... `);
     try {
-      const driveFile = await findInDrive(drive, item.driveName, item.preferLarger);
-      if (!driveFile) {
-        console.log(`  ✗ Não encontrado no Drive`);
-        summary.notFound.push(item.driveName);
-        continue;
-      }
-      console.log(
-        `  📥 Drive: ${driveFile.id} (${fmtSize(parseInt(driveFile.size || "0"))}, modificado ${driveFile.modifiedTime})`,
-      );
-
-      const rawBuffer = await streamDriveToBuffer(drive, driveFile.id);
-      const { buffer, compressed, quality } = await compressIfNeeded(rawBuffer);
-      if (compressed) {
-        console.log(`  🗜  Comprimido: ${fmtSize(rawBuffer.length)} → ${fmtSize(buffer.length)} (q=${quality})`);
-      }
-
-      const result = await uploadBufferToCloudinary(buffer, item.publicId);
-      console.log(`  ☁  Cloudinary version: v${result.version}`);
-      console.log(`  ✓ ${result.secure_url}`);
-      summary.ok++;
-    } catch (err) {
-      console.error(`  ✗ ${err.message}`);
-      summary.failed.push({ name: item.driveName, error: err.message });
+      const r = await upload(item.fileId, item.publicId);
+      console.log(`✓ v${r.version}`);
+      ok++;
+    } catch (e) {
+      console.log(`✗ ${e.message}`);
+      fail++;
     }
   }
-
-  console.log("\n———");
-  console.log(`OK:           ${summary.ok}`);
-  console.log(`Não achados:  ${summary.notFound.length}`);
-  console.log(`Falhas:       ${summary.failed.length}`);
-  if (summary.notFound.length) {
-    console.log("\nNão encontrados:");
-    summary.notFound.forEach((n) => console.log(`  - "${n}"`));
-  }
-  if (summary.failed.length) {
-    console.log("\nFalhas:");
-    summary.failed.forEach((f) => console.log(`  - "${f.name}": ${f.error}`));
-    process.exit(1);
-  }
-  console.log("\n✅ Sync concluído. CDN do Cloudinary invalidado.");
-  console.log("💡 Aguarde 1-2 minutos para CDN propagar globalmente.");
+  console.log(`\n${ok} OK, ${fail} falhas.`);
+  if (ok > 0) console.log('Site atualiza em ~2 min.');
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main().catch(console.error);
