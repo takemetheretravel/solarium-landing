@@ -12,6 +12,7 @@ cloudinary.config({
 });
 
 const MAPPING = [
+  // === Experiências ===
   { fileId: '1pbF1V36-ht-ydqugHAEK6FquqiM8Cdln', publicId: 'solarium/experiencias/cesta-cafe-preparada', name: 'Cesta Café Preparada' },
   { fileId: '1OjIisa9i8ExpEZtA-t1K3WPTIDL2PyAO', publicId: 'solarium/experiencias/cesta-cafe',            name: 'Cesta Café' },
   { fileId: '1AndFJcz5BaRz5_FrdO98SG3g_wZ1gWBs', publicId: 'solarium/experiencias/massagem',             name: 'Massagem' },
@@ -22,6 +23,10 @@ const MAPPING = [
   { fileId: '1A7D0793gybf1DrwBQY34rnDyPCvuNNoX',  publicId: 'solarium/experiencias/montanha',            name: 'Montanha' },
   { fileId: '1mWzdo8NgGqsDIny412SI3xPGSoFQABou',  publicId: 'solarium/experiencias/queijaria',           name: 'Queijaria' },
   { fileId: '1i_GZJiPQZtcwCqTb9tTCxfS0okLKrNsm',  publicId: 'solarium/experiencias/maria-fumaca',       name: 'Maria Fumaça' },
+
+  // === Fotos das casas (hero/card na home) ===
+  { fileId: '1YcFd3mmu5uoAt7iRuOTt4SU2HgiPgOMj',  publicId: 'solarium/casas/solarium-2-hero',           name: 'Solarium 2 — Quarto pôr do sol' },
+  { fileId: '17ZZCaLTR3VRv3EGFrLFTabJ4gUN7_gNK',  publicId: 'solarium/casas/solarium-completo-hero',    name: 'Solarium Completo — Frentes pôr do sol' },
 ];
 
 function downloadStream(fileId) {

@@ -503,24 +503,33 @@ export async function createHostawayReservation(params: {
 
     console.log("[Hostaway:createReservation] Created:", reservationId);
 
-    // PASSO EXTRA: tenta marcar como pago via PUT (alguns campos só atualizam depois)
+    // PASSO EXTRA: registra o pagamento na reserva (POST /reservations/{id}/payments)
     try {
-      await fetch(`${BASE_URL}/reservations/${reservationId}`, {
-        method: "PUT",
+      const today = new Date().toISOString().slice(0, 10);
+      const payRes = await fetch(`${BASE_URL}/reservations/${reservationId}/payments`, {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
           "Cache-Control": "no-cache",
         },
         body: JSON.stringify({
-          isPaid: true,
-          paymentStatus: "Paid",
-          status: "confirmed",
+          amount: Math.round(params.totalPrice * 100) / 100,
+          currency: params.currency || "BRL",
+          date: today,
+          paymentMethod: params.paymentMethod === "pix" ? "other" : "credit_card",
+          isCompleted: 1,
+          note: `Pago via ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`} — Cielo`,
         }),
       });
-      console.log("[Hostaway:createReservation] PUT isPaid=true enviado");
+      const payData = await payRes.json().catch(() => ({}));
+      console.log(
+        "[Hostaway:createReservation] Payment registered:",
+        payRes.status,
+        JSON.stringify(payData).slice(0, 200),
+      );
     } catch (err) {
-      console.warn("[Hostaway:createReservation] PUT isPaid falhou (não crítico):", err);
+      console.warn("[Hostaway:createReservation] Registro de pagamento falhou:", err);
     }
 
     return { reservationId };

@@ -32,6 +32,13 @@ function digitsOnly(s: string): string {
   return (s || "").replace(/\D/g, "");
 }
 
+function normalizePhone(s: string): string {
+  // Preserva o "+" do código internacional, se existir
+  const trimmed = (s || "").trim();
+  const digits = digitsOnly(trimmed);
+  return trimmed.startsWith("+") ? `+${digits}` : digits;
+}
+
 function validCPF(raw: string): boolean {
   const cpf = digitsOnly(raw);
   if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
@@ -47,8 +54,9 @@ function validCPF(raw: string): boolean {
 }
 
 function validPhone(raw: string): boolean {
+  // E.164: 8 a 15 dígitos (aceita números internacionais)
   const d = digitsOnly(raw);
-  return d.length >= 10 && d.length <= 13;
+  return d.length >= 8 && d.length <= 15;
 }
 
 export async function POST(req: NextRequest) {
@@ -135,7 +143,7 @@ export async function POST(req: NextRequest) {
     guestFirstName,
     guestLastName,
     guestEmail: guest.email.trim().toLowerCase(),
-    guestPhone: digitsOnly(guest.phone),
+    guestPhone: normalizePhone(guest.phone),
     guestCpf: digitsOnly(guest.cpf),
     guestNotes: guest.notes?.trim() || undefined,
     status: "pending" as const,

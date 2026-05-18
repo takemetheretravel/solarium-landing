@@ -1,19 +1,23 @@
-// Download Drive videos to /temp by name.
-// Requires GOOGLE_SERVICE_ACCOUNT_JSON in .env.local (JSON string of service account key).
-// The Drive folder must be shared with the service account email.
+// Download Drive videos to /temp.
+// Suporta dois modos por entrada:
+//   1) { fileId, localPath } — URL pública do Drive (sem auth, recomendado)
+//   2) { driveName, localPath } — busca por nome (requer GOOGLE_SERVICE_ACCOUNT_JSON)
+// Auth só é necessária se houver entrada sem fileId.
 import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
+import https from "https";
 import { mkdir } from "node:fs/promises";
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
 const FOLDER_ID = "1BI06RVjQoL0_4aFQxFVrM2Xu-W263lwT";
 
-// Mapa: nome no Drive → caminho local
+// Mapa: entrada do Drive → caminho local
 const VIDEOS = [
   { driveName: "Vid_Solarium2_Apresentacao.mp4", localPath: "temp/solarium-2-apresentacao.mp4" },
   { driveName: "Vid_Solarium1_Apresentacao.mp4", localPath: "temp/solarium-1-apresentacao.mp4" },
+  { fileId: "1ztXlF4goeWNZXOJYfYDdgkK-YW97YoM4", driveName: "Vid_Solarium Completo_Apresentacao.mp4", localPath: "temp/solarium-completo-apresentacao.mp4" },
 ];
 
 async function getAuthClient() {
@@ -77,6 +81,29 @@ async function downloadFile(drive, fileId, localPath) {
   });
 }
 
+async function downloadPublic(fileId, localPath) {
+  await mkdir(path.dirname(localPath), { recursive: true });
+  return new Promise((resolve, reject) => {
+    const url = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+    const dest = fs.createWriteStream(localPath);
+    const get = (u, hops = 0) => {
+      if (hops > 5) return reject(new Error("Too many redirects"));
+      https
+        .get(u, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            return get(res.headers.location, hops + 1);
+          }
+          if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
+          res.pipe(dest);
+          res.on("error", reject);
+          dest.on("finish", resolve);
+        })
+        .on("error", reject);
+    };
+    get(url);
+  });
+}
+
 function fmtSize(bytes) {
   if (!bytes) return "?MB";
   const n = Number(bytes);
@@ -86,15 +113,18 @@ function fmtSize(bytes) {
 }
 
 async function main() {
-  let auth;
-  try {
-    auth = await getAuthClient();
-  } catch (err) {
-    console.error(`✗ Autenticação: ${err.message}`);
-    process.exit(1);
+  // Auth só é necessária se alguma entrada NÃO tem fileId
+  const needsAuth = VIDEOS.some((v) => !v.fileId);
+  let drive = null;
+  if (needsAuth) {
+    try {
+      const auth = await getAuthClient();
+      drive = google.drive({ version: "v3", auth });
+    } catch (err) {
+      console.warn(`⚠ Drive API indisponível (${err.message}). Só vou processar entradas com fileId.`);
+    }
   }
 
-  const drive = google.drive({ version: "v3", auth });
   const summary = { ok: 0, skipped: 0, failed: [] };
 
   for (const video of VIDEOS) {
@@ -104,18 +134,27 @@ async function main() {
       summary.skipped++;
       continue;
     }
-    console.log(`Buscando "${video.driveName}" no Drive...`);
+
+    const label = video.driveName || video.fileId;
     try {
-      const file = await findFileByName(drive, video.driveName);
-      console.log(`  Encontrado: ID ${file.id}, ${fmtSize(file.size)}`);
-      console.log(`  Baixando para ${video.localPath}...`);
-      await downloadFile(drive, file.id, video.localPath);
+      if (video.fileId) {
+        console.log(`Baixando via URL pública: ${label} (id=${video.fileId})`);
+        await downloadPublic(video.fileId, video.localPath);
+      } else {
+        if (!drive) {
+          throw new Error("Entrada sem fileId requer GOOGLE_SERVICE_ACCOUNT_JSON em .env.local");
+        }
+        console.log(`Buscando "${video.driveName}" no Drive...`);
+        const file = await findFileByName(drive, video.driveName);
+        console.log(`  Encontrado: ID ${file.id}, ${fmtSize(file.size)}`);
+        await downloadFile(drive, file.id, video.localPath);
+      }
       const size = fmtSize(fs.statSync(video.localPath).size);
-      console.log(`  ✓ Download concluído (${size})`);
+      console.log(`  ✓ Download concluído → ${video.localPath} (${size})`);
       summary.ok++;
     } catch (err) {
       console.error(`  ✗ Erro: ${err.message}`);
-      summary.failed.push({ name: video.driveName, error: err.message });
+      summary.failed.push({ name: label, error: err.message });
       if (fs.existsSync(video.localPath)) fs.unlinkSync(video.localPath);
     }
   }

@@ -40,9 +40,9 @@ function validCPF(raw: string): boolean {
 }
 
 function validPhone(raw: string): boolean {
-  let d = raw.replace(/\D/g, "");
-  if (d.startsWith("55")) d = d.slice(2);
-  return d.length >= 10 && d.length <= 11;
+  // Aceita formatos internacionais: 8 a 15 dígitos (E.164)
+  const d = raw.replace(/\D/g, "");
+  return d.length >= 8 && d.length <= 15;
 }
 
 export default function GuestForm(props: Props) {

@@ -1,3 +1,5 @@
+import { imageUrl } from "@/lib/cloudinary";
+
 export type PropertySlug = "solarium-1" | "solarium-2" | "solarium-completo";
 
 export type Capacity = { ideal: number; max: number };
@@ -151,7 +153,7 @@ const SOLARIUM_2: PropertyConfig = {
     NATUREZA,
     COZINHA("Churrasqueira a gás e a carvão"),
   ],
-  heroImage: "/images/solarium-2/01-deck-serra-fina.jpg",
+  heroImage: imageUrl("solarium/casas/solarium-2-hero", { width: 1200, height: 900 }),
   cardImage: "/images/solarium-2/05-spa-teto-retratil.jpg",
   videoPublicId: "solarium/solarium-2-apresentacao",
   galleryImages: [
@@ -198,8 +200,9 @@ const SOLARIUM_COMPLETO: PropertyConfig = {
     NATUREZA,
     COZINHA("Duas churrasqueiras (a gás e a carvão)"),
   ],
-  heroImage: "/images/solarium-completo/01-frente-externa.jpg",
+  heroImage: imageUrl("solarium/casas/solarium-completo-hero", { width: 1200, height: 900 }),
   cardImage: "/images/solarium-completo/01-frente-externa.jpg",
+  videoPublicId: "solarium/solarium-completo-apresentacao",
   galleryImages: [
     "/images/solarium-completo/01-frente-externa.jpg",
     "/images/solarium-completo/02-noite-com-lua.jpg",
