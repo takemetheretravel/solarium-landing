@@ -24,15 +24,15 @@ function maskCPF(v: string): string {
 }
 
 function maskPhone(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 10) {
-    return d
-      .replace(/(\d{2})(\d)/, "($1) $2")
-      .replace(/(\d{4})(\d)/, "$1-$2");
-  }
-  return d
-    .replace(/(\d{2})(\d)/, "($1) $2")
-    .replace(/(\d{5})(\d)/, "$1-$2");
+  // Aceita entrada com ou sem +55, sempre devolve "+55 (DD) NNNNN-NNNN"
+  let d = v.replace(/\D/g, "");
+  if (d.startsWith("55") && d.length > 2) d = d.slice(2);
+  d = d.slice(0, 11);
+  if (d.length === 0) return "+55 ";
+  if (d.length <= 2) return `+55 (${d}`;
+  if (d.length <= 6) return `+55 (${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `+55 (${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `+55 (${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
 function validEmail(s: string): boolean {
@@ -52,7 +52,8 @@ function validCPF(raw: string): boolean {
 }
 
 function validPhone(raw: string): boolean {
-  const d = raw.replace(/\D/g, "");
+  let d = raw.replace(/\D/g, "");
+  if (d.startsWith("55")) d = d.slice(2);
   return d.length >= 10 && d.length <= 11;
 }
 
@@ -61,7 +62,7 @@ export default function GuestForm(props: Props) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("+55 ");
   const [notes, setNotes] = useState("");
   const paymentMethod = props.paymentMethod;
   const setPaymentMethod = props.onPaymentMethodChange;
@@ -178,7 +179,7 @@ export default function GuestForm(props: Props) {
               value={phone}
               onChange={(e) => setPhone(maskPhone(e.target.value))}
               required
-              placeholder="(11) 99999-9999"
+              placeholder="+55 (11) 99999-9999"
               className="mt-1 w-full border-b border-charcoal/20 bg-transparent py-2 font-serif text-lg text-charcoal outline-none focus:border-copper"
             />
             {phone && !validPhone(phone) && (

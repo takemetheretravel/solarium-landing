@@ -29,9 +29,11 @@ export type ReservationDraft = {
   guests: number;
   nights: number;
   totalPrice: number;
+  subtotal?: number; // valor antes do desconto (= totalPrice; alias semântico)
   pixDiscount: number;
   couponCode?: string;
   couponDiscount: number;
+  discountAmount?: number; // valor descontado total (cupom + pix)
   finalTotal: number;
   paymentMethod: "pix" | "card";
   guestFirstName: string;

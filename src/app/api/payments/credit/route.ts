@@ -69,6 +69,7 @@ export async function POST(req: Request) {
 
     const property = getPropertyBySlug(draft.propertyId);
     if (property) {
+      const totalDiscount = (draft.couponDiscount || 0) + (draft.pixDiscount || 0);
       const reservation = await createHostawayReservation({
         listingMapId: property.id,
         arrivalDate: draft.checkin,
@@ -78,10 +79,12 @@ export async function POST(req: Request) {
         guestLastName: draft.guestLastName,
         guestEmail: draft.guestEmail,
         phone: draft.guestPhone,
-        totalPrice: draft.finalTotal,
+        totalPrice: draft.subtotal ?? draft.totalPrice,
+        discountAmount: totalDiscount,
+        couponCode: draft.couponCode,
         currency: "BRL",
-        notes: draft.guestNotes,
-        source: "solarium-direct-card",
+        notes: `Cartão${draft.couponCode ? ` | Cupom: ${draft.couponCode}` : ""}${draft.guestNotes ? ` | ${draft.guestNotes}` : ""}`,
+        source: "solarium-direct",
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });

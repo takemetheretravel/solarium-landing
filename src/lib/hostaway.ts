@@ -411,7 +411,9 @@ export async function createHostawayReservation(params: {
   guestEmail: string;
   phone: string;
   totalPrice: number;
-  currency: string;
+  discountAmount?: number;
+  couponCode?: string;
+  currency?: string;
   notes?: string;
   source?: string;
 }): Promise<{ reservationId: number } | null> {
@@ -419,7 +421,22 @@ export async function createHostawayReservation(params: {
     const token = await getAccessToken();
     if (!token) return null;
 
-    const body = {
+    // Telefone: garante prefixo +55 (aceita entrada com ou sem código)
+    let phone = (params.phone || "").replace(/\D/g, "");
+    if (phone.length <= 11) phone = "55" + phone;
+    phone = "+" + phone;
+
+    // reservationFees: desconto entra como linha negativa (mesmo sem cupom, ex: Pix 3%)
+    const reservationFees: Array<{ name: string; amount: number; currency: string }> = [];
+    if (params.discountAmount && params.discountAmount > 0) {
+      reservationFees.push({
+        name: params.couponCode ? `Desconto cupom ${params.couponCode}` : "Desconto",
+        amount: -Math.abs(Math.round(params.discountAmount * 100) / 100),
+        currency: params.currency || "BRL",
+      });
+    }
+
+    const body: Record<string, unknown> = {
       channelId: null,
       channelName: "direct",
       source: params.source || "solarium-direct",
@@ -432,20 +449,22 @@ export async function createHostawayReservation(params: {
       adults: params.numberOfGuests,
       children: 0,
       infants: 0,
+      guestName: `${params.guestFirstName} ${params.guestLastName}`,
       guestFirstName: params.guestFirstName,
       guestLastName: params.guestLastName,
       guestEmail: params.guestEmail,
-      phone: params.phone,
+      phone,
       totalPrice: Math.round(params.totalPrice),
       currency: params.currency || "BRL",
+      ...(reservationFees.length > 0 ? { reservationFees } : {}),
       isPaid: true,
       paymentStatus: "Paid",
+      guestLocale: "pt",
       guestNote: params.notes || "",
       status: "confirmed",
     };
 
-    console.log("[Hostaway:createReservation] Token first chars:", token.substring(0, 20));
-    console.log("[Hostaway:createReservation] Body sent:", JSON.stringify(body));
+    console.log("[Hostaway:createReservation] Body:", JSON.stringify(body));
 
     const res = await fetch(`${BASE_URL}/reservations`, {
       method: "POST",
@@ -458,21 +477,18 @@ export async function createHostawayReservation(params: {
     });
 
     const data = await res.json();
-    console.log("[Hostaway:createReservation] Response status:", res.status);
-    console.log("[Hostaway:createReservation] Response body:", JSON.stringify(data));
-    console.log(
-      "[Hostaway:createReservation] Response headers:",
-      JSON.stringify(Object.fromEntries(res.headers.entries())),
-    );
+    console.log("[Hostaway:createReservation] Response:", res.status, JSON.stringify(data).slice(0, 300));
 
     if (!res.ok) {
-      console.error("[Hostaway:createReservation] FAILED with channelId:", body.channelId);
-      console.error("[Hostaway:createReservation] Error:", res.status, JSON.stringify(data).slice(0, 500));
+      console.error("[Hostaway:createReservation] FAILED:", data.message);
       return null;
     }
 
-    console.log("[Hostaway:createReservation] Created:", data.result?.id);
-    return { reservationId: data.result?.id as number };
+    const reservationId = data.result?.id as number | undefined;
+    if (!reservationId) return null;
+
+    console.log("[Hostaway:createReservation] Created:", reservationId);
+    return { reservationId };
   } catch (err) {
     console.error("[Hostaway:createReservation] Exception:", err);
     return null;
