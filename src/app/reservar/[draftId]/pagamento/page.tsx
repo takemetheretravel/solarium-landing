@@ -11,12 +11,13 @@ import { PROPERTIES } from "@/config/properties";
 import { COUPONS } from "@/config/coupons";
 import type { ReservationDraft } from "@/lib/kv-store";
 
-const TAXA_MENSAL_JUROS = 1.99; // estimativa típica Cielo (% ao mês)
+const TAXA_MENSAL = 1.99; // estimativa típica Cielo (% ao mês)
 
-function calcParcela(valor: number, parcelas: number, taxaMensal: number): number {
-  if (taxaMensal === 0 || parcelas === 1) return valor / parcelas;
-  const i = taxaMensal / 100;
-  return (valor * (i * Math.pow(1 + i, parcelas))) / (Math.pow(1 + i, parcelas) - 1);
+function calcTotalComJuros(valor: number, n: number): number {
+  if (n <= 1) return valor;
+  const i = TAXA_MENSAL / 100;
+  const parcela = (valor * (i * Math.pow(1 + i, n))) / (Math.pow(1 + i, n) - 1);
+  return Math.round(parcela * n * 100) / 100;
 }
 
 function formatBR(iso: string) {
@@ -373,11 +374,10 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         totalCobrado: totalAVista,
       });
     } else {
-      const valorParcela = calcParcela(totalAVista, n, TAXA_MENSAL_JUROS);
-      const totalComJuros = valorParcela * n;
+      const totalComJuros = calcTotalComJuros(totalAVista, n);
       opcoesParcelas.push({
         n,
-        label: `${n}x de ${formatBRLPrecise(valorParcela)} (total ${formatBRLPrecise(totalComJuros)})`,
+        label: `${n}x de ${formatBRLPrecise(totalComJuros / n)} (total ${formatBRLPrecise(totalComJuros)})`,
         totalCobrado: totalComJuros,
       });
     }

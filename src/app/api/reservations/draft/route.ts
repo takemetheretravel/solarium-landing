@@ -143,6 +143,16 @@ export async function POST(req: NextRequest) {
     expiresAt: expiresAt.toISOString(),
   };
 
+  console.log("[Draft] saved:", {
+    id: draft.id,
+    subtotal: draft.subtotal,
+    couponDiscount,
+    pixDiscount,
+    discountAmount: draft.discountAmount,
+    finalTotal: draft.finalTotal,
+    couponCode: draft.couponCode,
+  });
+
   try {
     await saveDraft(draft);
   } catch (err) {
