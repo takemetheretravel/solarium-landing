@@ -410,31 +410,45 @@ export async function createHostawayReservation(params: {
   guestLastName: string;
   guestEmail: string;
   phone: string;
-  totalPrice: number;
+  totalPrice: number;        // valor REAL cobrado (com desconto e com juros)
+  subtotalOriginal?: number; // valor cheio antes do desconto (para mostrar na nota)
   discountAmount?: number;
   couponCode?: string;
+  installments?: number;
+  paymentMethod?: "pix" | "card";
   currency?: string;
-  notes?: string;
+  guestNotes?: string;       // observações do hóspede (não confundir com hostNote)
   source?: string;
 }): Promise<{ reservationId: number } | null> {
   try {
     const token = await getAccessToken();
     if (!token) return null;
 
-    // Telefone: garante prefixo +55 (aceita entrada com ou sem código)
-    let phone = (params.phone || "").replace(/\D/g, "");
-    if (phone.length <= 11) phone = "55" + phone;
-    phone = "+" + phone;
-
-    // reservationFees: desconto entra como linha negativa (mesmo sem cupom, ex: Pix 3%)
-    const reservationFees: Array<{ name: string; amount: number; currency: string }> = [];
-    if (params.discountAmount && params.discountAmount > 0) {
-      reservationFees.push({
-        name: params.couponCode ? `Desconto cupom ${params.couponCode}` : "Desconto",
-        amount: -Math.abs(Math.round(params.discountAmount * 100) / 100),
-        currency: params.currency || "BRL",
-      });
+    // Telefone: garante prefixo +55 só se ainda não tiver +
+    let phone = (params.phone || "").trim();
+    if (!phone.startsWith("+")) {
+      const digits = phone.replace(/\D/g, "");
+      phone = "+" + (digits.length <= 11 ? "55" + digits : digits);
     }
+
+    // hostNote (privado, só anfitrião vê): detalhamento financeiro
+    const hostNoteParts: string[] = [];
+    if (params.subtotalOriginal && params.subtotalOriginal !== params.totalPrice) {
+      hostNoteParts.push(`Subtotal: R$ ${params.subtotalOriginal.toFixed(2)}`);
+    }
+    if (params.discountAmount && params.discountAmount > 0) {
+      hostNoteParts.push(
+        `Desconto${params.couponCode ? ` (${params.couponCode})` : ""}: -R$ ${params.discountAmount.toFixed(2)}`,
+      );
+    }
+    hostNoteParts.push(
+      `Pagamento: ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`}`,
+    );
+    hostNoteParts.push(`Valor cobrado: R$ ${params.totalPrice.toFixed(2)}`);
+    const hostNote = hostNoteParts.join(" | ");
+
+    // guestNote (público): apenas observação do hóspede se houver
+    const guestNote = params.guestNotes || "";
 
     const body: Record<string, unknown> = {
       channelId: null,
@@ -454,13 +468,13 @@ export async function createHostawayReservation(params: {
       guestLastName: params.guestLastName,
       guestEmail: params.guestEmail,
       phone,
-      totalPrice: Math.round(params.totalPrice),
+      totalPrice: Math.round(params.totalPrice * 100) / 100, // VALOR REAL COBRADO
       currency: params.currency || "BRL",
-      ...(reservationFees.length > 0 ? { reservationFees } : {}),
       isPaid: true,
       paymentStatus: "Paid",
       guestLocale: "pt",
-      guestNote: params.notes || "",
+      hostNote,
+      guestNote,
       status: "confirmed",
     };
 
@@ -488,6 +502,27 @@ export async function createHostawayReservation(params: {
     if (!reservationId) return null;
 
     console.log("[Hostaway:createReservation] Created:", reservationId);
+
+    // PASSO EXTRA: tenta marcar como pago via PUT (alguns campos só atualizam depois)
+    try {
+      await fetch(`${BASE_URL}/reservations/${reservationId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
+        body: JSON.stringify({
+          isPaid: true,
+          paymentStatus: "Paid",
+          status: "confirmed",
+        }),
+      });
+      console.log("[Hostaway:createReservation] PUT isPaid=true enviado");
+    } catch (err) {
+      console.warn("[Hostaway:createReservation] PUT isPaid falhou (não crítico):", err);
+    }
+
     return { reservationId };
   } catch (err) {
     console.error("[Hostaway:createReservation] Exception:", err);

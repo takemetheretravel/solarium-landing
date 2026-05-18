@@ -23,18 +23,6 @@ function maskCPF(v: string): string {
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
-function maskPhone(v: string): string {
-  // Aceita entrada com ou sem +55, sempre devolve "+55 (DD) NNNNN-NNNN"
-  let d = v.replace(/\D/g, "");
-  if (d.startsWith("55") && d.length > 2) d = d.slice(2);
-  d = d.slice(0, 11);
-  if (d.length === 0) return "+55 ";
-  if (d.length <= 2) return `+55 (${d}`;
-  if (d.length <= 6) return `+55 (${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `+55 (${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `+55 (${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-}
-
 function validEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
@@ -177,9 +165,9 @@ export default function GuestForm(props: Props) {
               type="tel"
               inputMode="tel"
               value={phone}
-              onChange={(e) => setPhone(maskPhone(e.target.value))}
+              onChange={(e) => setPhone(e.target.value)}
               required
-              placeholder="+55 (11) 99999-9999"
+              placeholder="+55 (35) 98407-5652"
               className="mt-1 w-full border-b border-charcoal/20 bg-transparent py-2 font-serif text-lg text-charcoal outline-none focus:border-copper"
             />
             {phone && !validPhone(phone) && (

@@ -35,6 +35,7 @@ export async function POST(req: Request) {
 
     const property = getPropertyBySlug(draft.propertyId);
     if (property && !draft.hostawayReservationId) {
+      const totalDiscount = (draft.couponDiscount || 0) + (draft.pixDiscount || 0);
       const reservation = await createHostawayReservation({
         listingMapId: property.id,
         arrivalDate: draft.checkin,
@@ -44,9 +45,14 @@ export async function POST(req: Request) {
         guestLastName: draft.guestLastName,
         guestEmail: draft.guestEmail,
         phone: draft.guestPhone,
-        totalPrice: draft.finalTotal,
+        totalPrice: draft.finalTotal, // webhook: assume valor sem juros (fluxo Pix)
+        subtotalOriginal: draft.subtotal ?? draft.totalPrice,
+        discountAmount: totalDiscount,
+        couponCode: draft.couponCode,
+        installments: 1,
+        paymentMethod: draft.paymentMethod === "pix" ? "pix" : "card",
         currency: "BRL",
-        notes: draft.guestNotes,
+        guestNotes: draft.guestNotes || "",
         source: "solarium-direct-webhook",
       });
       if (reservation) {

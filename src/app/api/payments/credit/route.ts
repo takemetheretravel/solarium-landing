@@ -79,11 +79,14 @@ export async function POST(req: Request) {
         guestLastName: draft.guestLastName,
         guestEmail: draft.guestEmail,
         phone: draft.guestPhone,
-        totalPrice: draft.subtotal ?? draft.totalPrice,
+        totalPrice: valorACobrar, // VALOR REAL COBRADO (com juros, se houver)
+        subtotalOriginal: draft.subtotal ?? draft.totalPrice,
         discountAmount: totalDiscount,
         couponCode: draft.couponCode,
+        installments: installments || 1,
+        paymentMethod: "card",
         currency: "BRL",
-        notes: `Cartão${draft.couponCode ? ` | Cupom: ${draft.couponCode}` : ""}${draft.guestNotes ? ` | ${draft.guestNotes}` : ""}`,
+        guestNotes: draft.guestNotes || "",
         source: "solarium-direct",
       });
       if (reservation) {
