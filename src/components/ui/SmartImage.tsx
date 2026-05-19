@@ -26,6 +26,8 @@ export default function SmartImage({
     throw new Error("SmartImage: width and height are required when fill=false");
   }
 
+  const isExternal = src.startsWith("http");
+
   if (fill) {
     return (
       <Image
@@ -34,6 +36,7 @@ export default function SmartImage({
         fill
         sizes={sizes}
         priority={priority}
+        unoptimized={isExternal}
         className={cn("object-cover", className)}
       />
     );
@@ -47,6 +50,7 @@ export default function SmartImage({
       height={height}
       sizes={sizes}
       priority={priority}
+      unoptimized={isExternal}
       className={className}
     />
   );

@@ -506,6 +506,16 @@ export async function createHostawayReservation(params: {
     // PASSO EXTRA: registra o pagamento na reserva (POST /reservations/{id}/payments)
     try {
       const today = new Date().toISOString().slice(0, 10);
+      const payBody = {
+        amount: Math.round(params.totalPrice * 100) / 100,
+        currency: params.currency || "BRL",
+        date: today,
+        paymentMethod: params.paymentMethod === "pix" ? "other" : "credit_card",
+        isCompleted: 1,
+        note: `Pago via ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`} — Cielo`,
+      };
+      console.log("[Hostaway:payment] Body:", JSON.stringify(payBody));
+
       const payRes = await fetch(`${BASE_URL}/reservations/${reservationId}/payments`, {
         method: "POST",
         headers: {
@@ -513,23 +523,25 @@ export async function createHostawayReservation(params: {
           "Content-Type": "application/json",
           "Cache-Control": "no-cache",
         },
-        body: JSON.stringify({
-          amount: Math.round(params.totalPrice * 100) / 100,
-          currency: params.currency || "BRL",
-          date: today,
-          paymentMethod: params.paymentMethod === "pix" ? "other" : "credit_card",
-          isCompleted: 1,
-          note: `Pago via ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`} — Cielo`,
-        }),
+        body: JSON.stringify(payBody),
       });
       const payData = await payRes.json().catch(() => ({}));
       console.log(
-        "[Hostaway:createReservation] Payment registered:",
+        "[Hostaway:payment] Status:",
         payRes.status,
-        JSON.stringify(payData).slice(0, 200),
+        "Response:",
+        JSON.stringify(payData),
       );
+
+      if (!payRes.ok) {
+        console.error(
+          "[Hostaway:payment] FALHOU:",
+          payRes.status,
+          payData.message || JSON.stringify(payData),
+        );
+      }
     } catch (err) {
-      console.warn("[Hostaway:createReservation] Registro de pagamento falhou:", err);
+      console.warn("[Hostaway:payment] Exception:", err);
     }
 
     return { reservationId };

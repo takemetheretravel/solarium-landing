@@ -154,7 +154,7 @@ const SOLARIUM_2: PropertyConfig = {
     COZINHA("Churrasqueira a gás e a carvão"),
   ],
   heroImage: imageUrl("solarium/casas/solarium-2-hero", { width: 1200, height: 900 }),
-  cardImage: "/images/solarium-2/05-spa-teto-retratil.jpg",
+  cardImage: imageUrl("solarium/casas/solarium-2-hero", { width: 1200, height: 900 }),
   videoPublicId: "solarium/solarium-2-apresentacao",
   galleryImages: [
     "/images/solarium-2/01-deck-serra-fina.jpg",
@@ -201,7 +201,7 @@ const SOLARIUM_COMPLETO: PropertyConfig = {
     COZINHA("Duas churrasqueiras (a gás e a carvão)"),
   ],
   heroImage: imageUrl("solarium/casas/solarium-completo-hero", { width: 1200, height: 900 }),
-  cardImage: "/images/solarium-completo/01-frente-externa.jpg",
+  cardImage: imageUrl("solarium/casas/solarium-completo-hero", { width: 1200, height: 900 }),
   videoPublicId: "solarium/solarium-completo-apresentacao",
   galleryImages: [
     "/images/solarium-completo/01-frente-externa.jpg",
