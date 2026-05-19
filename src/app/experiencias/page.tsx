@@ -181,8 +181,8 @@ export default function ExperienciasPage() {
           <div className="grid grid-cols-1 items-stretch lg:grid-cols-2">
             <div className="relative aspect-[4/3] overflow-hidden lg:aspect-auto">
               <SmartImage
-                src={EXP("cavalo", 1200, 900)}
-                alt="Cavalgada com vista para a Serra Fina"
+                src={EXP("bike", 1200, 900)}
+                alt="Passeio de bike pela Serra da Mantiqueira"
                 fill
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />

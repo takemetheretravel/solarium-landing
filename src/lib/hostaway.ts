@@ -503,45 +503,62 @@ export async function createHostawayReservation(params: {
 
     console.log("[Hostaway:createReservation] Created:", reservationId);
 
-    // PASSO EXTRA: registra o pagamento na reserva (POST /reservations/{id}/payments)
+    // Tenta registrar charge paga via API
+    // Documentação Hostaway: paid offline charges atualizam payment status automaticamente
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const payBody = {
+      const chargeBody = {
         amount: Math.round(params.totalPrice * 100) / 100,
         currency: params.currency || "BRL",
         date: today,
-        paymentMethod: params.paymentMethod === "pix" ? "other" : "credit_card",
-        isCompleted: 1,
-        note: `Pago via ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`} — Cielo`,
+        type: "charge",
+        title: `Pagamento ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`}`,
+        isPaid: 1,
+        paidDate: today,
+        paidMethod: params.paymentMethod === "pix" ? "other" : "credit_card",
       };
-      console.log("[Hostaway:payment] Body:", JSON.stringify(payBody));
+      console.log("[Hostaway:charge] Body:", JSON.stringify(chargeBody));
 
-      const payRes = await fetch(`${BASE_URL}/reservations/${reservationId}/payments`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-        },
-        body: JSON.stringify(payBody),
-      });
-      const payData = await payRes.json().catch(() => ({}));
-      console.log(
-        "[Hostaway:payment] Status:",
-        payRes.status,
-        "Response:",
-        JSON.stringify(payData),
-      );
+      // Endpoints candidatos (em ordem de probabilidade segundo docs Hostaway)
+      const endpoints = [
+        `/reservations/${reservationId}/financeField`,
+        `/reservations/${reservationId}/charges`,
+        `/reservations/${reservationId}/customCharges`,
+      ];
 
-      if (!payRes.ok) {
-        console.error(
-          "[Hostaway:payment] FALHOU:",
-          payRes.status,
-          payData.message || JSON.stringify(payData),
-        );
+      let success = false;
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(`${BASE_URL}${endpoint}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "Cache-Control": "no-cache",
+            },
+            body: JSON.stringify(chargeBody),
+          });
+          const data = await res.json().catch(() => ({}));
+          console.log(
+            `[Hostaway:charge] ${endpoint} → ${res.status}:`,
+            JSON.stringify(data).slice(0, 200),
+          );
+
+          if (res.ok) {
+            console.log(`[Hostaway:charge] ✓ Charge criada via ${endpoint}`);
+            success = true;
+            break;
+          }
+        } catch (e) {
+          console.warn(`[Hostaway:charge] ${endpoint} exception:`, e);
+        }
+      }
+
+      if (!success) {
+        console.warn("[Hostaway:charge] Nenhum endpoint aceitou. Reserva criada como Unpaid — marcar manual.");
       }
     } catch (err) {
-      console.warn("[Hostaway:payment] Exception:", err);
+      console.warn("[Hostaway:charge] Erro geral:", err);
     }
 
     return { reservationId };
