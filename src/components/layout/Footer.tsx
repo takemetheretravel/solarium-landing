@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AtSign } from "lucide-react";
+import { AtSign, MapPin } from "lucide-react";
 import Container from "@/components/ui/Container";
 import Kicker from "@/components/ui/Kicker";
 import { SITE, instagramLink, whatsappLink } from "@/config/site";
@@ -26,6 +26,12 @@ export default function Footer() {
               <AtSign className="h-4 w-4" />
               <span className="font-sans text-xs uppercase tracking-[0.2em]">@{SITE.instagram}</span>
             </a>
+            <div className="mt-4 flex items-start gap-2 text-charcoal/60">
+              <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span className="font-sans text-xs leading-relaxed">
+                Serra da Mantiqueira · Itanhandu, Minas Gerais
+              </span>
+            </div>
           </div>
 
           <div>

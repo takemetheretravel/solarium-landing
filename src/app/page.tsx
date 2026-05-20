@@ -9,6 +9,7 @@ import {
   Flower2,
   Tag,
   MessageCircle,
+  MapPin,
 } from "lucide-react";
 import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
@@ -366,6 +367,64 @@ export default async function Home() {
             <Heading level={2}>Antes de reservar.</Heading>
           </div>
           <FAQ />
+        </Container>
+      </Section>
+
+      {/* ONDE ESTAMOS */}
+      <Section className="border-t border-charcoal/10 bg-cream">
+        <Container>
+          <div className="mb-12 max-w-2xl">
+            <Kicker className="mb-4">Onde estamos</Kicker>
+            <Heading level={2}>Serra da Mantiqueira, Minas Gerais.</Heading>
+            <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
+              A poucos quilômetros de Itanhandu, em meio à mata nativa e com vista para o Parque Nacional do Itatiaia.
+            </p>
+          </div>
+
+          <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 lg:items-start">
+            {/* Mapa — centralizado em Itanhandu (cidade), não no endereço exato */}
+            <div className="aspect-video w-full overflow-hidden">
+              <iframe
+                src="https://maps.google.com/maps?q=-22.2925,-44.9352&z=12&output=embed"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Localização Solarium Mantiqueira — Itanhandu, MG"
+              />
+            </div>
+
+            {/* Distâncias */}
+            <div>
+              <div className="mb-6 flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-copper" strokeWidth={1.5} />
+                <span className="font-serif text-lg text-charcoal">Distâncias aproximadas</span>
+              </div>
+              <ul className="space-y-0">
+                {[
+                  { city: "São Paulo, SP", km: 230, time: "3h30" },
+                  { city: "Rio de Janeiro, RJ", km: 260, time: "4h" },
+                  { city: "Belo Horizonte, MG", km: 290, time: "4h" },
+                  { city: "Campinas, SP", km: 215, time: "3h15" },
+                ].map((d) => (
+                  <li
+                    key={d.city}
+                    className="flex items-center justify-between border-b border-charcoal/10 py-4"
+                  >
+                    <span className="font-sans text-sm text-charcoal/80">{d.city}</span>
+                    <span className="font-sans text-sm text-charcoal/55">
+                      {d.km} km · {d.time} de carro
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-8 font-sans text-xs leading-relaxed text-charcoal/45">
+                Endereço exato compartilhado após confirmação da reserva.
+              </p>
+            </div>
+          </div>
         </Container>
       </Section>
 
