@@ -38,6 +38,7 @@ type Props = {
   initialGuests?: number;
   maxCapacity: number;
   idealCapacity?: number;
+  anchorId?: string;
 };
 
 function isoToday(): string {
@@ -63,6 +64,7 @@ export default function BookingForm({
   initialCheckout,
   initialGuests = 2,
   maxCapacity,
+  anchorId = "reservar",
 }: Props) {
   const router = useRouter();
 
@@ -185,7 +187,7 @@ export default function BookingForm({
   const canContinue = Boolean(okQuote && !loading && !checkinError);
 
   return (
-    <div id="reservar" className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">
+    <div id={anchorId} className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">
       <div className="mb-6 flex items-baseline justify-between">
         <span className="font-sans text-[0.65rem] uppercase tracking-[0.3em] text-copper">
           Reserve diretamente
