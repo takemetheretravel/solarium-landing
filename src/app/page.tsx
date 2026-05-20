@@ -377,7 +377,7 @@ export default async function Home() {
             <Kicker className="mb-4">Onde estamos</Kicker>
             <Heading level={2}>Serra da Mantiqueira, Minas Gerais.</Heading>
             <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
-              A poucos quilômetros de Itanhandu, em meio à mata nativa e com vista para o Parque Nacional do Itatiaia.
+              De fácil acesso por rodovia a partir das principais capitais do Sudeste. A poucos quilômetros de Itanhandu, próximo ao Parque Nacional do Itatiaia.
             </p>
           </div>
 
@@ -400,25 +400,25 @@ export default async function Home() {
             <div>
               <div className="mb-6 flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-copper" strokeWidth={1.5} />
-                <span className="font-serif text-lg text-charcoal">Distâncias aproximadas</span>
+                <span className="font-serif text-lg text-charcoal">Tempo de deslocamento</span>
               </div>
-              <ul className="space-y-0">
-                {[
-                  { city: "São Paulo, SP", km: 230, time: "3h30" },
-                  { city: "Rio de Janeiro, RJ", km: 260, time: "4h" },
-                  { city: "Belo Horizonte, MG", km: 290, time: "4h" },
-                  { city: "Campinas, SP", km: 215, time: "3h15" },
-                ].map((d) => (
-                  <li
-                    key={d.city}
-                    className="flex items-center justify-between border-b border-charcoal/10 py-4"
-                  >
-                    <span className="font-sans text-sm text-charcoal/80">{d.city}</span>
-                    <span className="font-sans text-sm text-charcoal/55">
-                      {d.km} km · {d.time} de carro
-                    </span>
-                  </li>
-                ))}
+              <ul className="mt-6 space-y-3 font-sans text-sm text-charcoal/80">
+                <li className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 flex-shrink-0 text-copper" />
+                  <span>São Paulo — 3h30</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 flex-shrink-0 text-copper" />
+                  <span>Rio de Janeiro — 4h</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 flex-shrink-0 text-copper" />
+                  <span>Campinas — 4h30</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 flex-shrink-0 text-copper" />
+                  <span>Belo Horizonte — 6h</span>
+                </li>
               </ul>
               <p className="mt-8 font-sans text-xs leading-relaxed text-charcoal/45">
                 Endereço exato compartilhado após confirmação da reserva.
