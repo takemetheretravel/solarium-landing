@@ -91,6 +91,16 @@ export async function POST(req: Request) {
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
+        console.log("📧 NOVA RESERVA PAGA:", {
+          hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
+          propriedade: draft.propertyName,
+          checkin: draft.checkin,
+          checkout: draft.checkout,
+          valorCobrado: `R$ ${valorACobrar.toFixed(2)}`,
+          metodo: `Cartão ${installments || 1}x`,
+          hostawayUrl: `https://dashboard.hostaway.com/reservations/${reservation.reservationId}/edit`,
+          cieloId: result.paymentId,
+        });
       } else {
         // Pagamento aprovado, Hostaway falhou → marca para criação manual
         await updateDraft(draftId, { hostawayReservationId: -1 });

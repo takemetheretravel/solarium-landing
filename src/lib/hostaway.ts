@@ -503,63 +503,25 @@ export async function createHostawayReservation(params: {
 
     console.log("[Hostaway:createReservation] Created:", reservationId);
 
-    // Tenta registrar charge paga via API
-    // Documentação Hostaway: paid offline charges atualizam payment status automaticamente
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      const chargeBody = {
-        amount: Math.round(params.totalPrice * 100) / 100,
-        currency: params.currency || "BRL",
-        date: today,
-        type: "charge",
-        title: `Pagamento ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`}`,
-        isPaid: 1,
-        paidDate: today,
-        paidMethod: params.paymentMethod === "pix" ? "other" : "credit_card",
-      };
-      console.log("[Hostaway:charge] Body:", JSON.stringify(chargeBody));
-
-      // Endpoints candidatos (em ordem de probabilidade segundo docs Hostaway)
-      const endpoints = [
-        `/reservations/${reservationId}/financeField`,
-        `/reservations/${reservationId}/charges`,
-        `/reservations/${reservationId}/customCharges`,
-      ];
-
-      let success = false;
-      for (const endpoint of endpoints) {
-        try {
-          const res = await fetch(`${BASE_URL}${endpoint}`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-              "Cache-Control": "no-cache",
-            },
-            body: JSON.stringify(chargeBody),
-          });
-          const data = await res.json().catch(() => ({}));
-          console.log(
-            `[Hostaway:charge] ${endpoint} → ${res.status}:`,
-            JSON.stringify(data).slice(0, 200),
-          );
-
-          if (res.ok) {
-            console.log(`[Hostaway:charge] ✓ Charge criada via ${endpoint}`);
-            success = true;
-            break;
-          }
-        } catch (e) {
-          console.warn(`[Hostaway:charge] ${endpoint} exception:`, e);
-        }
-      }
-
-      if (!success) {
-        console.warn("[Hostaway:charge] Nenhum endpoint aceitou. Reserva criada como Unpaid — marcar manual.");
-      }
-    } catch (err) {
-      console.warn("[Hostaway:charge] Erro geral:", err);
-    }
+    // Marcação como paga não está disponível via API pública Hostaway.
+    // Fluxo: receber pagamento Cielo → marcar manualmente no Hostaway (1 minuto por reserva).
+    console.log("⚠️  AÇÃO MANUAL NECESSÁRIA — MARCAR RESERVA COMO PAGA NO HOSTAWAY ⚠️");
+    console.log(
+      JSON.stringify(
+        {
+          reservationId,
+          dashboardUrl: `https://dashboard.hostaway.com/reservations/${reservationId}/edit`,
+          valorCobrado: `R$ ${params.totalPrice.toFixed(2)}`,
+          metodoPagamento: params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`,
+          acao:
+            "Abrir reserva → Add transaction → Amount: " +
+            params.totalPrice.toFixed(2) +
+            " → Date: hoje → Confirmar",
+        },
+        null,
+        2,
+      ),
+    );
 
     return { reservationId };
   } catch (err) {
