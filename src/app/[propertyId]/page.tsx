@@ -140,14 +140,14 @@ export default async function PropertyPage({
               <div className="mx-auto w-full max-w-xs xl:max-w-none">
                 <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3">
                 {property.galleryImages.slice(0, 6).map((src, i) => (
                   <div key={src} className="relative aspect-square overflow-hidden bg-charcoal/5">
                     <SmartImage
                       src={src}
                       alt={`${property.name} — prévia ${i + 1}`}
                       fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 14vw"
+                      sizes="(max-width: 1280px) 50vw, 20vw"
                     />
                   </div>
                 ))}
