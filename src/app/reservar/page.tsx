@@ -162,13 +162,17 @@ function ChooseProperty({
                     Ideal para {p.capacity.ideal} · acomoda até {p.capacity.max}
                   </p>
                   <p className="mt-3 font-serif text-xl text-charcoal">
-                    {hasDates && total != null ? (
-                      formatBRLPrecise(total)
-                    ) : (
+                    {!hasDates ? (
                       <span>
                         <span className="font-sans text-xs uppercase tracking-widest text-charcoal/50">A partir de </span>
                         {formatBRLPrecise(p.fromPriceNightly)}
                         <span className="font-sans text-xs uppercase tracking-widest text-charcoal/50"> / noite</span>
+                      </span>
+                    ) : total != null ? (
+                      formatBRLPrecise(total)
+                    ) : (
+                      <span className="font-sans text-sm text-charcoal/50">
+                        Indisponível — consulte outras datas
                       </span>
                     )}
                   </p>
