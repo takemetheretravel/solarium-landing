@@ -45,7 +45,8 @@
       "Bash(Start-Sleep -Seconds 2)",
       "Bash(git commit -m ' *)",
       "PowerShell(Start-Process -NoNewWindow powershell -ArgumentList \"-Command\", \"cd 'C:\\\\Projetos\\\\solarium-landing'; npm run dev\" ; Start-Sleep -Seconds 5; Write-Output \"Dev server iniciado\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git checkout *)"
     ]
   }
 }

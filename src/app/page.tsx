@@ -28,7 +28,6 @@ import {
   AIRBNB_LINKS,
   whatsappLink,
 } from "@/config/site";
-import { getMinNightlyFromCalendar } from "@/lib/hostaway";
 import { formatBRL } from "@/lib/cn";
 
 export const revalidate = 300;
@@ -38,9 +37,6 @@ const ONSITE_ICONS = { coffee: Coffee, spa: Flower2, heart: Heart };
 const MARQUEE_REVIEW_IDS = [1, 2, 3, 4, 5, 9, 10, 14];
 
 export default async function Home() {
-  const minPrices = await Promise.all(
-    PROPERTIES.map((p) => getMinNightlyFromCalendar(p.id, 90).catch(() => null)),
-  );
   const marqueeReviews = MARQUEE_REVIEW_IDS
     .map((id) => REVIEWS.find((r) => r.id === id))
     .filter((r): r is (typeof REVIEWS)[number] => Boolean(r));
@@ -143,8 +139,7 @@ export default async function Home() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-3 lg:gap-6">
-            {PROPERTIES.map((p, i) => {
-              const min = minPrices[i];
+            {PROPERTIES.map((p) => {
               return (
                 <Link
                   key={p.slug}
@@ -181,17 +176,11 @@ export default async function Home() {
                     </ul>
                     <div className="mt-6 flex items-baseline justify-between border-t border-charcoal/10 pt-4">
                       <div>
-                        {min ? (
-                          <>
-                            <span className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">A partir de</span>
-                            <p className="font-serif text-2xl text-charcoal">
-                              {formatBRL(min)}
-                              <span className="ml-1 font-sans text-xs lowercase tracking-normal text-charcoal/60">/ noite</span>
-                            </p>
-                          </>
-                        ) : (
-                          <span className="font-sans text-xs text-charcoal/60">Consulte preços</span>
-                        )}
+                        <span className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">A partir de</span>
+                        <p className="font-serif text-2xl text-charcoal">
+                          {formatBRL(p.fromPriceNightly)}
+                          <span className="ml-1 font-sans text-xs lowercase tracking-normal text-charcoal/60">/ noite</span>
+                        </p>
                       </div>
                       <span className="flex items-center gap-1 font-sans text-xs uppercase tracking-[0.2em] text-copper transition-transform group-hover:translate-x-1">
                         Conhecer <ArrowRight className="h-3.5 w-3.5" />

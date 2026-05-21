@@ -9,7 +9,7 @@ import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import Gallery from "@/components/property/Gallery";
 import AmenitiesGrouped from "@/components/property/AmenitiesGrouped";
-import BookingForm from "@/components/booking/BookingForm";
+import PropertyBookingLayout from "@/components/booking/PropertyBookingLayout";
 import VideoBlock from "@/components/ui/VideoBlock";
 import {
   PROPERTIES,
@@ -61,6 +61,7 @@ export default async function PropertyPage({
   if (!property) notFound();
 
   const listing = await getListing(property.id);
+
   const apiAmenities =
     listing?.listingAmenities?.map((a) => a.amenityName).filter(Boolean) ?? [];
   const fullAmenities = apiAmenities.length > 0 ? apiAmenities : property.amenitiesFallback;
@@ -97,7 +98,8 @@ export default async function PropertyPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* HERO */}
+
+      {/* HERO — full width, fora do grid de 2 colunas */}
       <section className="relative h-[80vh] min-h-[560px] w-full overflow-hidden">
         <SmartImage src={property.heroImage} alt={property.name} priority sizes="100vw" />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-transparent to-charcoal/70" />
@@ -114,44 +116,48 @@ export default async function PropertyPage({
         </div>
       </section>
 
-      {/* VÍDEO + GALERIA PRÉVIA */}
-      {property.videoPublicId && (
-        <section className="border-t border-charcoal/10 bg-cream py-12 md:py-16">
-          <Container size="wide">
+      {/* PROPERTY BOOKING LAYOUT — wrapper client que renderiza grid 2 cols + barra mobile */}
+      <PropertyBookingLayout
+        propertySlug={property.slug}
+        propertyName={property.name}
+        fromPriceNightly={property.fromPriceNightly}
+        maxCapacity={property.capacity.max}
+        idealCapacity={property.capacity.ideal}
+        initialCheckin={searchParams?.checkin}
+        initialCheckout={searchParams?.checkout}
+        initialGuests={initialGuests}
+      >
+        {/* VÍDEO + GALERIA PRÉVIA (6 fotos) */}
+        {property.videoPublicId && (
+          <div className="border-t border-charcoal/10 py-12 md:py-16">
             <div className="mb-8 text-center">
               <Kicker className="mb-3">Conheça em movimento</Kicker>
               <Heading level={2} className="text-3xl md:text-4xl">
                 Um vislumbre do {property.name}
               </Heading>
             </div>
-
-            <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[360px_1fr]">
-              {/* Vídeo portrait à esquerda — autoplay muted loop */}
-              <div className="mx-auto w-full max-w-xs lg:max-w-none">
+            <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[300px_1fr]">
+              <div className="mx-auto w-full max-w-xs xl:max-w-none">
                 <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
               </div>
-
-              {/* Grid 2x2 de fotos à direita */}
-              <div className="grid grid-cols-2 gap-4">
-                {property.galleryImages.slice(0, 4).map((src, i) => (
+              <div className="grid grid-cols-2 gap-3">
+                {property.galleryImages.slice(0, 6).map((src, i) => (
                   <div key={src} className="relative aspect-square overflow-hidden bg-charcoal/5">
                     <SmartImage
                       src={src}
                       alt={`${property.name} — prévia ${i + 1}`}
                       fill
-                      sizes="(max-width: 1024px) 50vw, 25vw"
+                      sizes="(max-width: 1280px) 50vw, 20vw"
                     />
                   </div>
                 ))}
               </div>
             </div>
-          </Container>
-        </section>
-      )}
+          </div>
+        )}
 
-      {/* GALERIA */}
-      <Section spacing="tight">
-        <Container size="wide">
+        {/* GALERIA COMPLETA */}
+        <div className="border-t border-charcoal/10 py-10 md:py-12">
           {isCompleto ? (
             <div className="space-y-12">
               {SOLARIUM_COMPLETO_GALLERY_GROUPS.map((group) => (
@@ -164,69 +170,47 @@ export default async function PropertyPage({
           ) : (
             <Gallery images={property.galleryImages} altPrefix={property.name} />
           )}
-        </Container>
-      </Section>
+        </div>
 
-      {/* DESCRIÇÃO + BOOKING FORM */}
-      <Section spacing="default" className="border-t border-charcoal/10">
-        <Container size="wide">
-          <div className="grid gap-16 lg:grid-cols-[1.4fr_1fr] lg:gap-20">
-            <div>
-              <Kicker className="mb-4">Sobre a casa</Kicker>
-              <Heading level={2}>
-                {property.name}.
-                <br />
-                <em className="not-italic font-serif italic text-serra">{property.tagline}</em>
-              </Heading>
-              <p className="mt-4 font-serif text-lg text-charcoal/80">
-                Ideal para <strong className="font-serif">{property.capacity.ideal} hóspedes</strong>. Acomoda até {property.capacity.max}.
-              </p>
-              <p className="mt-8 font-sans text-base leading-[1.8] text-charcoal/80">
-                {property.description}
-              </p>
-
-              <div className="mt-12">
-                <Kicker className="mb-4">Diferenciais</Kicker>
-                <ul className="space-y-3 font-sans text-base text-charcoal/80">
-                  {property.differentials.map((d) => (
-                    <li key={d} className="flex gap-3">
-                      <span className="mt-3 h-px w-4 flex-shrink-0 bg-copper" />
-                      <span>{d}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            <aside className="lg:sticky lg:top-28 lg:self-start">
-              <BookingForm
-                propertySlug={property.slug}
-                initialCheckin={searchParams?.checkin}
-                initialCheckout={searchParams?.checkout}
-                initialGuests={initialGuests}
-                maxCapacity={property.capacity.max}
-                idealCapacity={property.capacity.ideal}
-              />
-            </aside>
+        {/* DESCRIÇÃO + DIFERENCIAIS */}
+        <div className="border-t border-charcoal/10 py-16 md:py-24">
+          <Kicker className="mb-4">Sobre a casa</Kicker>
+          <Heading level={2}>
+            {property.name}.
+            <br />
+            <em className="not-italic font-serif italic text-serra">{property.tagline}</em>
+          </Heading>
+          <p className="mt-4 font-serif text-lg text-charcoal/80">
+            Ideal para <strong className="font-serif">{property.capacity.ideal} hóspedes</strong>. Acomoda até {property.capacity.max}.
+          </p>
+          <p className="mt-8 font-sans text-base leading-[1.8] text-charcoal/80">
+            {property.description}
+          </p>
+          <div className="mt-12">
+            <Kicker className="mb-4">Diferenciais</Kicker>
+            <ul className="space-y-3 font-sans text-base text-charcoal/80">
+              {property.differentials.map((d) => (
+                <li key={d} className="flex gap-3">
+                  <span className="mt-3 h-px w-4 flex-shrink-0 bg-copper" />
+                  <span>{d}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-        </Container>
-      </Section>
+        </div>
 
-      {/* COMODIDADES */}
-      <Section className="border-t border-charcoal/10 bg-cream">
-        <Container>
+        {/* COMODIDADES */}
+        <div className="border-t border-charcoal/10 py-16 md:py-24">
           <div className="mb-12 max-w-2xl">
             <Kicker className="mb-4">Comodidades</Kicker>
             <Heading level={2}>Tudo o que você precisa, e mais.</Heading>
           </div>
           <AmenitiesGrouped groups={property.amenityGroups} fullList={fullAmenities} />
-        </Container>
-      </Section>
+        </div>
 
-      {/* REVIEWS */}
-      {propertyReviews.length > 0 && (
-        <Section id="reviews" className="border-t border-charcoal/10 bg-serra/5">
-          <Container>
+        {/* REVIEWS */}
+        {propertyReviews.length > 0 && (
+          <div id="reviews" className="border-t border-charcoal/10 py-16 md:py-24">
             <div className="mb-12 flex items-end justify-between gap-6">
               <div>
                 <Kicker className="mb-4">Avaliações</Kicker>
@@ -248,7 +232,7 @@ export default async function PropertyPage({
                 <article key={r.id} className="bg-cream p-8">
                   <Quote className="h-5 w-5 text-copper" strokeWidth={1.5} />
                   <p className="mt-4 font-serif text-base italic leading-relaxed text-charcoal/85">
-                    “{r.text}”
+                    "{r.text}"
                   </p>
                   <div className="mt-6 border-t border-charcoal/10 pt-4 font-sans text-xs uppercase tracking-[0.2em] text-charcoal/60">
                     <span className="text-charcoal">{r.author}</span>
@@ -260,13 +244,11 @@ export default async function PropertyPage({
                 </article>
               ))}
             </div>
-          </Container>
-        </Section>
-      )}
+          </div>
+        )}
 
-      {/* CANCELAMENTO */}
-      <Section className="border-t border-charcoal/10" spacing="tight">
-        <Container size="narrow">
+        {/* CANCELAMENTO */}
+        <div className="border-t border-charcoal/10 py-10 md:py-16 max-w-2xl">
           <Kicker className="mb-4">Política de cancelamento</Kicker>
           <Heading level={3}>Flexível para a sua tranquilidade.</Heading>
           <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
@@ -278,10 +260,10 @@ export default async function PropertyPage({
           >
             Ler termos completos <ArrowRight className="h-4 w-4" />
           </Link>
-        </Container>
-      </Section>
+        </div>
+      </PropertyBookingLayout>
 
-      {/* CTA FINAL */}
+      {/* CTA FINAL — full width, fora do grid */}
       <Section className="border-t border-charcoal/10 bg-charcoal text-cream">
         <Container size="narrow">
           <div className="text-center">
