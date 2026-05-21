@@ -39,6 +39,8 @@ type Props = {
   maxCapacity: number;
   idealCapacity?: number;
   anchorId?: string;
+  /** Notifica o pai sempre que o total (ou o estado de datas) mudar. */
+  onTotalChange?: (info: { finalTotal: number | null; hasDates: boolean }) => void;
 };
 
 function isoToday(): string {
@@ -65,6 +67,7 @@ export default function BookingForm({
   initialGuests = 2,
   maxCapacity,
   anchorId = "reservar",
+  onTotalChange,
 }: Props) {
   const router = useRouter();
 
@@ -185,6 +188,17 @@ export default function BookingForm({
   const okQuote = response && response.ok === true ? response : null;
   const failure = response && response.ok === false ? response.failure : null;
   const canContinue = Boolean(okQuote && !loading && !checkinError);
+
+  // Reporta o total para o pai (PropertyBookingLayout → MobileBookingBar) sempre que
+  // a quote válida, datas ou response mudarem. Fonte única da verdade: o BookingForm.
+  useEffect(() => {
+    if (!onTotalChange) return;
+    if (okQuote) {
+      onTotalChange({ finalTotal: okQuote.finalTotal, hasDates: true });
+    } else {
+      onTotalChange({ finalTotal: null, hasDates: Boolean(checkin && checkout) });
+    }
+  }, [okQuote, checkin, checkout, onTotalChange]);
 
   return (
     <div id={anchorId} className="rounded-sm border border-charcoal/10 bg-cream p-6 shadow-xl shadow-charcoal/5 sm:p-8">

@@ -27,6 +27,8 @@ export type PropertyConfig = {
   cardImage: string;
   galleryImages: string[];
   videoPublicId?: string;
+  /** Preço-âncora "a partir de / noite" — editável manualmente (não consulta calendário). */
+  fromPriceNightly: number;
 };
 
 const TEC = (extras: string[] = []): AmenityGroup => ({
@@ -75,6 +77,7 @@ const SOLARIUM_1: PropertyConfig = {
   name: "Solarium 1",
   shortName: "Solarium 1",
   capacity: { ideal: 2, max: 4 },
+  fromPriceNightly: 1150,
   badge: "Hidro com Vista Panorâmica",
   tagline: "Onde tudo começou — íntimo, premium, com vista para a Serra Fina.",
   description:
@@ -123,6 +126,7 @@ const SOLARIUM_2: PropertyConfig = {
   name: "Solarium 2",
   shortName: "Solarium 2",
   capacity: { ideal: 2, max: 4 },
+  fromPriceNightly: 1150,
   badge: "Cinema Integrado",
   tagline: "Cinema, SPA com teto retrátil e película inteligente — pura imersão.",
   description:
@@ -176,6 +180,7 @@ const SOLARIUM_COMPLETO: PropertyConfig = {
   name: "Solarium Completo",
   shortName: "Completo",
   capacity: { ideal: 4, max: 8 },
+  fromPriceNightly: 2100,
   badge: "Para Grupos e Celebrações",
   tagline: "As duas casas reservadas para você. Privacidade total.",
   description:

@@ -9,8 +9,7 @@ import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import Gallery from "@/components/property/Gallery";
 import AmenitiesGrouped from "@/components/property/AmenitiesGrouped";
-import BookingForm from "@/components/booking/BookingForm";
-import MobileBookingBar from "@/components/booking/MobileBookingBar";
+import PropertyBookingLayout from "@/components/booking/PropertyBookingLayout";
 import VideoBlock from "@/components/ui/VideoBlock";
 import {
   PROPERTIES,
@@ -18,7 +17,7 @@ import {
   SOLARIUM_COMPLETO_GALLERY_GROUPS,
 } from "@/config/properties";
 import { REVIEWS, SITE, AIRBNB_LINKS, whatsappLink } from "@/config/site";
-import { getListing, getMinNightlyFromCalendar } from "@/lib/hostaway";
+import { getListing } from "@/lib/hostaway";
 
 export const revalidate = 300;
 
@@ -61,10 +60,7 @@ export default async function PropertyPage({
   const property = getPropertyBySlug(params.propertyId);
   if (!property) notFound();
 
-  const [listing, minNightly] = await Promise.all([
-    getListing(property.id),
-    getMinNightlyFromCalendar(property.id, 90).catch(() => null),
-  ]);
+  const listing = await getListing(property.id);
 
   const apiAmenities =
     listing?.listingAmenities?.map((a) => a.amenityName).filter(Boolean) ?? [];
@@ -120,183 +116,152 @@ export default async function PropertyPage({
         </div>
       </section>
 
-      {/* LAYOUT DE 2 COLUNAS — conteúdo esquerda + BookingForm sticky direita */}
-      <Container size="wide">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] lg:gap-16">
-
-          {/* ── COLUNA ESQUERDA ── */}
-          <div className="min-w-0">
-
-            {/* VÍDEO + GALERIA PRÉVIA */}
-            {property.videoPublicId && (
-              <div className="border-t border-charcoal/10 py-12 md:py-16">
-                <div className="mb-8 text-center">
-                  <Kicker className="mb-3">Conheça em movimento</Kicker>
-                  <Heading level={2} className="text-3xl md:text-4xl">
-                    Um vislumbre do {property.name}
-                  </Heading>
-                </div>
-                {/* Vídeo portrait + grid de fotos — side-by-side só em xl para respeitar a col estreita */}
-                <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[300px_1fr]">
-                  <div className="mx-auto w-full max-w-xs xl:max-w-none">
-                    <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    {property.galleryImages.slice(0, 4).map((src, i) => (
-                      <div key={src} className="relative aspect-square overflow-hidden bg-charcoal/5">
-                        <SmartImage
-                          src={src}
-                          alt={`${property.name} — prévia ${i + 1}`}
-                          fill
-                          sizes="(max-width: 1280px) 50vw, 20vw"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+      {/* PROPERTY BOOKING LAYOUT — wrapper client que renderiza grid 2 cols + barra mobile */}
+      <PropertyBookingLayout
+        propertySlug={property.slug}
+        propertyName={property.name}
+        fromPriceNightly={property.fromPriceNightly}
+        maxCapacity={property.capacity.max}
+        idealCapacity={property.capacity.ideal}
+        initialCheckin={searchParams?.checkin}
+        initialCheckout={searchParams?.checkout}
+        initialGuests={initialGuests}
+      >
+        {/* VÍDEO + GALERIA PRÉVIA (6 fotos) */}
+        {property.videoPublicId && (
+          <div className="border-t border-charcoal/10 py-12 md:py-16">
+            <div className="mb-8 text-center">
+              <Kicker className="mb-3">Conheça em movimento</Kicker>
+              <Heading level={2} className="text-3xl md:text-4xl">
+                Um vislumbre do {property.name}
+              </Heading>
+            </div>
+            <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[300px_1fr]">
+              <div className="mx-auto w-full max-w-xs xl:max-w-none">
+                <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
               </div>
-            )}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {property.galleryImages.slice(0, 6).map((src, i) => (
+                  <div key={src} className="relative aspect-square overflow-hidden bg-charcoal/5">
+                    <SmartImage
+                      src={src}
+                      alt={`${property.name} — prévia ${i + 1}`}
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 14vw"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
-            {/* GALERIA COMPLETA */}
-            <div className="border-t border-charcoal/10 py-10 md:py-12">
-              {isCompleto ? (
-                <div className="space-y-12">
-                  {SOLARIUM_COMPLETO_GALLERY_GROUPS.map((group) => (
-                    <div key={group.title}>
-                      <h3 className="mb-5 font-serif text-xl text-charcoal/70">{group.title}</h3>
-                      <Gallery images={group.images} altPrefix={`${property.name} — ${group.title}`} />
-                    </div>
-                  ))}
+        {/* GALERIA COMPLETA */}
+        <div className="border-t border-charcoal/10 py-10 md:py-12">
+          {isCompleto ? (
+            <div className="space-y-12">
+              {SOLARIUM_COMPLETO_GALLERY_GROUPS.map((group) => (
+                <div key={group.title}>
+                  <h3 className="mb-5 font-serif text-xl text-charcoal/70">{group.title}</h3>
+                  <Gallery images={group.images} altPrefix={`${property.name} — ${group.title}`} />
                 </div>
-              ) : (
-                <Gallery images={property.galleryImages} altPrefix={property.name} />
+              ))}
+            </div>
+          ) : (
+            <Gallery images={property.galleryImages} altPrefix={property.name} />
+          )}
+        </div>
+
+        {/* DESCRIÇÃO + DIFERENCIAIS */}
+        <div className="border-t border-charcoal/10 py-16 md:py-24">
+          <Kicker className="mb-4">Sobre a casa</Kicker>
+          <Heading level={2}>
+            {property.name}.
+            <br />
+            <em className="not-italic font-serif italic text-serra">{property.tagline}</em>
+          </Heading>
+          <p className="mt-4 font-serif text-lg text-charcoal/80">
+            Ideal para <strong className="font-serif">{property.capacity.ideal} hóspedes</strong>. Acomoda até {property.capacity.max}.
+          </p>
+          <p className="mt-8 font-sans text-base leading-[1.8] text-charcoal/80">
+            {property.description}
+          </p>
+          <div className="mt-12">
+            <Kicker className="mb-4">Diferenciais</Kicker>
+            <ul className="space-y-3 font-sans text-base text-charcoal/80">
+              {property.differentials.map((d) => (
+                <li key={d} className="flex gap-3">
+                  <span className="mt-3 h-px w-4 flex-shrink-0 bg-copper" />
+                  <span>{d}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* COMODIDADES */}
+        <div className="border-t border-charcoal/10 py-16 md:py-24">
+          <div className="mb-12 max-w-2xl">
+            <Kicker className="mb-4">Comodidades</Kicker>
+            <Heading level={2}>Tudo o que você precisa, e mais.</Heading>
+          </div>
+          <AmenitiesGrouped groups={property.amenityGroups} fullList={fullAmenities} />
+        </div>
+
+        {/* REVIEWS */}
+        {propertyReviews.length > 0 && (
+          <div id="reviews" className="border-t border-charcoal/10 py-16 md:py-24">
+            <div className="mb-12 flex items-end justify-between gap-6">
+              <div>
+                <Kicker className="mb-4">Avaliações</Kicker>
+                <Heading level={2}>Quem ficou aqui.</Heading>
+              </div>
+              {airbnbUrl && (
+                <a
+                  href={airbnbUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 font-sans text-xs uppercase tracking-[0.2em] text-charcoal/50 hover:text-copper"
+                >
+                  Ver no Airbnb →
+                </a>
               )}
             </div>
-
-            {/* DESCRIÇÃO + DIFERENCIAIS */}
-            <div className="border-t border-charcoal/10 py-16 md:py-24">
-              <Kicker className="mb-4">Sobre a casa</Kicker>
-              <Heading level={2}>
-                {property.name}.
-                <br />
-                <em className="not-italic font-serif italic text-serra">{property.tagline}</em>
-              </Heading>
-              <p className="mt-4 font-serif text-lg text-charcoal/80">
-                Ideal para <strong className="font-serif">{property.capacity.ideal} hóspedes</strong>. Acomoda até {property.capacity.max}.
-              </p>
-              <p className="mt-8 font-sans text-base leading-[1.8] text-charcoal/80">
-                {property.description}
-              </p>
-              <div className="mt-12">
-                <Kicker className="mb-4">Diferenciais</Kicker>
-                <ul className="space-y-3 font-sans text-base text-charcoal/80">
-                  {property.differentials.map((d) => (
-                    <li key={d} className="flex gap-3">
-                      <span className="mt-3 h-px w-4 flex-shrink-0 bg-copper" />
-                      <span>{d}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            {/* BOOKING FORM INLINE — visível apenas no mobile (lg:hidden) */}
-            <div className="border-t border-charcoal/10 py-10 lg:hidden">
-              <BookingForm
-                anchorId="reservar"
-                propertySlug={property.slug}
-                initialCheckin={searchParams?.checkin}
-                initialCheckout={searchParams?.checkout}
-                initialGuests={initialGuests}
-                maxCapacity={property.capacity.max}
-                idealCapacity={property.capacity.ideal}
-              />
-            </div>
-
-            {/* COMODIDADES */}
-            <div className="border-t border-charcoal/10 py-16 md:py-24">
-              <div className="mb-12 max-w-2xl">
-                <Kicker className="mb-4">Comodidades</Kicker>
-                <Heading level={2}>Tudo o que você precisa, e mais.</Heading>
-              </div>
-              <AmenitiesGrouped groups={property.amenityGroups} fullList={fullAmenities} />
-            </div>
-
-            {/* REVIEWS */}
-            {propertyReviews.length > 0 && (
-              <div id="reviews" className="border-t border-charcoal/10 py-16 md:py-24">
-                <div className="mb-12 flex items-end justify-between gap-6">
-                  <div>
-                    <Kicker className="mb-4">Avaliações</Kicker>
-                    <Heading level={2}>Quem ficou aqui.</Heading>
+            <div className="grid gap-6 md:grid-cols-2">
+              {propertyReviews.map((r) => (
+                <article key={r.id} className="bg-cream p-8">
+                  <Quote className="h-5 w-5 text-copper" strokeWidth={1.5} />
+                  <p className="mt-4 font-serif text-base italic leading-relaxed text-charcoal/85">
+                    "{r.text}"
+                  </p>
+                  <div className="mt-6 border-t border-charcoal/10 pt-4 font-sans text-xs uppercase tracking-[0.2em] text-charcoal/60">
+                    <span className="text-charcoal">{r.author}</span>
+                    <span className="mx-2 text-charcoal/30">·</span>
+                    <span>{r.date}</span>
+                    <span className="mx-2 text-charcoal/30">·</span>
+                    <span>{r.source}</span>
                   </div>
-                  {airbnbUrl && (
-                    <a
-                      href={airbnbUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-shrink-0 font-sans text-xs uppercase tracking-[0.2em] text-charcoal/50 hover:text-copper"
-                    >
-                      Ver no Airbnb →
-                    </a>
-                  )}
-                </div>
-                <div className="grid gap-6 md:grid-cols-2">
-                  {propertyReviews.map((r) => (
-                    <article key={r.id} className="bg-cream p-8">
-                      <Quote className="h-5 w-5 text-copper" strokeWidth={1.5} />
-                      <p className="mt-4 font-serif text-base italic leading-relaxed text-charcoal/85">
-                        "{r.text}"
-                      </p>
-                      <div className="mt-6 border-t border-charcoal/10 pt-4 font-sans text-xs uppercase tracking-[0.2em] text-charcoal/60">
-                        <span className="text-charcoal">{r.author}</span>
-                        <span className="mx-2 text-charcoal/30">·</span>
-                        <span>{r.date}</span>
-                        <span className="mx-2 text-charcoal/30">·</span>
-                        <span>{r.source}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* CANCELAMENTO */}
-            <div className="border-t border-charcoal/10 py-10 md:py-16 max-w-2xl">
-              <Kicker className="mb-4">Política de cancelamento</Kicker>
-              <Heading level={3}>Flexível para a sua tranquilidade.</Heading>
-              <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
-                Cancelamento sem custo em até 7 dias após a confirmação da reserva, desde que reste pelo menos 24h antes do check-in. Reagendamentos podem ser solicitados com 15 dias de antecedência. Veja os termos completos para detalhes específicos.
-              </p>
-              <Link
-                href="/termos#cancelamento"
-                className="mt-6 inline-flex items-center gap-2 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
-              >
-                Ler termos completos <ArrowRight className="h-4 w-4" />
-              </Link>
+                </article>
+              ))}
             </div>
-
           </div>
-          {/* ── fim da coluna esquerda ── */}
+        )}
 
-          {/* ── COLUNA DIREITA — BookingForm sticky (desktop only) ── */}
-          <aside className="hidden lg:block">
-            <div className="sticky top-24 py-12">
-              <BookingForm
-                anchorId="reservar-desktop"
-                propertySlug={property.slug}
-                initialCheckin={searchParams?.checkin}
-                initialCheckout={searchParams?.checkout}
-                initialGuests={initialGuests}
-                maxCapacity={property.capacity.max}
-                idealCapacity={property.capacity.ideal}
-              />
-            </div>
-          </aside>
-
+        {/* CANCELAMENTO */}
+        <div className="border-t border-charcoal/10 py-10 md:py-16 max-w-2xl">
+          <Kicker className="mb-4">Política de cancelamento</Kicker>
+          <Heading level={3}>Flexível para a sua tranquilidade.</Heading>
+          <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
+            Cancelamento sem custo em até 7 dias após a confirmação da reserva, desde que reste pelo menos 24h antes do check-in. Reagendamentos podem ser solicitados com 15 dias de antecedência. Veja os termos completos para detalhes específicos.
+          </p>
+          <Link
+            href="/termos#cancelamento"
+            className="mt-6 inline-flex items-center gap-2 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
+          >
+            Ler termos completos <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
-      </Container>
-      {/* ── fim do grid de 2 colunas ── */}
+      </PropertyBookingLayout>
 
       {/* CTA FINAL — full width, fora do grid */}
       <Section className="border-t border-charcoal/10 bg-charcoal text-cream">
@@ -331,13 +296,6 @@ export default async function PropertyPage({
           </div>
         </Container>
       </Section>
-
-      {/* BARRA FIXA MOBILE — visível só em telas menores que lg */}
-      <MobileBookingBar
-        propertySlug={property.slug}
-        propertyName={property.name}
-        minNightly={minNightly}
-      />
     </main>
   );
 }
