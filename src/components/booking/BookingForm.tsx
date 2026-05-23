@@ -219,7 +219,7 @@ export default function BookingForm({
           <label htmlFor="checkin" className="block cursor-pointer font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
             Check-in
           </label>
-          <div className="relative cursor-pointer" onClick={() => { const el = document.getElementById("checkin") as any; el?.showPicker?.(); }}>
+          <div className="relative">
             <input
               id="checkin"
               type="date"
@@ -228,10 +228,21 @@ export default function BookingForm({
               max={maxDateISO}
               onChange={(e) => {
                 const val = e.target.value;
-                setCheckin(val);
-                setValidationError(null);
-                setCheckinError(null);
-                if (checkout && val && val >= checkout) setCheckout("");
+                if (val) {
+                  setCheckin(val);
+                  setValidationError(null);
+                  setCheckinError(null);
+                  if (checkout && val >= checkout) setCheckout("");
+                }
+              }}
+              onBlur={(e) => {
+                // Fallback Safari iOS: às vezes onChange não dispara, mas blur sim
+                const val = e.target.value;
+                if (val && val !== checkin) {
+                  setCheckin(val);
+                  setValidationError(null);
+                  if (checkout && val >= checkout) setCheckout("");
+                }
               }}
               className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper"
             />
@@ -244,7 +255,7 @@ export default function BookingForm({
           <label htmlFor="checkout" className="block cursor-pointer font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
             Check-out
           </label>
-          <div className="relative cursor-pointer" onClick={() => { const el = document.getElementById("checkout") as any; el?.showPicker?.(); }}>
+          <div className="relative">
             <input
               id="checkout"
               type="date"
@@ -253,8 +264,19 @@ export default function BookingForm({
               max={maxDateISO}
               disabled={!checkin}
               onChange={(e) => {
-                setCheckout(e.target.value);
-                setValidationError(null);
+                const val = e.target.value;
+                if (val) {
+                  setCheckout(val);
+                  setValidationError(null);
+                }
+              }}
+              onBlur={(e) => {
+                // Fallback Safari iOS
+                const val = e.target.value;
+                if (val && val !== checkout) {
+                  setCheckout(val);
+                  setValidationError(null);
+                }
               }}
               className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper disabled:opacity-40"
             />

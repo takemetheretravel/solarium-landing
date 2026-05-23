@@ -29,8 +29,24 @@ function formatCardNumber(value: string) {
   return value.replace(/\D/g, "").replace(/(\d{4})(?=\d)/g, "$1 ").slice(0, 19);
 }
 
-function formatExpiration(value: string) {
-  return value.replace(/\D/g, "").replace(/(\d{2})(\d)/, "$1/$2").slice(0, 7);
+function formatExpiration(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 6); // máx 6 dígitos (MMAAAA)
+  if (digits.length <= 2) return digits;
+  return digits.slice(0, 2) + "/" + digits.slice(2);
+}
+
+/**
+ * Aceita MM/AA ou MM/AAAA e normaliza para MM/AAAA (formato exigido pela Cielo).
+ * "25" → "2025" (assume século atual).
+ */
+function normalizeExpiration(value: string): string {
+  const parts = value.split("/");
+  if (parts.length !== 2) return value;
+  const [month, year] = parts;
+  if (year.length === 2) {
+    return `${month}/20${year}`;
+  }
+  return value;
 }
 
 export default function PagamentoPage({ params }: { params: { draftId: string } }) {
@@ -145,15 +161,25 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     if (!draft) return;
     setCardProcessing(true);
     setCardError(null);
+
+    // Normaliza MM/AA → MM/AAAA (Cielo só aceita ano com 4 dígitos)
+    const normalizedExpiration = normalizeExpiration(cardExpiration);
+    const expParts = normalizedExpiration.split("/");
+    if (expParts.length !== 2 || expParts[0].length !== 2 || expParts[1].length !== 4) {
+      setCardError("Data de validade inválida. Use o formato MM/AAAA (ex: 01/2028).");
+      setCardProcessing(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/payments/credit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           draftId: params.draftId,
-          cardNumber,
+          cardNumber: cardNumber.replace(/\s/g, ""),
           cardHolder,
-          cardExpiration,
+          cardExpiration: normalizedExpiration,
           cardCvv,
           installments,
           amountOverride: valorACobrar,
