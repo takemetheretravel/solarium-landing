@@ -219,68 +219,42 @@ export default function BookingForm({
           <label htmlFor="checkin" className="block cursor-pointer font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
             Check-in
           </label>
-          <div className="relative">
-            <input
-              id="checkin"
-              type="date"
-              value={checkin}
-              min={todayISO}
-              max={maxDateISO}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val) {
-                  setCheckin(val);
-                  setValidationError(null);
-                  setCheckinError(null);
-                  if (checkout && val >= checkout) setCheckout("");
-                }
-              }}
-              onBlur={(e) => {
-                // Fallback Safari iOS: às vezes onChange não dispara, mas blur sim
-                const val = e.target.value;
-                if (val && val !== checkin) {
-                  setCheckin(val);
-                  setValidationError(null);
-                  if (checkout && val >= checkout) setCheckout("");
-                }
-              }}
-              className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper"
-            />
-          </div>
+          <input
+            id="checkin"
+            type="date"
+            value={checkin}
+            min={todayISO}
+            max={maxDateISO}
+            onChange={(e) => {
+              const val = e.target.value;
+              setCheckin(val);
+              setValidationError(null);
+              setCheckinError(null);
+              if (checkout && val && val >= checkout) setCheckout("");
+            }}
+            className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+          />
+          {checkinError && (
+            <p className="mt-1 font-sans text-xs text-red-600">{checkinError}</p>
+          )}
         </div>
-        {checkinError && (
-          <p className="col-span-2 mt-1 font-sans text-xs text-red-600">{checkinError}</p>
-        )}
         <div>
           <label htmlFor="checkout" className="block cursor-pointer font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
             Check-out
           </label>
-          <div className="relative">
-            <input
-              id="checkout"
-              type="date"
-              value={checkout}
-              min={minCheckoutISO}
-              max={maxDateISO}
-              disabled={!checkin}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val) {
-                  setCheckout(val);
-                  setValidationError(null);
-                }
-              }}
-              onBlur={(e) => {
-                // Fallback Safari iOS
-                const val = e.target.value;
-                if (val && val !== checkout) {
-                  setCheckout(val);
-                  setValidationError(null);
-                }
-              }}
-              className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper disabled:opacity-40"
-            />
-          </div>
+          <input
+            id="checkout"
+            type="date"
+            value={checkout}
+            min={minCheckoutISO}
+            max={maxDateISO}
+            disabled={!checkin}
+            onChange={(e) => {
+              setCheckout(e.target.value);
+              setValidationError(null);
+            }}
+            className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper disabled:opacity-40 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+          />
         </div>
         <label className="col-span-2 mt-2 block">
           <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Hóspedes</span>
