@@ -265,7 +265,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
               <span>{draft!.nights}</span>
             </li>
           </ul>
-          <div className="mt-5 space-y-2 font-sans text-sm">
+          <div className="nums mt-5 space-y-2 font-sans text-sm">
             <div className="flex justify-between text-charcoal/70">
               <span>Subtotal</span>
               <span>{formatBRLPrecise(draft!.totalPrice)}</span>
@@ -537,7 +537,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
               <button
                 onClick={handleCardSubmit}
                 disabled={!cardNumber || !cardHolder || !cardExpiration || !cardCvv || cardProcessing}
-                className="w-full bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream transition-colors hover:bg-copper/90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="nums w-full bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream transition-colors hover:bg-copper/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {cardProcessing ? "Processando..." : `Pagar ${formatBRLPrecise(valorACobrar)}`}
               </button>

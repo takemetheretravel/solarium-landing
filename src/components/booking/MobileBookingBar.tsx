@@ -26,7 +26,7 @@ export default function MobileBookingBar({
               <p className="font-sans text-[0.6rem] uppercase tracking-[0.2em] text-charcoal/55">
                 Total
               </p>
-              <p className="font-serif text-xl text-charcoal">
+              <p className="nums font-serif text-xl text-charcoal">
                 {formatBRLPrecise(finalTotal!)}
               </p>
             </>
@@ -35,7 +35,7 @@ export default function MobileBookingBar({
               <p className="font-sans text-[0.6rem] uppercase tracking-[0.2em] text-charcoal/55">
                 A partir de
               </p>
-              <p className="font-serif text-xl text-charcoal">
+              <p className="nums font-serif text-xl text-charcoal">
                 {formatBRLPrecise(fromPriceNightly)}
                 <span className="ml-1 font-sans text-xs text-charcoal/55">/ noite</span>
               </p>

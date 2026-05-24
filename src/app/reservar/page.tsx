@@ -161,7 +161,7 @@ function ChooseProperty({
                   <p className="mt-2 font-sans text-sm text-charcoal/60">
                     Ideal para {p.capacity.ideal} · acomoda até {p.capacity.max}
                   </p>
-                  <p className="mt-3 font-serif text-xl text-charcoal">
+                  <p className="nums mt-3 font-serif text-xl text-charcoal">
                     {!hasDates ? (
                       <span>
                         <span className="font-sans text-xs uppercase tracking-widest text-charcoal/50">A partir de </span>

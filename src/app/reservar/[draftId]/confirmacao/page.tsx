@@ -56,7 +56,7 @@ export default async function ConfirmacaoPage({ params }: { params: { draftId: s
               </li>
               <li className="flex justify-between border-t border-charcoal/10 pt-4 font-serif text-xl">
                 <span className="text-charcoal">Total pago</span>
-                <span className="text-charcoal">{formatBRLPrecise(draft.finalTotal)}</span>
+                <span className="nums text-charcoal">{formatBRLPrecise(draft.finalTotal)}</span>
               </li>
             </ul>
           </div>

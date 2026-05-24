@@ -177,7 +177,7 @@ export default async function Home() {
                     <div className="mt-6 flex items-baseline justify-between border-t border-charcoal/10 pt-4">
                       <div>
                         <span className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">A partir de</span>
-                        <p className="font-serif text-2xl text-charcoal">
+                        <p className="nums font-serif text-2xl text-charcoal">
                           {formatBRL(p.fromPriceNightly)}
                           <span className="ml-1 font-sans text-xs lowercase tracking-normal text-charcoal/60">/ noite</span>
                         </p>

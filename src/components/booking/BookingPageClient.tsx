@@ -186,7 +186,7 @@ export default function BookingPageClient({
 
             {/* Totals */}
             {quote ? (
-              <div className="mt-5 space-y-2 font-sans text-sm">
+              <div className="nums mt-5 space-y-2 font-sans text-sm">
                 <div className="flex justify-between text-charcoal/80">
                   <span>Subtotal</span>
                   <span>{formatBRLPrecise(quote.totalPrice)}</span>

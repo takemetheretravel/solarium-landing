@@ -1,7 +1,7 @@
 import https from 'https';
 import fs from 'fs';
 
-const fileId = '1gA8QD3kvKfcYpKmDn4eOIFqIAGxs7YIx';
+const fileId = '1IZbgrnYYsZi8Z_EUgUvcS8Ve16ZO777w';
 const url = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
 const dest = 'src/app/icon.png';
 
