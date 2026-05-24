@@ -31,15 +31,6 @@ body {
   }
 }
 
-/* Classe utilitária .nums — aplique em spans de valor monetário.
-   Força dígitos com largura/altura uniformes (lining figures, tabular spacing).
-   "lnum" desliga old-style figures da Cormorant Garamond; "tnum" alinha colunas. */
-.nums {
-  font-variant-numeric: lining-nums tabular-nums;
-  font-feature-settings: "lnum" 1, "tnum" 1;
-}
-
-
 /* Reviews marquee */
 .solarium-marquee {
   --marquee-duration: 60s;

@@ -207,7 +207,7 @@ export default function BookingForm({
           Reserve diretamente
         </span>
         {okQuote && (
-          <span className="nums font-serif text-2xl text-charcoal">
+          <span className="font-serif text-2xl text-charcoal">
             {formatBRLPrecise(okQuote.averageNightly)}
             <span className="ml-1 font-sans text-xs uppercase tracking-widest text-charcoal/60">/ noite</span>
           </span>
@@ -339,7 +339,7 @@ export default function BookingForm({
       )}
 
       {okQuote && okQuote.nights > 0 && (
-        <div className="nums mt-6 space-y-2 border-t border-charcoal/10 pt-4 font-sans text-sm">
+        <div className="mt-6 space-y-2 border-t border-charcoal/10 pt-4 font-sans text-sm">
           <div className="flex justify-between text-charcoal/80">
             <span>{formatBRLPrecise(okQuote.averageNightly)} × {okQuote.nights} {okQuote.nights === 1 ? "noite" : "noites"}</span>
             <span>{formatBRLPrecise(okQuote.baseTotal)}</span>
