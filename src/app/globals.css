@@ -31,6 +31,14 @@ body {
   }
 }
 
+/* Números tabulares (dígitos com largura/altura uniformes) em toda a fonte serif.
+   Resolve old-style figures da Cormorant Garamond em valores monetários.
+   font-feature-settings é fallback para browsers sem suporte a font-variant-numeric. */
+.font-serif {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
 
 /* Reviews marquee */
 .solarium-marquee {
