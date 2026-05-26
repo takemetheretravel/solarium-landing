@@ -18,6 +18,7 @@ import {
 } from "@/config/properties";
 import { REVIEWS, SITE, AIRBNB_LINKS, whatsappLink } from "@/config/site";
 import { getListing } from "@/lib/hostaway";
+import TrackViewContent from "@/components/tracking/TrackViewContent";
 
 export const revalidate = 300;
 
@@ -94,6 +95,11 @@ export default async function PropertyPage({
 
   return (
     <main>
+      <TrackViewContent
+        propertySlug={property.slug}
+        propertyName={property.name}
+        fromPriceNightly={property.fromPriceNightly}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

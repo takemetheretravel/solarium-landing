@@ -35,3 +35,41 @@ export function trackLead() {
   window.gtag?.("event", "generate_lead");
   window.fbq?.("track", "Lead");
 }
+
+export function trackViewContent(params: {
+  value: number | null;
+  currency: string;
+  contentName: string;
+  contentIds: string[];
+}) {
+  if (typeof window === "undefined") return;
+  window.gtag?.("event", "view_item", {
+    currency: params.currency,
+    value: params.value ?? 0,
+    items: [{ item_id: params.contentIds[0], item_name: params.contentName }],
+  });
+  window.fbq?.("track", "ViewContent", {
+    value: params.value ?? 0,
+    currency: params.currency,
+    content_name: params.contentName,
+    content_ids: params.contentIds,
+    content_type: "product",
+  });
+}
+
+export function trackAddPaymentInfo(params: {
+  value: number;
+  currency: string;
+  paymentMethod: "card" | "pix";
+}) {
+  if (typeof window === "undefined") return;
+  window.gtag?.("event", "add_payment_info", {
+    value: params.value,
+    currency: params.currency,
+    payment_type: params.paymentMethod === "pix" ? "Pix" : "Cartão",
+  });
+  window.fbq?.("track", "AddPaymentInfo", {
+    value: params.value,
+    currency: params.currency,
+  });
+}

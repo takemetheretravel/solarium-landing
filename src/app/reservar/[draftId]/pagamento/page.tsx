@@ -10,6 +10,7 @@ import { formatBRLPrecise } from "@/lib/cn";
 import { PROPERTIES } from "@/config/properties";
 import { COUPONS } from "@/config/coupons";
 import type { ReservationDraft } from "@/lib/kv-store";
+import { trackAddPaymentInfo } from "@/lib/tracking";
 
 const TAXA_MENSAL = 1.99; // estimativa típica Cielo (% ao mês)
 
@@ -79,6 +80,15 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       })
       .catch(() => setLoadError("Erro ao carregar reserva."));
   }, [params.draftId]);
+
+  useEffect(() => {
+    if (!draft) return;
+    trackAddPaymentInfo({
+      value: draft.finalTotal,
+      currency: "BRL",
+      paymentMethod: draft.paymentMethod as "card" | "pix",
+    });
+  }, [draft]);
 
   useEffect(() => {
     if (!draft || draft.paymentMethod !== "pix" || pixStarted) return;
