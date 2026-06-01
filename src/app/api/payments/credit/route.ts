@@ -59,6 +59,13 @@ export async function POST(req: Request) {
     });
 
     if (!result.approved) {
+      console.error("[Cielo:Recusa]", JSON.stringify({
+        draftId,
+        valor: valorACobrar,
+        returnCode: result.returnCode,
+        returnMessage: result.returnMessage,
+        bin: cardNumber?.replace(/\s/g,"").slice(0,6),
+      }));
       return NextResponse.json(
         { approved: false, returnMessage: result.returnMessage || "Pagamento não aprovado. Verifique os dados do cartão." },
         { status: 402 },
@@ -66,6 +73,9 @@ export async function POST(req: Request) {
     }
 
     await updateDraft(draftId, { cieloPaymentId: result.paymentId, status: "paid" });
+    console.log("[Cielo:Aprovado]", JSON.stringify({
+      draftId, paymentId: result.paymentId, returnCode: result.returnCode,
+    }));
 
     const property = getPropertyBySlug(draft.propertyId);
     if (property) {
