@@ -3,6 +3,7 @@ import { getDraft, updateDraft } from "@/lib/kv-store";
 import { createCreditPayment } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
+import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,8 +60,21 @@ export async function POST(req: Request) {
     });
 
     if (!result.approved) {
+      const motivoInterno = result.returnMessage ? `${result.returnMessage} (código ${result.returnCode})` : `código ${result.returnCode}`;
+      console.error("[Cielo:Recusa]", JSON.stringify({
+        draftId, valor: valorACobrar, returnCode: result.returnCode,
+        returnMessage: result.returnMessage, bin: cardNumber?.replace(/\s/g,"").slice(0,6),
+      }));
+      await enviarAlertaRecusa({
+        hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
+        propriedade: draft.propertyName,
+        valor: valorACobrar,
+        motivo: motivoInterno,
+        mensagemCliente: result.mensagemAmigavel,
+        draftId,
+      });
       return NextResponse.json(
-        { approved: false, returnMessage: result.returnMessage || "Pagamento não aprovado. Verifique os dados do cartão." },
+        { approved: false, returnMessage: result.mensagemAmigavel },
         { status: 402 },
       );
     }
@@ -100,6 +114,16 @@ export async function POST(req: Request) {
           metodo: `Cartão ${installments || 1}x`,
           hostawayUrl: `https://dashboard.hostaway.com/reservations/${reservation.reservationId}/edit`,
           cieloId: result.paymentId,
+        });
+        await enviarAlertaAprovacao({
+          hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
+          propriedade: draft.propertyName,
+          valor: valorACobrar,
+          checkin: draft.checkin,
+          checkout: draft.checkout,
+          noites: draft.nights,
+          metodo: `Cartão ${installments || 1}x`,
+          hostawayUrl: `https://dashboard.hostaway.com/reservations/${reservation.reservationId}/edit`,
         });
       } else {
         // Pagamento aprovado, Hostaway falhou → marca para criação manual
