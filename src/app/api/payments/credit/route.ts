@@ -59,8 +59,12 @@ export async function POST(req: Request) {
     });
 
     if (!result.approved) {
+      console.error("[Cielo:Credit] RECUSADO", JSON.stringify({
+        draftId, valorCobrado: valorACobrar, installments: installments || 1,
+        status: result.status, returnCode: result.returnCode, returnMessage: result.returnMessage,
+      }));
       return NextResponse.json(
-        { approved: false, returnMessage: result.returnMessage || "Pagamento não aprovado. Verifique os dados do cartão." },
+        { approved: false, returnMessage: result.mensagemAmigavel },
         { status: 402 },
       );
     }

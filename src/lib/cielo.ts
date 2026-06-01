@@ -1,3 +1,23 @@
+export function mensagemRecusa(returnCode?: string, returnMessage?: string): string {
+  const code = (returnCode || "").trim();
+  const map: Record<string, string> = {
+    "05": "Seu banco não autorizou a compra. Entre em contato com o emissor do cartão ou tente outro cartão.",
+    "57": "Este cartão não permite esse tipo de transação. Tente outro cartão ou pague via Pix.",
+    "78": "Cartão bloqueado ou ainda não desbloqueado. Verifique com seu banco.",
+    "70": "Limite insuficiente para esta compra. Tente outro cartão ou parcele em mais vezes.",
+    "51": "Limite insuficiente para esta compra. Tente outro cartão ou parcele em mais vezes.",
+    "82": "Código de segurança (CVV) inválido. Verifique os 3 dígitos no verso do cartão.",
+    "54": "Cartão vencido. Verifique a data de validade ou use outro cartão.",
+    "14": "Número do cartão inválido. Verifique os dígitos e tente novamente.",
+    "63": "Transação não autorizada por segurança. Entre em contato com seu banco.",
+    "77": "Pagamento recusado. Tente outro cartão ou pague via Pix.",
+    "99": "Não conseguimos processar agora. Aguarde alguns instantes e tente novamente.",
+  };
+  if (code && map[code]) return map[code];
+  // Fallback genérico — nunca expõe código técnico ao cliente
+  return "Não foi possível aprovar o pagamento. Verifique os dados do cartão, tente outro cartão ou pague via Pix.";
+}
+
 const isSandbox = process.env.CIELO_ENVIRONMENT === "sandbox";
 const BASE_URL = isSandbox
   ? "https://apisandbox.cieloecommerce.cielo.com.br"
@@ -116,6 +136,7 @@ export async function createCreditPayment(params: {
     status: data.Payment?.Status as number,
     returnCode: data.Payment?.ReturnCode as string,
     returnMessage: data.Payment?.ReturnMessage as string,
+    mensagemAmigavel: mensagemRecusa(data.Payment?.ReturnCode, data.Payment?.ReturnMessage),
     approved: data.Payment?.Status === 2,
   };
 }
