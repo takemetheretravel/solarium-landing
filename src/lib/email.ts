@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const ALERTA_PARA = "lucas.c.mancilha@gmail.com";
+const ALERTA_PARA = "takemethere.mgmt@gmail.com";
 const ALERTA_DE = "Solarium Alertas <onboarding@resend.dev>";
 
 // Instanciação lazy: o construtor do Resend lança erro se a chave não existe.
