@@ -257,6 +257,11 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         <div className="p-6">
           {property && <Kicker className="mb-2">{property.badge}</Kicker>}
           <h2 className="font-serif text-2xl text-charcoal">{draft!.propertyName}</h2>
+          {draft!.packageSlug && (
+            <p className="mt-1 font-sans text-xs uppercase tracking-[0.2em] text-copper">
+              Pacote {draft!.packageName}
+            </p>
+          )}
           <ul className="mt-5 space-y-3 border-y border-charcoal/10 py-5 font-sans text-sm">
             <li className="flex justify-between">
               <span className="text-charcoal/60">Check-in</span>
@@ -276,11 +281,27 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
             </li>
           </ul>
           <div className="mt-5 space-y-2 font-sans text-sm">
+            {draft!.packageSlug ? (
+              <>
+                <div className="flex justify-between text-charcoal/70">
+                  <span>Estadia ({draft!.nights} noites) — pacote</span>
+                  <span>
+                    {formatBRLPrecise(draft!.finalTotal + draft!.pixDiscount - (draft!.extrasTotal ?? 0))}
+                  </span>
+                </div>
+                {(draft!.extrasList ?? []).map((e) => (
+                  <div key={e} className="flex justify-between gap-4 text-charcoal/70">
+                    <span className="min-w-0">{e}</span>
+                  </div>
+                ))}
+              </>
+            ) : (
             <div className="flex justify-between text-charcoal/70">
               <span>Subtotal</span>
               <span>{formatBRLPrecise(draft!.totalPrice)}</span>
             </div>
-            {draft!.couponDiscount > 0 && (
+            )}
+            {!draft!.packageSlug && draft!.couponDiscount > 0 && (
               <div className="flex justify-between text-serra">
                 <span>Cupom {draft!.couponCode}</span>
                 <span>− {formatBRLPrecise(draft!.couponDiscount)}</span>

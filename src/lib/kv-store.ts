@@ -36,6 +36,10 @@ export type ReservationDraft = {
   discountAmount?: number; // valor descontado total (cupom + pix)
   finalTotal: number;
   paymentMethod: "pix" | "card";
+  packageSlug?: string;
+  packageName?: string;
+  extrasTotal?: number;
+  extrasList?: string[];
   guestFirstName: string;
   guestLastName: string;
   guestEmail: string;

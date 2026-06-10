@@ -7,6 +7,7 @@ import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import BookingPageClient from "@/components/booking/BookingPageClient";
 import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
+import { getPackageBySlug, validatePackageDates, round10down } from "@/config/packages";
 import { calculatePrice } from "@/lib/hostaway";
 import { formatBRLPrecise } from "@/lib/cn";
 
@@ -25,6 +26,7 @@ type Search = {
   guests?: string;
   payment?: string;
   coupon?: string;
+  package?: string;
 };
 
 function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "checkin" | "checkout">> & Search {
@@ -62,6 +64,31 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
   const quote = await calculatePrice(property.id, checkin, checkout, guests);
   if (!quote) console.error("[reservar] calculatePrice returned null for", property.id, checkin, checkout, guests);
 
+  // Pacote: recalcula o total com desconto de estadia + extras (validado de novo no draft)
+  const pkg = searchParams.package ? getPackageBySlug(searchParams.package) : undefined;
+  let packageInfo = null;
+  if (
+    pkg &&
+    quote &&
+    pkg.properties.includes(property.slug) &&
+    validatePackageDates(pkg, checkin, checkout).valid
+  ) {
+    const stayTotal = round10down(quote.totalPrice * (1 - pkg.stayDiscountPct / 100));
+    const extras = pkg.extras.map((e) => ({
+      label: e.perNight ? `${e.label} ×${pkg.nights}` : e.label,
+      amount: e.price * (e.perNight ? pkg.nights : 1),
+    }));
+    const extrasSum = extras.reduce((s, e) => s + e.amount, 0);
+    packageInfo = {
+      slug: pkg.slug,
+      name: pkg.name,
+      stayTotal,
+      extras,
+      total: stayTotal + extrasSum,
+      aLaCarte: quote.totalPrice + extrasSum,
+    };
+  }
+
   return (
     <main className="bg-cream pt-32 pb-20">
       <Container size="wide">
@@ -94,8 +121,15 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
           checkout={checkout}
           guests={guests}
           initialPaymentMethod={paymentMethod}
-          initialCouponCode={couponCode || undefined}
-          quote={quote ? { totalPrice: quote.totalPrice, nights: quote.nights } : null}
+          initialCouponCode={packageInfo ? undefined : couponCode || undefined}
+          quote={
+            packageInfo
+              ? { totalPrice: packageInfo.total, nights: quote!.nights }
+              : quote
+                ? { totalPrice: quote.totalPrice, nights: quote.nights }
+                : null
+          }
+          packageInfo={packageInfo}
         />
       </Container>
     </main>

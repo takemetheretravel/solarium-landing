@@ -419,6 +419,8 @@ export async function createHostawayReservation(params: {
   currency?: string;
   guestNotes?: string;       // observações do hóspede (não confundir com hostNote)
   source?: string;
+  packageName?: string;      // nome do pacote, se a reserva veio de /pacotes
+  extrasList?: string[];     // extras do pacote (para o concierge preparar)
 }): Promise<{ reservationId: number } | null> {
   try {
     const token = await getAccessToken();
@@ -445,6 +447,11 @@ export async function createHostawayReservation(params: {
       `Pagamento: ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`}`,
     );
     hostNoteParts.push(`Valor cobrado: R$ ${params.totalPrice.toFixed(2)}`);
+    if (params.packageName) {
+      hostNoteParts.push(
+        `PACOTE: ${params.packageName}${params.extrasList?.length ? ` | Extras: ${params.extrasList.join("; ")}` : ""}`,
+      );
+    }
     const hostNote = hostNoteParts.join(" | ");
 
     // guestNote (público): apenas observação do hóspede se houver

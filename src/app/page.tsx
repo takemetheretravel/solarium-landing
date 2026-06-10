@@ -20,6 +20,7 @@ import BookingBar from "@/components/booking/BookingBar";
 import ReviewsMarquee from "@/components/ui/ReviewsMarquee";
 import FAQ from "@/components/ui/FAQ";
 import { PROPERTIES } from "@/config/properties";
+import { PACKAGES } from "@/config/packages";
 import {
   REVIEWS,
   PARTNERS,
@@ -190,6 +191,59 @@ export default async function Home() {
                 </Link>
               );
             })}
+          </div>
+        </Container>
+      </Section>
+
+      {/* PACOTES */}
+      <Section id="pacotes" className="border-t border-charcoal/10 bg-cream">
+        <Container>
+          <div className="mb-16 max-w-2xl">
+            <Kicker className="mb-4">Pacotes</Kicker>
+            <Heading level={2}>Experiências completas, em uma reserva só.</Heading>
+            <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
+              Estadia, café da manhã e experiências selecionadas — você escolhe as datas, nós preparamos o resto.
+            </p>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-3 lg:gap-6">
+            {PACKAGES.map((pkg) => (
+              <Link
+                key={pkg.slug}
+                href={`/pacotes/${pkg.slug}`}
+                className="group mb-12 flex flex-col rounded-sm bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 last:mb-0 md:mb-0 md:rounded-none md:bg-cream md:p-0 md:shadow-none"
+              >
+                <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
+                  <SmartImage
+                    src={pkg.image}
+                    alt={pkg.name}
+                    sizes="(max-width: 1024px) 100vw, 33vw"
+                  />
+                  <span className="absolute left-4 top-4 bg-cream/95 px-3 py-1.5 font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal">
+                    {pkg.nights} noites
+                  </span>
+                </div>
+                <div className="flex flex-1 flex-col pt-6">
+                  <Heading level={3} className="text-2xl text-charcoal sm:text-3xl">
+                    {pkg.name}
+                  </Heading>
+                  <p className="mt-2 font-serif text-base text-charcoal/80">{pkg.tagline}</p>
+                  <ul className="mt-6 space-y-2 font-sans text-sm text-charcoal/80">
+                    {pkg.included.slice(0, 3).map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-2 h-px w-3 flex-shrink-0 bg-copper" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-6 flex items-baseline justify-end border-t border-charcoal/10 pt-4">
+                    <span className="flex items-center gap-1 font-sans text-xs uppercase tracking-[0.2em] text-copper transition-transform group-hover:translate-x-1">
+                      Ver pacote <ArrowRight className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </Container>
       </Section>

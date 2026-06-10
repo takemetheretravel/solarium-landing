@@ -54,6 +54,8 @@ export async function POST(req: Request) {
         currency: "BRL",
         guestNotes: draft.guestNotes || "",
         source: "solarium-direct-webhook",
+        packageName: draft.packageName,
+        extrasList: draft.extrasList,
       });
       if (reservation) {
         await updateDraft(merchantOrderId, { hostawayReservationId: reservation.reservationId });

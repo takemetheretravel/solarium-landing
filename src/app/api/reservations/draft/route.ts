@@ -4,6 +4,7 @@ import { saveDraft, getDraft } from "@/lib/kv-store";
 import { calculatePrice } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
+import { getPackageBySlug, validatePackageDates, packageTotal, extrasTotal } from "@/config/packages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ type Body = {
   guests: number;
   paymentMethod?: "card" | "pix";
   couponCode?: string;
+  packageSlug?: string;
   guest: {
     name: string;
     email: string;
@@ -92,6 +94,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Número de hóspedes inválido" }, { status: 400 });
   }
 
+  // Pacote: revalida tudo server-side — nunca confia no total vindo do client
+  const pkg = body.packageSlug ? getPackageBySlug(body.packageSlug) : undefined;
+  if (body.packageSlug && !pkg) {
+    return NextResponse.json({ error: "Pacote não encontrado" }, { status: 404 });
+  }
+  if (pkg) {
+    if (!pkg.properties.includes(property.slug)) {
+      return NextResponse.json({ error: "Este pacote não está disponível para esta casa" }, { status: 400 });
+    }
+    const dv = validatePackageDates(pkg, body.checkin, body.checkout);
+    if (!dv.valid) {
+      return NextResponse.json({ error: dv.reason }, { status: 400 });
+    }
+  }
+
   const quote = await calculatePrice(property.id, body.checkin, body.checkout, guests);
   if (!quote) {
     return NextResponse.json({ error: "Preço indisponível para essas datas" }, { status: 502 });
@@ -99,7 +116,19 @@ export async function POST(req: NextRequest) {
 
   let couponDiscount = 0;
   let runningTotal = quote.totalPrice;
-  if (body.couponCode) {
+  let subtotal = quote.totalPrice;
+  let pkgExtrasTotal: number | undefined;
+  let pkgExtrasList: string[] | undefined;
+
+  if (pkg) {
+    // REGRA: pacote não combina com cupom — couponCode é ignorado
+    pkgExtrasTotal = extrasTotal(pkg);
+    pkgExtrasList = pkg.extras.map((e) =>
+      e.perNight ? `${e.label} ×${pkg.nights} — R$ ${(e.price * pkg.nights).toFixed(2)}` : `${e.label} — R$ ${e.price.toFixed(2)}`,
+    );
+    runningTotal = packageTotal(pkg, quote.totalPrice);
+    subtotal = quote.totalPrice + pkgExtrasTotal; // valor à la carte (estadia cheia + extras)
+  } else if (body.couponCode) {
     const v = validateCoupon(body.couponCode, {
       nights: quote.nights,
       subtotal: quote.totalPrice,
@@ -133,13 +162,17 @@ export async function POST(req: NextRequest) {
     guests,
     nights: quote.nights,
     totalPrice: quote.totalPrice,
-    subtotal: quote.totalPrice,
+    subtotal,
     pixDiscount,
-    couponCode: body.couponCode?.trim().toUpperCase() || undefined,
+    couponCode: pkg ? undefined : body.couponCode?.trim().toUpperCase() || undefined,
     couponDiscount,
-    discountAmount: couponDiscount + pixDiscount,
+    discountAmount: pkg ? subtotal - Math.round(runningTotal) : couponDiscount + pixDiscount,
     finalTotal: Math.round(runningTotal),
     paymentMethod,
+    packageSlug: pkg?.slug,
+    packageName: pkg?.name,
+    extrasTotal: pkgExtrasTotal,
+    extrasList: pkgExtrasList,
     guestFirstName,
     guestLastName,
     guestEmail: guest.email.trim().toLowerCase(),
@@ -159,6 +192,7 @@ export async function POST(req: NextRequest) {
     discountAmount: draft.discountAmount,
     finalTotal: draft.finalTotal,
     couponCode: draft.couponCode,
+    packageSlug: draft.packageSlug,
   });
 
   try {

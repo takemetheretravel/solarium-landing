@@ -13,6 +13,7 @@ type Props = {
   paymentMethod: "card" | "pix";
   onPaymentMethodChange: (pm: "card" | "pix") => void;
   couponCode?: string;
+  packageSlug?: string;
 };
 
 function maskCPF(v: string): string {
@@ -84,7 +85,8 @@ export default function GuestForm(props: Props) {
           checkout: props.checkout,
           guests: props.guests,
           paymentMethod,
-          couponCode: props.couponCode,
+          couponCode: props.packageSlug ? undefined : props.couponCode,
+          packageSlug: props.packageSlug,
           guest: { name, email, cpf, phone, notes },
         }),
       });

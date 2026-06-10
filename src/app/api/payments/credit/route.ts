@@ -102,6 +102,8 @@ export async function POST(req: Request) {
         currency: "BRL",
         guestNotes: draft.guestNotes || "",
         source: "solarium-direct",
+        packageName: draft.packageName,
+        extrasList: draft.extrasList,
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });

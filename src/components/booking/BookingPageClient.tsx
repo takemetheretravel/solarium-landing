@@ -22,6 +22,15 @@ type PropertySummary = {
   heroImage: string;
 };
 
+type PackageInfo = {
+  slug: string;
+  name: string;
+  stayTotal: number;
+  extras: { label: string; amount: number }[];
+  total: number;
+  aLaCarte: number;
+};
+
 type Props = {
   property: PropertySummary;
   checkin: string;
@@ -30,6 +39,7 @@ type Props = {
   initialPaymentMethod: "card" | "pix";
   initialCouponCode?: string;
   quote: Quote;
+  packageInfo?: PackageInfo | null;
 };
 
 export default function BookingPageClient({
@@ -40,6 +50,7 @@ export default function BookingPageClient({
   initialPaymentMethod,
   initialCouponCode,
   quote,
+  packageInfo,
 }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">(initialPaymentMethod);
 
@@ -98,7 +109,8 @@ export default function BookingPageClient({
           nights={quote?.nights}
           paymentMethod={paymentMethod}
           onPaymentMethodChange={setPaymentMethod}
-          couponCode={appliedCoupon || undefined}
+          couponCode={packageInfo ? undefined : appliedCoupon || undefined}
+          packageSlug={packageInfo?.slug}
         />
       </section>
 
@@ -114,6 +126,11 @@ export default function BookingPageClient({
           <div className="p-6">
             <Kicker className="mb-2">{property.badge}</Kicker>
             <h2 className="font-serif text-2xl text-charcoal">{property.name}</h2>
+            {packageInfo && (
+              <p className="mt-1 font-sans text-xs uppercase tracking-[0.2em] text-copper">
+                Pacote {packageInfo.name}
+              </p>
+            )}
 
             <ul className="mt-5 space-y-3 border-y border-charcoal/10 py-5 font-sans text-sm">
               <li className="flex justify-between">
@@ -140,7 +157,8 @@ export default function BookingPageClient({
               )}
             </ul>
 
-            {/* Coupon */}
+            {/* Coupon — pacotes não combinam com cupom */}
+            {!packageInfo && (
             <div className="border-b border-charcoal/10 py-4">
               <button
                 type="button"
@@ -183,14 +201,36 @@ export default function BookingPageClient({
                 </div>
               )}
             </div>
+            )}
 
             {/* Totals */}
             {quote ? (
               <div className="mt-5 space-y-2 font-sans text-sm">
+                {packageInfo ? (
+                  <>
+                    <div className="flex justify-between text-charcoal/80">
+                      <span>Estadia ({quote.nights} noites) — pacote</span>
+                      <span>{formatBRLPrecise(packageInfo.stayTotal)}</span>
+                    </div>
+                    {packageInfo.extras.map((e) => (
+                      <div key={e.label} className="flex justify-between gap-4 text-charcoal/80">
+                        <span>{e.label}</span>
+                        <span className="flex-shrink-0">{formatBRLPrecise(e.amount)}</span>
+                      </div>
+                    ))}
+                    {packageInfo.aLaCarte > packageInfo.total && (
+                      <div className="flex justify-between text-charcoal/50">
+                        <span>Valor à la carte</span>
+                        <span className="line-through">{formatBRLPrecise(packageInfo.aLaCarte)}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
                 <div className="flex justify-between text-charcoal/80">
                   <span>Subtotal</span>
                   <span>{formatBRLPrecise(quote.totalPrice)}</span>
                 </div>
+                )}
                 {couponDiscount > 0 && (
                   <div className="flex justify-between text-serra">
                     <span>Cupom {appliedCoupon}</span>
