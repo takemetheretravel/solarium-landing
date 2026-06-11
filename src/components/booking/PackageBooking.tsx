@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, MessageCircle } from "lucide-react";
+import { ArrowRight, Calendar, MessageCircle } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
 import {
   PackageConfig,
@@ -170,15 +170,18 @@ export default function PackageBooking({ pkg }: Props) {
           <label htmlFor="pkg-checkin" className="block cursor-pointer font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
             Check-in
           </label>
-          <input
-            id="pkg-checkin"
-            type="date"
-            value={checkin}
-            min={todayISO}
-            max={maxDateISO}
-            onChange={(e) => setCheckin(e.target.value)}
-            className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-          />
+          <div className="relative mt-1">
+            <input
+              id="pkg-checkin"
+              type="date"
+              value={checkin}
+              min={todayISO}
+              max={maxDateISO}
+              onChange={(e) => setCheckin(e.target.value)}
+              className="w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 pr-8 font-serif text-lg text-charcoal outline-none focus:border-copper"
+            />
+            <Calendar className="pointer-events-none absolute right-1 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal/40" />
+          </div>
         </div>
         <div>
           <label className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">

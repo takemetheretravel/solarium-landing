@@ -41,7 +41,7 @@ export const PACKAGES: PackageConfig[] = [
     nights: 3,
     weekdaysOnly: true,
     stayDiscountPct: 12,
-    extras: [{ label: "Cesta de café da manhã Café Café (casal)", price: 185, perNight: true }],
+    extras: [{ label: "Cesta de café da manhã Café Café (casal)", price: 180, perNight: true }],
     included: [
       "3 noites em casa completa e exclusiva",
       "Cesta de café da manhã Café Café nas 3 manhãs (para o casal)",
@@ -59,7 +59,7 @@ export const PACKAGES: PackageConfig[] = [
     weekdaysOnly: true,
     stayDiscountPct: 12,
     extras: [
-      { label: "Cesta de café da manhã Café Café (casal)", price: 185, perNight: true },
+      { label: "Cesta de café da manhã Café Café (casal)", price: 180, perNight: true },
       { label: "Passeio de quadriciclo — Cachoeira da Gomeira (~2h)", price: 300 },
     ],
     included: [
@@ -80,13 +80,13 @@ export const PACKAGES: PackageConfig[] = [
     weekdaysOnly: false,
     stayDiscountPct: 0,
     extras: [
-      { label: "Decoração romântica na chegada", price: 250 },
+      { label: "Decoração romântica (coração de pétalas, velas eletrônicas, buquê de rosas e balões de coração)", price: 350 },
       { label: "Cesta de café da manhã Di.Luia (casal)", price: 280 },
       { label: "Espumante Chandon Reserve Brut", price: 140 },
     ],
     included: [
       "2 noites em casa completa e exclusiva",
-      "Decoração romântica preparada antes do check-in",
+      "Decoração romântica na chegada: coração de pétalas, velas eletrônicas, buquê de rosas e balões de coração",
       "Cesta de café da manhã Di.Luia",
       "Espumante Chandon gelado na chegada",
       "Concierge para pedidos especiais",
