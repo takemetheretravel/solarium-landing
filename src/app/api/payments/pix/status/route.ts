@@ -60,6 +60,7 @@ export async function GET(req: Request) {
         source: "solarium-direct",
         packageName: draft.packageName,
         extrasList: draft.extrasList,
+        shortNotice: draft.shortNotice,
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });

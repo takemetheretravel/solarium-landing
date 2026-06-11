@@ -40,6 +40,7 @@ export type ReservationDraft = {
   packageName?: string;
   extrasTotal?: number;
   extrasList?: string[];
+  shortNotice?: boolean; // pacote com check-in < 3 dias: acionar parceiros com urgência
   guestFirstName: string;
   guestLastName: string;
   guestEmail: string;

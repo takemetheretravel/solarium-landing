@@ -14,6 +14,7 @@ type Props = {
   onPaymentMethodChange: (pm: "card" | "pix") => void;
   couponCode?: string;
   packageSlug?: string;
+  packageChoices?: string;
 };
 
 function maskCPF(v: string): string {
@@ -87,6 +88,7 @@ export default function GuestForm(props: Props) {
           paymentMethod,
           couponCode: props.packageSlug ? undefined : props.couponCode,
           packageSlug: props.packageSlug,
+          packageChoices: props.packageChoices,
           guest: { name, email, cpf, phone, notes },
         }),
       });

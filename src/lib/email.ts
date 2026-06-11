@@ -45,7 +45,7 @@ export async function enviarAlertaRecusa(dados: {
 export async function enviarAlertaAprovacao(dados: {
   hospede: string; propriedade: string; valor: number;
   checkin: string; checkout: string; noites: number;
-  metodo: string; hostawayUrl?: string;
+  metodo: string; hostawayUrl?: string; shortNotice?: boolean;
 }) {
   try {
     const resend = getResend();
@@ -53,8 +53,9 @@ export async function enviarAlertaAprovacao(dados: {
     await resend.emails.send({
       from: ALERTA_DE,
       to: ALERTA_PARA,
-      subject: `✅ Reserva confirmada — ${dados.propriedade}`,
+      subject: `${dados.shortNotice ? "⚠️ URGENTE — " : ""}✅ Reserva confirmada — ${dados.propriedade}`,
       html: `
+        ${dados.shortNotice ? '<p style="color:#c00;font-weight:bold">Check-in em menos de 3 dias — acionar parceiros do pacote imediatamente.</p>' : ""}
         <h2>Reserva confirmada</h2>
         <p><strong>Cliente:</strong> ${dados.hospede}</p>
         <p><strong>Casa:</strong> ${dados.propriedade}</p>

@@ -27,6 +27,7 @@ type Search = {
   payment?: string;
   coupon?: string;
   package?: string;
+  choices?: string;
 };
 
 function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "checkin" | "checkout">> & Search {
@@ -74,10 +75,18 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
     validatePackageDates(pkg, checkin, checkout).valid
   ) {
     const stayTotal = round10down(quote.totalPrice * (1 - pkg.stayDiscountPct / 100));
-    const extras = pkg.extras.map((e) => ({
-      label: e.perNight ? `${e.label} ×${pkg.nights}` : e.label,
-      amount: e.price * (e.perNight ? pkg.nights : 1),
-    }));
+    const chosenLabels = (searchParams.choices || "").split("|").filter(Boolean);
+    const extras = pkg.extras.map((e) => {
+      if (e.choices?.length) {
+        const chosen =
+          e.choices.find((c) => chosenLabels.includes(c.label))?.label ?? e.choices[0].label;
+        return { label: `${e.label}: ${chosen}`, amount: e.price };
+      }
+      return {
+        label: e.perNight ? `${e.label} ×${pkg.nights}` : e.label,
+        amount: e.price * (e.perNight ? pkg.nights : 1),
+      };
+    });
     const extrasSum = extras.reduce((s, e) => s + e.amount, 0);
     packageInfo = {
       slug: pkg.slug,
@@ -130,6 +139,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
                 : null
           }
           packageInfo={packageInfo}
+          packageChoices={packageInfo ? searchParams.choices : undefined}
         />
       </Container>
     </main>

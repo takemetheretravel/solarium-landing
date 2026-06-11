@@ -104,6 +104,7 @@ export async function POST(req: Request) {
         source: "solarium-direct",
         packageName: draft.packageName,
         extrasList: draft.extrasList,
+        shortNotice: draft.shortNotice,
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
@@ -126,6 +127,7 @@ export async function POST(req: Request) {
           noites: draft.nights,
           metodo: `Cartão ${installments || 1}x`,
           hostawayUrl: `https://dashboard.hostaway.com/reservations/${reservation.reservationId}/edit`,
+          shortNotice: draft.shortNotice,
         });
       } else {
         // Pagamento aprovado, Hostaway falhou → marca para criação manual

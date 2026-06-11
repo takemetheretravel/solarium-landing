@@ -42,6 +42,12 @@ export default function PackageBooking({ pkg }: Props) {
 
   const [propertySlug, setPropertySlug] = useState(eligibleProperties[0]?.slug ?? "");
   const [checkin, setCheckin] = useState("");
+  // Extras com opções (mesmo preço): inicia na primeira opção de cada um
+  const [selectedChoices, setSelectedChoices] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      pkg.extras.filter((e) => e.choices?.length).map((e) => [e.label, e.choices![0].label]),
+    ),
+  );
   const [dateError, setDateError] = useState<string | null>(null);
   const [availError, setAvailError] = useState<string | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
@@ -116,6 +122,10 @@ export default function PackageBooking({ pkg }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkin, propertySlug, pkg.slug]);
 
+  const isShortNotice = Boolean(
+    checkin && checkin < new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+  );
+
   const total = hostawayTotal != null ? packageTotal(pkg, hostawayTotal) : null;
   const stayDiscounted =
     hostawayTotal != null ? round10down(hostawayTotal * (1 - pkg.stayDiscountPct / 100)) : null;
@@ -132,6 +142,8 @@ export default function PackageBooking({ pkg }: Props) {
       guests: "2",
       package: pkg.slug,
     });
+    const chosen = Object.values(selectedChoices);
+    if (chosen.length > 0) params.set("choices", chosen.join("|"));
     router.push(`/reservar?${params.toString()}`);
   }
 
@@ -196,6 +208,42 @@ export default function PackageBooking({ pkg }: Props) {
           />
         </div>
       </div>
+
+      {isShortNotice && (
+        <p className="mt-2 font-sans text-xs leading-relaxed text-copper">
+          Para datas tão próximas, recomendamos reservar com pelo menos 3 dias de
+          antecedência — assim garantimos cada detalhe com nossos parceiros. Sua
+          reserva será confirmada normalmente e nosso concierge entrará em contato
+          para alinhar as entregas.
+        </p>
+      )}
+
+      {/* EXTRAS COM ESCOLHA (mesmo preço — não altera o total) */}
+      {pkg.extras.filter((e) => e.choices?.length).map((extra) => (
+        <div key={extra.label} className="mt-4 border-t border-charcoal/10 pt-4">
+          <span className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+            {extra.label}
+          </span>
+          <div className="mt-2 flex gap-2">
+            {extra.choices!.map((c) => (
+              <button
+                key={c.label}
+                type="button"
+                onClick={() =>
+                  setSelectedChoices((prev) => ({ ...prev, [extra.label]: c.label }))
+                }
+                className={`flex-1 border px-3 py-2 font-sans text-xs uppercase tracking-widest transition-all ${
+                  selectedChoices[extra.label] === c.label
+                    ? "border-charcoal bg-charcoal text-cream"
+                    : "border-charcoal/20 text-charcoal hover:border-charcoal/40"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
 
       {dateError && <p className="mt-3 font-sans text-xs text-copper">{dateError}</p>}
       {availError && (

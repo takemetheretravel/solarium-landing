@@ -421,6 +421,7 @@ export async function createHostawayReservation(params: {
   source?: string;
   packageName?: string;      // nome do pacote, se a reserva veio de /pacotes
   extrasList?: string[];     // extras do pacote (para o concierge preparar)
+  shortNotice?: boolean;     // check-in < 3 dias: parceiros precisam ser acionados já
 }): Promise<{ reservationId: number } | null> {
   try {
     const token = await getAccessToken();
@@ -435,6 +436,9 @@ export async function createHostawayReservation(params: {
 
     // hostNote (privado, só anfitrião vê): detalhamento financeiro
     const hostNoteParts: string[] = [];
+    if (params.shortNotice) {
+      hostNoteParts.push("⚠️ URGENTE — RESERVA COM MENOS DE 3 DIAS: acionar parceiros imediatamente");
+    }
     if (params.subtotalOriginal && params.subtotalOriginal !== params.totalPrice) {
       hostNoteParts.push(`Subtotal: R$ ${params.subtotalOriginal.toFixed(2)}`);
     }

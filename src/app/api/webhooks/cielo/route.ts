@@ -56,6 +56,7 @@ export async function POST(req: Request) {
         source: "solarium-direct-webhook",
         packageName: draft.packageName,
         extrasList: draft.extrasList,
+        shortNotice: draft.shortNotice,
       });
       if (reservation) {
         await updateDraft(merchantOrderId, { hostawayReservationId: reservation.reservationId });

@@ -17,6 +17,7 @@ type Body = {
   paymentMethod?: "card" | "pix";
   couponCode?: string;
   packageSlug?: string;
+  packageChoices?: string; // labels das opções escolhidas, separados por "|"
   guest: {
     name: string;
     email: string;
@@ -123,9 +124,18 @@ export async function POST(req: NextRequest) {
   if (pkg) {
     // REGRA: pacote não combina com cupom — couponCode é ignorado
     pkgExtrasTotal = extrasTotal(pkg);
-    pkgExtrasList = pkg.extras.map((e) =>
-      e.perNight ? `${e.label} ×${pkg.nights} — R$ ${(e.price * pkg.nights).toFixed(2)}` : `${e.label} — R$ ${e.price.toFixed(2)}`,
-    );
+    // Opções escolhidas pelo hóspede (mesmo preço — o valor sempre vem do config)
+    const chosenLabels = (body.packageChoices || "").split("|").filter(Boolean);
+    pkgExtrasList = pkg.extras.map((e) => {
+      if (e.choices?.length) {
+        const chosen =
+          e.choices.find((c) => chosenLabels.includes(c.label))?.label ?? e.choices[0].label;
+        return `${e.label}: ${chosen} — R$ ${e.price.toFixed(2)}`;
+      }
+      return e.perNight
+        ? `${e.label} ×${pkg.nights} — R$ ${(e.price * pkg.nights).toFixed(2)}`
+        : `${e.label} — R$ ${e.price.toFixed(2)}`;
+    });
     runningTotal = packageTotal(pkg, quote.totalPrice);
     subtotal = quote.totalPrice + pkgExtrasTotal; // valor à la carte (estadia cheia + extras)
   } else if (body.couponCode) {
@@ -173,6 +183,10 @@ export async function POST(req: NextRequest) {
     packageName: pkg?.name,
     extrasTotal: pkgExtrasTotal,
     extrasList: pkgExtrasList,
+    shortNotice:
+      pkg && body.checkin < new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+        ? true
+        : undefined,
     guestFirstName,
     guestLastName,
     guestEmail: guest.email.trim().toLowerCase(),

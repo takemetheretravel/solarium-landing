@@ -1,6 +1,12 @@
 import { imageUrl } from "@/lib/cloudinary";
 
-export type PackageExtra = { label: string; price: number; perNight?: boolean };
+export type PackageExtraChoice = { label: string; price: number };
+export type PackageExtra = {
+  label: string;
+  price: number;
+  perNight?: boolean;
+  choices?: PackageExtraChoice[];
+};
 
 export type PackageConfig = {
   slug: string;
@@ -81,13 +87,20 @@ export const PACKAGES: PackageConfig[] = [
     stayDiscountPct: 0,
     extras: [
       { label: "Decoração romântica (coração de pétalas, velas eletrônicas, buquê de rosas e balões de coração)", price: 350 },
-      { label: "Cesta de café da manhã Di.Luia (casal)", price: 280 },
+      {
+        label: "Cesta de café da manhã (escolha do casal)",
+        price: 280,
+        choices: [
+          { label: "Cesta Di.Luia", price: 280 },
+          { label: "Cesta Dani Queijos e Frios", price: 280 },
+        ],
+      },
       { label: "Espumante Chandon Reserve Brut", price: 140 },
     ],
     included: [
       "2 noites em casa completa e exclusiva",
       "Decoração romântica na chegada: coração de pétalas, velas eletrônicas, buquê de rosas e balões de coração",
-      "Cesta de café da manhã Di.Luia",
+      "Cesta de café da manhã à sua escolha: Di.Luia ou Dani Queijos e Frios",
       "Espumante Chandon gelado na chegada",
       "Concierge para pedidos especiais",
     ],
