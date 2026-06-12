@@ -9,7 +9,6 @@ import {
   validatePackageDates,
   extrasTotal,
   packageTotal,
-  round10down,
 } from "@/config/packages";
 import { PROPERTIES } from "@/config/properties";
 
@@ -127,11 +126,17 @@ export default function PackageBooking({ pkg }: Props) {
   );
 
   const total = hostawayTotal != null ? packageTotal(pkg, hostawayTotal) : null;
-  const stayDiscounted =
-    hostawayTotal != null ? round10down(hostawayTotal * (1 - pkg.stayDiscountPct / 100)) : null;
-  const aLaCarte = hostawayTotal != null ? hostawayTotal + extras : null;
-  const pixTotal = total != null ? total * 0.97 : null;
   const canReserve = Boolean(total != null && !loading && !dateError && !availError && !priceError);
+
+  // Tabela de transparência simplificada: valor cheio riscado + total do pacote.
+  // Sem datas, usa fromPriceNightly × noites como proxy da estadia.
+  const selectedProperty =
+    eligibleProperties.find((p) => p.slug === propertySlug) ?? eligibleProperties[0];
+  const proxyStay = (selectedProperty?.fromPriceNightly ?? 0) * pkg.nights;
+  const stayFull = hostawayTotal ?? proxyStay;
+  const valorALaCarte = stayFull + extras;
+  const totalPacote = total ?? packageTotal(pkg, proxyStay);
+  const pixValue = Math.floor((totalPacote * 0.97) / 10) * 10;
 
   function handleReserve() {
     if (!canReserve || !checkin) return;
@@ -255,45 +260,22 @@ export default function PackageBooking({ pkg }: Props) {
       {loading && <p className="mt-3 font-sans text-xs text-charcoal/50">Verificando datas e calculando…</p>}
 
       {/* TRANSPARÊNCIA DE VALOR */}
-      <div className="mt-6 space-y-2 font-sans text-sm">
-        <p className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
-          O que compõe o valor
+      <div className="mt-6 space-y-3 font-sans text-sm">
+        <div className="flex justify-between text-charcoal/50">
+          <span>Valor total</span>
+          <span className="line-through">{formatBRLPrecise(valorALaCarte)}</span>
+        </div>
+        <div className="flex items-baseline justify-between border-t border-charcoal/10 pt-4">
+          <span className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+            Total do pacote
+          </span>
+          <span className="font-serif text-3xl text-charcoal">
+            {formatBRLPrecise(totalPacote)}
+          </span>
+        </div>
+        <p className="text-right font-sans text-xs text-charcoal/50">
+          em até 6x sem juros · ou {formatBRLPrecise(pixValue)} no Pix
         </p>
-        <div className="flex justify-between text-charcoal/80">
-          <span>Estadia ({pkg.nights} noites)</span>
-          <span>
-            {hostawayTotal != null ? formatBRLPrecise(hostawayTotal) : "conforme as datas"}
-          </span>
-        </div>
-        {pkg.extras.map((e) => (
-          <div key={e.label} className="flex justify-between gap-4 text-charcoal/80">
-            <span>{e.label}{e.perNight ? ` ×${pkg.nights}` : ""}</span>
-            <span className="flex-shrink-0">{formatBRLPrecise(e.price * (e.perNight ? pkg.nights : 1))}</span>
-          </div>
-        ))}
-        {aLaCarte != null && total != null && aLaCarte > total && (
-          <div className="flex justify-between text-charcoal/50">
-            <span>Valor à la carte</span>
-            <span className="line-through">{formatBRLPrecise(aLaCarte)}</span>
-          </div>
-        )}
-        {stayDiscounted != null && hostawayTotal != null && pkg.stayDiscountPct > 0 && (
-          <div className="flex justify-between text-serra">
-            <span>Estadia no pacote (−{pkg.stayDiscountPct}%)</span>
-            <span>{formatBRLPrecise(stayDiscounted)}</span>
-          </div>
-        )}
-        <div className="mt-3 flex items-baseline justify-between border-t border-charcoal/10 pt-3 font-serif">
-          <span className="text-base uppercase tracking-widest text-charcoal/70">Total do pacote</span>
-          <span className="text-3xl text-charcoal">
-            {total != null ? formatBRLPrecise(total) : "—"}
-          </span>
-        </div>
-        {total != null && pixTotal != null && (
-          <p className="text-right font-sans text-xs text-charcoal/60">
-            em até 6x sem juros · ou {formatBRLPrecise(pixTotal)} no Pix
-          </p>
-        )}
       </div>
 
       <button

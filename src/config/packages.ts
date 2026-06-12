@@ -84,7 +84,7 @@ export const PACKAGES: PackageConfig[] = [
     properties: ["solarium-1", "solarium-2"],
     nights: 2,
     weekdaysOnly: false,
-    stayDiscountPct: 0,
+    stayDiscountPct: 8,
     extras: [
       { label: "Decoração romântica (coração de pétalas, velas eletrônicas, buquê de rosas e balões de coração)", price: 350 },
       {
