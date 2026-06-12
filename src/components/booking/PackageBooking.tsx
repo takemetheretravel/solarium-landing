@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Calendar, MessageCircle } from "lucide-react";
+import { ArrowRight, Calendar, MessageCircle, X } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
 import {
   PackageConfig,
   validatePackageDates,
-  extrasTotal,
-  packageTotal,
+  round10down,
 } from "@/config/packages";
 import { PROPERTIES } from "@/config/properties";
 
@@ -47,6 +46,8 @@ export default function PackageBooking({ pkg }: Props) {
       pkg.extras.filter((e) => e.choices?.length).map((e) => [e.label, e.choices![0].label]),
     ),
   );
+  // Extras removidos pelo cliente (só os removable podem entrar aqui)
+  const [removedExtras, setRemovedExtras] = useState<string[]>([]);
   const [dateError, setDateError] = useState<string | null>(null);
   const [availError, setAvailError] = useState<string | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
@@ -59,7 +60,18 @@ export default function PackageBooking({ pkg }: Props) {
   // Checkout derivado: pacote tem número exato de noites
   const checkout = checkin ? isoAddDays(checkin, pkg.nights) : "";
 
-  const extras = extrasTotal(pkg);
+  function toggleExtra(label: string) {
+    setRemovedExtras((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label],
+    );
+  }
+
+  const extrasAtivos = pkg.extras.filter((e) => !removedExtras.includes(e.label));
+  const extrasRemovidos = pkg.extras.filter((e) => e.removable && removedExtras.includes(e.label));
+  const extrasAtivosTotal = extrasAtivos.reduce(
+    (sum, e) => sum + e.price * (e.perNight ? pkg.nights : 1),
+    0,
+  );
 
   useEffect(() => {
     setDateError(null);
@@ -125,17 +137,17 @@ export default function PackageBooking({ pkg }: Props) {
     checkin && checkin < new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
   );
 
-  const total = hostawayTotal != null ? packageTotal(pkg, hostawayTotal) : null;
-  const canReserve = Boolean(total != null && !loading && !dateError && !availError && !priceError);
+  const hasDates = hostawayTotal != null;
+  const canReserve = Boolean(hasDates && !loading && !dateError && !availError && !priceError);
 
-  // Tabela de transparência simplificada: valor cheio riscado + total do pacote.
+  // Componentes pelo valor CHEIO; o desconto aparece só na diferença riscado → total.
   // Sem datas, usa fromPriceNightly × noites como proxy da estadia.
   const selectedProperty =
     eligibleProperties.find((p) => p.slug === propertySlug) ?? eligibleProperties[0];
   const proxyStay = (selectedProperty?.fromPriceNightly ?? 0) * pkg.nights;
-  const stayFull = hostawayTotal ?? proxyStay;
-  const valorALaCarte = stayFull + extras;
-  const totalPacote = total ?? packageTotal(pkg, proxyStay);
+  const estadiaCheia = hostawayTotal ?? proxyStay;
+  const valorALaCarte = estadiaCheia + extrasAtivosTotal;
+  const totalPacote = round10down(estadiaCheia * (1 - pkg.stayDiscountPct / 100)) + extrasAtivosTotal;
   const pixValue = Math.floor((totalPacote * 0.97) / 10) * 10;
 
   function handleReserve() {
@@ -149,6 +161,10 @@ export default function PackageBooking({ pkg }: Props) {
     });
     const chosen = Object.values(selectedChoices);
     if (chosen.length > 0) params.set("choices", chosen.join("|"));
+    // Só envia a lista de extras ativos se algo foi removido; senão o server mantém tudo.
+    if (removedExtras.length > 0) {
+      params.set("extras", extrasAtivos.map((e) => e.label).join("|"));
+    }
     router.push(`/reservar?${params.toString()}`);
   }
 
@@ -261,17 +277,46 @@ export default function PackageBooking({ pkg }: Props) {
 
       {/* TRANSPARÊNCIA DE VALOR */}
       <div className="mt-6 space-y-3 font-sans text-sm">
-        <div className="flex justify-between text-charcoal/50">
+        {/* Componentes pelo valor CHEIO (sem desconto) */}
+        <div className="flex justify-between text-charcoal/70">
+          <span>Estadia ({pkg.nights} noites)</span>
+          <span>{hasDates ? formatBRLPrecise(estadiaCheia) : "conforme as datas"}</span>
+        </div>
+        {extrasAtivos.map((e) => (
+          <div key={e.label} className="flex items-center justify-between gap-2 text-charcoal/70">
+            <span className="flex items-center gap-2">
+              {e.label}{e.perNight ? ` ×${pkg.nights}` : ""}
+              {e.removable && (
+                <button
+                  onClick={() => toggleExtra(e.label)}
+                  aria-label={`Remover ${e.label}`}
+                  className="text-charcoal/35 transition-colors hover:text-charcoal"
+                  title="Remover do pacote"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </span>
+            <span className="flex-shrink-0">{formatBRLPrecise(e.price * (e.perNight ? pkg.nights : 1))}</span>
+          </div>
+        ))}
+        {/* Extras removidos: linha discreta para readicionar */}
+        {extrasRemovidos.map((e) => (
+          <div key={e.label} className="flex items-center justify-between gap-2 text-charcoal/35">
+            <span className="line-through">{e.label}</span>
+            <button onClick={() => toggleExtra(e.label)} className="font-sans text-xs uppercase tracking-widest text-copper">
+              Adicionar
+            </button>
+          </div>
+        ))}
+
+        <div className="flex justify-between border-t border-charcoal/10 pt-3 text-charcoal/50">
           <span>Valor total</span>
           <span className="line-through">{formatBRLPrecise(valorALaCarte)}</span>
         </div>
-        <div className="flex items-baseline justify-between border-t border-charcoal/10 pt-4">
-          <span className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
-            Total do pacote
-          </span>
-          <span className="font-serif text-3xl text-charcoal">
-            {formatBRLPrecise(totalPacote)}
-          </span>
+        <div className="flex items-baseline justify-between pt-1">
+          <span className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Total do pacote</span>
+          <span className="font-serif text-3xl text-charcoal">{formatBRLPrecise(totalPacote)}</span>
         </div>
         <p className="text-right font-sans text-xs text-charcoal/50">
           em até 6x sem juros · ou {formatBRLPrecise(pixValue)} no Pix

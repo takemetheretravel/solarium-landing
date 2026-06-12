@@ -4,7 +4,7 @@ import { saveDraft, getDraft } from "@/lib/kv-store";
 import { calculatePrice } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
-import { getPackageBySlug, validatePackageDates, packageTotal, extrasTotal } from "@/config/packages";
+import { getPackageBySlug, validatePackageDates, packageTotalActive, extrasTotalActive, isExtraActive } from "@/config/packages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +18,7 @@ type Body = {
   couponCode?: string;
   packageSlug?: string;
   packageChoices?: string; // labels das opções escolhidas, separados por "|"
+  extrasActive?: string;   // labels dos extras ativos (removíveis omitidos saem), separados por "|"
   guest: {
     name: string;
     email: string;
@@ -123,10 +124,15 @@ export async function POST(req: NextRequest) {
 
   if (pkg) {
     // REGRA: pacote não combina com cupom — couponCode é ignorado
-    pkgExtrasTotal = extrasTotal(pkg);
+    // Extras ativos: fixos sempre contam; removíveis só se constam na lista enviada.
+    const activeLabels = body.extrasActive
+      ? body.extrasActive.split("|").filter(Boolean)
+      : null;
+    const activeExtras = pkg.extras.filter((e) => isExtraActive(e, activeLabels));
+    pkgExtrasTotal = extrasTotalActive(pkg, activeLabels);
     // Opções escolhidas pelo hóspede (mesmo preço — o valor sempre vem do config)
     const chosenLabels = (body.packageChoices || "").split("|").filter(Boolean);
-    pkgExtrasList = pkg.extras.map((e) => {
+    pkgExtrasList = activeExtras.map((e) => {
       if (e.choices?.length) {
         const chosen =
           e.choices.find((c) => chosenLabels.includes(c.label))?.label ?? e.choices[0].label;
@@ -136,8 +142,8 @@ export async function POST(req: NextRequest) {
         ? `${e.label} ×${pkg.nights} — R$ ${(e.price * pkg.nights).toFixed(2)}`
         : `${e.label} — R$ ${e.price.toFixed(2)}`;
     });
-    runningTotal = packageTotal(pkg, quote.totalPrice);
-    subtotal = quote.totalPrice + pkgExtrasTotal; // valor à la carte (estadia cheia + extras)
+    runningTotal = packageTotalActive(pkg, quote.totalPrice, activeLabels);
+    subtotal = quote.totalPrice + pkgExtrasTotal; // valor à la carte (estadia cheia + extras ativos)
   } else if (body.couponCode) {
     const v = validateCoupon(body.couponCode, {
       nights: quote.nights,

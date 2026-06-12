@@ -6,6 +6,7 @@ export type PackageExtra = {
   price: number;
   perNight?: boolean;
   choices?: PackageExtraChoice[];
+  removable?: boolean; // default false — cliente pode tirar este item do pacote
 };
 
 export type PackageConfig = {
@@ -95,7 +96,7 @@ export const PACKAGES: PackageConfig[] = [
           { label: "Cesta Dani Queijos e Frios", price: 280 },
         ],
       },
-      { label: "Espumante Chandon Reserve Brut", price: 140 },
+      { label: "Espumante Chandon Reserve Brut", price: 140, removable: true },
     ],
     included: [
       "2 noites em casa completa e exclusiva",
@@ -151,4 +152,28 @@ export function round10down(v: number): number {
 export function packageTotal(pkg: PackageConfig, hostawayTotal: number): number {
   const stay = round10down(hostawayTotal * (1 - pkg.stayDiscountPct / 100));
   return stay + extrasTotal(pkg);
+}
+
+// Extra ativo: fixos (sem removable) sempre contam; removíveis só se constam em activeLabels.
+// activeLabels === null → nenhuma remoção informada, mantém tudo.
+export function isExtraActive(extra: PackageExtra, activeLabels: string[] | null): boolean {
+  if (!extra.removable) return true;
+  if (!activeLabels) return true;
+  return activeLabels.includes(extra.label);
+}
+
+export function extrasTotalActive(pkg: PackageConfig, activeLabels: string[] | null): number {
+  return pkg.extras
+    .filter((e) => isExtraActive(e, activeLabels))
+    .reduce((sum, e) => sum + e.price * (e.perNight ? pkg.nights : 1), 0);
+}
+
+// Total com a base de extras ativos (removíveis omitidos saem dos dois lados do cálculo)
+export function packageTotalActive(
+  pkg: PackageConfig,
+  hostawayTotal: number,
+  activeLabels: string[] | null,
+): number {
+  const stay = round10down(hostawayTotal * (1 - pkg.stayDiscountPct / 100));
+  return stay + extrasTotalActive(pkg, activeLabels);
 }

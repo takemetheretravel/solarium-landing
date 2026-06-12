@@ -7,7 +7,7 @@ import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import BookingPageClient from "@/components/booking/BookingPageClient";
 import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
-import { getPackageBySlug, validatePackageDates, round10down } from "@/config/packages";
+import { getPackageBySlug, validatePackageDates, round10down, isExtraActive } from "@/config/packages";
 import { calculatePrice } from "@/lib/hostaway";
 import { formatBRLPrecise } from "@/lib/cn";
 
@@ -28,6 +28,7 @@ type Search = {
   coupon?: string;
   package?: string;
   choices?: string;
+  extras?: string;
 };
 
 function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "checkin" | "checkout">> & Search {
@@ -76,17 +77,22 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
   ) {
     const stayTotal = round10down(quote.totalPrice * (1 - pkg.stayDiscountPct / 100));
     const chosenLabels = (searchParams.choices || "").split("|").filter(Boolean);
-    const extras = pkg.extras.map((e) => {
-      if (e.choices?.length) {
-        const chosen =
-          e.choices.find((c) => chosenLabels.includes(c.label))?.label ?? e.choices[0].label;
-        return { label: `${e.label}: ${chosen}`, amount: e.price };
-      }
-      return {
-        label: e.perNight ? `${e.label} ×${pkg.nights}` : e.label,
-        amount: e.price * (e.perNight ? pkg.nights : 1),
-      };
-    });
+    const activeLabels = searchParams.extras
+      ? searchParams.extras.split("|").filter(Boolean)
+      : null;
+    const extras = pkg.extras
+      .filter((e) => isExtraActive(e, activeLabels))
+      .map((e) => {
+        if (e.choices?.length) {
+          const chosen =
+            e.choices.find((c) => chosenLabels.includes(c.label))?.label ?? e.choices[0].label;
+          return { label: `${e.label}: ${chosen}`, amount: e.price };
+        }
+        return {
+          label: e.perNight ? `${e.label} ×${pkg.nights}` : e.label,
+          amount: e.price * (e.perNight ? pkg.nights : 1),
+        };
+      });
     const extrasSum = extras.reduce((s, e) => s + e.amount, 0);
     packageInfo = {
       slug: pkg.slug,
@@ -140,6 +146,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
           }
           packageInfo={packageInfo}
           packageChoices={packageInfo ? searchParams.choices : undefined}
+          packageExtrasActive={packageInfo ? searchParams.extras : undefined}
         />
       </Container>
     </main>

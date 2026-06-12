@@ -41,6 +41,7 @@ type Props = {
   quote: Quote;
   packageInfo?: PackageInfo | null;
   packageChoices?: string;
+  packageExtrasActive?: string;
 };
 
 export default function BookingPageClient({
@@ -53,6 +54,7 @@ export default function BookingPageClient({
   quote,
   packageInfo,
   packageChoices,
+  packageExtrasActive,
 }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">(initialPaymentMethod);
 
@@ -114,6 +116,7 @@ export default function BookingPageClient({
           couponCode={packageInfo ? undefined : appliedCoupon || undefined}
           packageSlug={packageInfo?.slug}
           packageChoices={packageInfo ? packageChoices : undefined}
+          packageExtrasActive={packageInfo ? packageExtrasActive : undefined}
         />
       </section>
 
