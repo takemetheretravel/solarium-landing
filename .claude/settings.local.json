@@ -50,7 +50,9 @@
       "Bash(git stash *)",
       "Bash(git pull *)",
       "Bash(git merge *)",
-      "Bash(node scripts/download-favicon.mjs)"
+      "Bash(node scripts/download-favicon.mjs)",
+      "mcp__20ff6b5c-7669-4749-8c2e-336662db952d__get_file_metadata",
+      "mcp__20ff6b5c-7669-4749-8c2e-336662db952d__download_file_content"
     ]
   }
 }

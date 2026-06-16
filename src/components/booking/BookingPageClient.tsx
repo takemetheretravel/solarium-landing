@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronDown, Tag, Check } from "lucide-react";
+import { ChevronDown, Tag } from "lucide-react";
 import SmartImage from "@/components/ui/SmartImage";
 import Kicker from "@/components/ui/Kicker";
 import GuestForm from "@/components/booking/GuestForm";
 import { SITE, whatsappLink, validateCoupon, type CouponValidation } from "@/config/site";
-import { formatBRLPrecise } from "@/lib/cn";
+import { MAX_QTY_PER_EXTRA } from "@/config/service-extras";
+import { formatBRLPrecise, formatExtraPrice } from "@/lib/cn";
 import { trackInitiateCheckout } from "@/lib/tracking";
 
 type Quote = {
@@ -34,9 +35,9 @@ type PackageInfo = {
 type ServiceExtraOption = {
   id: string;
   label: string;
-  amount: number;
+  unitPrice: number;
   restriction?: string;
-  preselected: boolean;
+  qty: number; // quantidade inicial pré-marcada via link (0 = não marcado)
 };
 
 type Props = {
@@ -107,19 +108,24 @@ export default function BookingPageClient({
     setAppliedCoupon(result.valid ? code : "");
   }
 
-  // Extras de serviço (massagem, cestas): marcáveis; itens vindos do link já pré-marcados.
-  // Adicionais de serviço — somados após cupom e Pix (não recebem desconto).
-  const [activeServices, setActiveServices] = useState<string[]>(() =>
-    serviceExtras.filter((e) => e.preselected).map((e) => e.id),
-  );
-  function toggleService(id: string) {
-    setActiveServices((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
-    );
+  // Extras de serviço (massagem, cestas): marcáveis por QUANTIDADE; link pré-preenche.
+  // Quantidade é independente das noites. Somados após cupom e Pix (não recebem desconto).
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    for (const e of serviceExtras) if (e.qty > 0) init[e.id] = e.qty;
+    return init;
+  });
+  function setQty(id: string, n: number) {
+    const clamped = Math.min(Math.max(0, Math.floor(n)), MAX_QTY_PER_EXTRA);
+    setQuantities((prev) => ({ ...prev, [id]: clamped }));
   }
-  const servicesTotal = serviceExtras
-    .filter((e) => activeServices.includes(e.id))
-    .reduce((s, e) => s + e.amount, 0);
+  const servicesTotal = serviceExtras.reduce(
+    (s, e) => s + e.unitPrice * (quantities[e.id] || 0),
+    0,
+  );
+  const activeServiceItems = serviceExtras
+    .filter((e) => (quantities[e.id] || 0) > 0)
+    .map((e) => ({ id: e.id, qty: quantities[e.id] }));
 
   const couponDiscount = couponResult?.valid ? couponResult.discountAmount : 0;
   const afterCoupon = (quote?.totalPrice ?? 0) - couponDiscount;
@@ -141,10 +147,10 @@ export default function BookingPageClient({
           packageSlug={packageInfo?.slug}
           packageChoices={packageInfo ? packageChoices : undefined}
           packageExtrasActive={packageInfo ? packageExtrasActive : undefined}
-          serviceExtras={activeServices}
+          serviceExtras={activeServiceItems}
         />
 
-        {/* Adicione à sua experiência — extras de serviço marcáveis */}
+        {/* Adicione à sua experiência — extras de serviço com quantidade (layout leve) */}
         {serviceExtras.length > 0 && (
           <div className="mt-10 border-t border-charcoal/10 pt-8">
             <span className="block font-sans text-[0.65rem] uppercase tracking-[0.3em] text-copper">
@@ -155,35 +161,47 @@ export default function BookingPageClient({
             </p>
             <div className="mt-5 space-y-3">
               {serviceExtras.map((e) => {
-                const active = activeServices.includes(e.id);
+                const qty = quantities[e.id] || 0;
                 return (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => toggleService(e.id)}
-                    className={`flex w-full items-start gap-3 border p-4 text-left transition-all ${
-                      active ? "border-serra bg-serra/5" : "border-charcoal/15 hover:border-charcoal/30"
-                    }`}
-                  >
-                    <span
-                      className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center border ${
-                        active ? "border-serra bg-serra text-cream" : "border-charcoal/30"
-                      }`}
-                    >
-                      {active && <Check className="h-3.5 w-3.5" />}
-                    </span>
-                    <span className="flex-1">
-                      <span className="flex items-baseline justify-between gap-3">
-                        <span className="font-serif text-base text-charcoal">{e.label}</span>
-                        <span className="flex-shrink-0 font-sans text-sm text-charcoal/80">
-                          {formatBRLPrecise(e.amount)}
-                        </span>
-                      </span>
-                      {e.restriction && (
-                        <span className="mt-1 block font-sans text-xs text-copper">{e.restriction}</span>
+                  <div key={e.id} className="flex items-center justify-between gap-3 py-1">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-sans text-sm text-charcoal">{e.label}</p>
+                      <p className="font-sans text-xs text-charcoal/45">
+                        {formatExtraPrice(e.unitPrice)} cada
+                      </p>
+                      {qty > 0 && e.restriction && (
+                        <p className="mt-0.5 font-sans text-xs text-copper">{e.restriction}</p>
                       )}
-                    </span>
-                  </button>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {qty > 0 && (
+                        <span className="font-serif text-sm text-charcoal/70">
+                          {formatExtraPrice(e.unitPrice * qty)}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setQty(e.id, qty - 1)}
+                          disabled={qty === 0}
+                          aria-label={`Remover ${e.label}`}
+                          className="flex h-7 w-7 items-center justify-center rounded-full border border-charcoal/20 text-charcoal/70 transition-colors hover:border-charcoal disabled:opacity-30"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center font-sans text-sm tabular-nums">{qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => setQty(e.id, qty + 1)}
+                          disabled={qty >= MAX_QTY_PER_EXTRA}
+                          aria-label={`Adicionar ${e.label}`}
+                          className="flex h-7 w-7 items-center justify-center rounded-full border border-charcoal/20 text-charcoal/70 transition-colors hover:border-charcoal disabled:opacity-30"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -321,13 +339,19 @@ export default function BookingPageClient({
                   </div>
                 )}
                 {serviceExtras
-                  .filter((e) => activeServices.includes(e.id))
-                  .map((e) => (
-                    <div key={e.id} className="flex justify-between gap-4 text-charcoal/80">
-                      <span className="min-w-0">{e.label}</span>
-                      <span className="flex-shrink-0">{formatBRLPrecise(e.amount)}</span>
-                    </div>
-                  ))}
+                  .filter((e) => (quantities[e.id] || 0) > 0)
+                  .map((e) => {
+                    const qty = quantities[e.id];
+                    return (
+                      <div key={e.id} className="flex justify-between gap-4 text-charcoal/80">
+                        <span className="min-w-0">
+                          {e.label}
+                          {qty > 1 ? ` ×${qty}` : ""}
+                        </span>
+                        <span className="flex-shrink-0">{formatBRLPrecise(e.unitPrice * qty)}</span>
+                      </div>
+                    );
+                  })}
                 <div className="mt-3 flex items-baseline justify-between border-t border-charcoal/10 pt-3 font-serif">
                   <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
                   <span className="text-3xl text-charcoal">{formatBRLPrecise(runningTotal)}</span>

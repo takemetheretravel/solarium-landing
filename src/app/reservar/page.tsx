@@ -8,7 +8,7 @@ import SmartImage from "@/components/ui/SmartImage";
 import BookingPageClient from "@/components/booking/BookingPageClient";
 import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
 import { getPackageBySlug, validatePackageDates, round10down, isExtraActive } from "@/config/packages";
-import { SERVICE_EXTRAS, CAFE_EXTRA_IDS, serviceExtraTotal } from "@/config/service-extras";
+import { SERVICE_EXTRAS, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
 import { calculatePrice } from "@/lib/hostaway";
 import { formatBRLPrecise } from "@/lib/cn";
 
@@ -30,7 +30,7 @@ type Search = {
   package?: string;
   choices?: string;
   pkgExtras?: string; // extras ativos do pacote (labels "|") — removíveis omitidos saem
-  extras?: string;    // extras de serviço (ids ",") — massagem, cestas
+  extras?: string;    // extras de serviço (ids "," com qty opcional "id:qty") — massagem, cestas
 };
 
 function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "checkin" | "checkout">> & Search {
@@ -106,21 +106,33 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
     };
   }
 
-  // Extras de serviço (massagem, cestas) — marcáveis no checkout, sem bloqueio de calendário.
+  // Extras de serviço (massagem, cestas) — marcáveis por quantidade no checkout, sem bloqueio.
   // Se o pacote já inclui café, escondemos as cestas (só a massagem aparece).
-  const nights = quote?.nights ?? 0;
+  // Link pré-marca quantidades: extras=massagem:2,cafe_diluia:1 (id:qty; qty omitida = 1).
   const packageHasCafe = Boolean(
     pkg && pkg.extras.some((e) => /café da manhã|cesta de café/i.test(e.label)),
   );
-  const preselected = (searchParams.extras || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const preselectedQty: Record<string, number> = {};
+  (searchParams.extras || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .forEach((token) => {
+      const [rawId, rawQty] = token.split(":");
+      const id = (rawId || "").trim();
+      if (!id) return;
+      const qty = rawQty ? Math.floor(Number(rawQty)) || 0 : 1;
+      const clamped = Math.min(Math.max(0, qty), MAX_QTY_PER_EXTRA);
+      if (clamped > 0) preselectedQty[id] = clamped;
+    });
   const serviceExtras = SERVICE_EXTRAS.filter(
     (e) => !(packageHasCafe && CAFE_EXTRA_IDS.includes(e.id)),
   ).map((e) => ({
     id: e.id,
     label: e.label,
-    amount: serviceExtraTotal(e.id, nights),
+    unitPrice: e.price,
     restriction: e.restriction,
-    preselected: preselected.includes(e.id),
+    qty: preselectedQty[e.id] ?? 0,
   }));
 
   return (

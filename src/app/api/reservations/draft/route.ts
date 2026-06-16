@@ -5,7 +5,7 @@ import { calculatePrice } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
 import { getPackageBySlug, validatePackageDates, packageTotalActive, extrasTotalActive, isExtraActive } from "@/config/packages";
-import { getServiceExtra, serviceExtraTotal, CAFE_EXTRA_IDS } from "@/config/service-extras";
+import { getServiceExtra, serviceExtraTotal, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ type Body = {
   packageSlug?: string;
   packageChoices?: string; // labels das opções escolhidas, separados por "|"
   extrasActive?: string;   // labels dos extras ativos (removíveis omitidos saem), separados por "|"
-  serviceExtras?: string[]; // ids dos extras de serviço (massagem, cestas)
+  serviceExtras?: { id: string; qty: number }[]; // extras de serviço com quantidade (massagem, cestas)
   guest: {
     name: string;
     email: string;
@@ -164,23 +164,25 @@ export async function POST(req: NextRequest) {
   const pixDiscount = paymentMethod === "pix" ? Math.round(runningTotal * 0.03) : 0;
   runningTotal -= pixDiscount;
 
-  // Extras de serviço (massagem, cestas): REVALIDA preço no server pelo config.
-  // Adicionais de serviço — somados após cupom e Pix (não recebem desconto).
+  // Extras de serviço (massagem, cestas): REVALIDA quantidade e preço no server pelo config.
+  // Quantidade é independente das noites. Somados após cupom e Pix (não recebem desconto).
   // Se o pacote já inclui café, descartar cestas (evita duplicar).
-  let serviceExtras: { id: string; label: string; price: number }[] | undefined;
-  const serviceIdsRequested = Array.isArray(body.serviceExtras) ? body.serviceExtras : [];
-  if (serviceIdsRequested.length > 0) {
+  let serviceExtras: { id: string; label: string; qty: number; price: number }[] | undefined;
+  const serviceItemsRequested = Array.isArray(body.serviceExtras) ? body.serviceExtras : [];
+  if (serviceItemsRequested.length > 0) {
     const packageHasCafe = Boolean(
       pkg && pkg.extras.some((e) => /café da manhã|cesta de café/i.test(e.label)),
     );
-    const resolved = serviceIdsRequested
-      .map((id) => {
-        const cfg = getServiceExtra(id);
+    const resolved = serviceItemsRequested
+      .map((item) => {
+        const cfg = getServiceExtra(item?.id);
         if (!cfg) return null;
-        if (packageHasCafe && CAFE_EXTRA_IDS.includes(id)) return null;
-        return { id: cfg.id, label: cfg.label, price: serviceExtraTotal(id, quote.nights) };
+        if (packageHasCafe && CAFE_EXTRA_IDS.includes(cfg.id)) return null;
+        const qty = Math.min(Math.max(0, Math.floor(Number(item?.qty) || 0)), MAX_QTY_PER_EXTRA);
+        if (qty <= 0) return null;
+        return { id: cfg.id, label: cfg.label, qty, price: serviceExtraTotal(cfg.id, qty) };
       })
-      .filter((e): e is { id: string; label: string; price: number } => e !== null && e.price > 0);
+      .filter((e): e is { id: string; label: string; qty: number; price: number } => e !== null && e.price > 0);
     if (resolved.length > 0) serviceExtras = resolved;
     console.log("[Draft] serviceExtras:", JSON.stringify(resolved));
   }

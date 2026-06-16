@@ -16,7 +16,7 @@ type Props = {
   packageSlug?: string;
   packageChoices?: string;
   packageExtrasActive?: string;
-  serviceExtras?: string[];
+  serviceExtras?: { id: string; qty: number }[];
 };
 
 function maskCPF(v: string): string {
