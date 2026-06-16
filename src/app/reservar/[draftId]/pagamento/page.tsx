@@ -290,7 +290,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                       draft!.finalTotal +
                         draft!.pixDiscount -
                         (draft!.extrasTotal ?? 0) -
-                        (draft!.serviceExtras ?? []).reduce((s, e) => s + e.price, 0),
+                        (draft!.serviceExtras ?? []).reduce((s, e) => s + e.price, 0) -
+                        (draft!.opExtras ?? []).reduce((s, e) => s + e.price, 0),
                     )}
                   </span>
                 </div>
@@ -320,6 +321,15 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
             )}
             {(draft!.serviceExtras ?? []).map((e) => (
               <div key={e.id} className="flex justify-between gap-4 text-charcoal/70">
+                <span className="min-w-0">
+                  {e.label}
+                  {e.qty > 1 ? ` ×${e.qty}` : ""}
+                </span>
+                <span className="flex-shrink-0">{formatBRLPrecise(e.price)}</span>
+              </div>
+            ))}
+            {(draft!.opExtras ?? []).map((e) => (
+              <div key={e.type} className="flex justify-between gap-4 text-charcoal/70">
                 <span className="min-w-0">{e.label}</span>
                 <span className="flex-shrink-0">{formatBRLPrecise(e.price)}</span>
               </div>

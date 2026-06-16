@@ -42,6 +42,7 @@ export type ReservationDraft = {
   extrasList?: string[];
   shortNotice?: boolean; // pacote com check-in < 3 dias: acionar parceiros com urgência
   serviceExtras?: { id: string; label: string; qty: number; price: number }[];
+  opExtras?: { type: string; label: string; price: number; blockedNight: string }[];
   guestFirstName: string;
   guestLastName: string;
   guestEmail: string;

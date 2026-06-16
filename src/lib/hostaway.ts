@@ -423,6 +423,7 @@ export async function createHostawayReservation(params: {
   extrasList?: string[];     // extras do pacote (para o concierge preparar)
   shortNotice?: boolean;     // check-in < 3 dias: parceiros precisam ser acionados já
   serviceExtras?: { id: string; label: string; qty: number; price: number; note?: string }[]; // massagem/cestas a acionar
+  opExtras?: { type: string; label: string; price: number; blockedNight: string }[]; // early/late: noite adjacente bloqueada
 }): Promise<{ reservationId: number } | null> {
   try {
     const token = await getAccessToken();
@@ -461,6 +462,14 @@ export async function createHostawayReservation(params: {
       hostNoteParts.push(
         `EXTRAS DE SERVIÇO: ${params.serviceExtras
           .map((e) => `${e.qty}× ${e.label} (R$ ${e.price.toFixed(2)})${e.note ? ` — ${e.note}` : ""}`)
+          .join("; ")}`,
+      );
+    }
+    if (params.opExtras?.length) {
+      // Dupla garantia: mesmo com bloqueio automático, registra a noite a bloquear.
+      hostNoteParts.push(
+        `EXTRAS OPERACIONAIS: ${params.opExtras
+          .map((e) => `${e.label} (R$ ${e.price.toFixed(2)}) — noite bloqueada ${e.blockedNight}`)
           .join("; ")}`,
       );
     }
@@ -546,6 +555,33 @@ export async function createHostawayReservation(params: {
   } catch (err) {
     console.error("[Hostaway:createReservation] Exception:", err);
     return null;
+  }
+}
+
+/**
+ * Bloqueia (ou libera) uma noite no calendário de uma listing.
+ * Payload confirmado em diagnóstico: PUT /listings/{id}/calendar
+ * { startDate, endDate, isAvailable }. isAvailable=0 bloqueia, =1 libera.
+ */
+export async function blockCalendarNight(listingId: number, date: string): Promise<boolean> {
+  try {
+    const token = await getAccessToken();
+    if (!token) return false;
+    const res = await fetch(`${BASE_URL}/listings/${listingId}/calendar`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      body: JSON.stringify({ startDate: date, endDate: date, isAvailable: 0 }),
+    });
+    const ok = res.ok;
+    console.log(`[Hostaway:block] listing=${listingId} date=${date} → ${res.status} ${ok ? "OK" : "FALHOU"}`);
+    return ok;
+  } catch (e) {
+    console.error("[Hostaway:block] erro:", (e as Error).message);
+    return false;
   }
 }
 

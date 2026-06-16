@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { saveDraft, getDraft } from "@/lib/kv-store";
-import { calculatePrice } from "@/lib/hostaway";
+import { calculatePrice, getCalendar } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
 import { getPackageBySlug, validatePackageDates, packageTotalActive, extrasTotalActive, isExtraActive } from "@/config/packages";
 import { getServiceExtra, serviceExtraTotal, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
+import { OpExtraType, OP_EXTRA_TYPES, OP_EXTRA_LABELS, blockedNightFor, opExtraPrice, listingsForProperty } from "@/config/operational-extras";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ type Body = {
   packageChoices?: string; // labels das opções escolhidas, separados por "|"
   extrasActive?: string;   // labels dos extras ativos (removíveis omitidos saem), separados por "|"
   serviceExtras?: { id: string; qty: number }[]; // extras de serviço com quantidade (massagem, cestas)
+  opExtras?: string[]; // tipos operacionais selecionados (early_checkin, late_checkout)
   guest: {
     name: string;
     email: string;
@@ -188,6 +190,39 @@ export async function POST(req: NextRequest) {
   }
   const serviceExtrasSum = (serviceExtras ?? []).reduce((s, e) => s + e.price, 0);
 
+  // Extras operacionais (early/late): REVALIDA preço e RECONFIRMA disponibilidade da
+  // noite adjacente no calendário (todas as listings da casa). Descarta os ocupados.
+  // Somados após cupom e Pix (não recebem desconto).
+  let opExtras: { type: string; label: string; price: number; blockedNight: string }[] | undefined;
+  const opTypesRequested = Array.isArray(body.opExtras) ? body.opExtras : [];
+  if (opTypesRequested.length > 0) {
+    const validTypes = opTypesRequested.filter((t): t is OpExtraType =>
+      OP_EXTRA_TYPES.includes(t as OpExtraType),
+    );
+    const listings = listingsForProperty(property.slug);
+    const resolved: { type: string; label: string; price: number; blockedNight: string }[] = [];
+    for (const type of validTypes) {
+      const night = blockedNightFor(type, body.checkin, body.checkout);
+      const checks = await Promise.all(
+        listings.map(async (id) => {
+          const days = await getCalendar(id, night, night);
+          return days.length > 0 && days.every((d) => d.isAvailable === 1);
+        }),
+      );
+      const available = listings.length > 0 && checks.every(Boolean);
+      if (!available) continue;
+      resolved.push({
+        type,
+        label: OP_EXTRA_LABELS[type],
+        price: opExtraPrice(property.slug, type, body.checkin, body.checkout),
+        blockedNight: night,
+      });
+    }
+    if (resolved.length > 0) opExtras = resolved;
+    console.log("[Draft] opExtras:", JSON.stringify(resolved));
+  }
+  const opExtrasSum = (opExtras ?? []).reduce((s, e) => s + e.price, 0);
+
   const nameParts = guest.name.trim().split(/\s+/);
   const guestFirstName = nameParts[0] || "";
   const guestLastName = nameParts.slice(1).join(" ") || "";
@@ -209,7 +244,7 @@ export async function POST(req: NextRequest) {
     couponCode: pkg ? undefined : body.couponCode?.trim().toUpperCase() || undefined,
     couponDiscount,
     discountAmount: pkg ? subtotal - Math.round(runningTotal) : couponDiscount + pixDiscount,
-    finalTotal: Math.round(runningTotal) + serviceExtrasSum,
+    finalTotal: Math.round(runningTotal) + serviceExtrasSum + opExtrasSum,
     paymentMethod,
     packageSlug: pkg?.slug,
     packageName: pkg?.name,
@@ -220,6 +255,7 @@ export async function POST(req: NextRequest) {
         ? true
         : undefined,
     serviceExtras,
+    opExtras,
     guestFirstName,
     guestLastName,
     guestEmail: guest.email.trim().toLowerCase(),
@@ -241,6 +277,7 @@ export async function POST(req: NextRequest) {
     couponCode: draft.couponCode,
     packageSlug: draft.packageSlug,
     serviceExtras: draft.serviceExtras?.map((e) => `${e.id}@${e.price}`),
+    opExtras: draft.opExtras?.map((e) => `${e.type}@${e.price}(${e.blockedNight})`),
   });
 
   try {

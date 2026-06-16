@@ -9,6 +9,7 @@ import BookingPageClient from "@/components/booking/BookingPageClient";
 import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
 import { getPackageBySlug, validatePackageDates, round10down, isExtraActive } from "@/config/packages";
 import { SERVICE_EXTRAS, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
+import { OP_EXTRA_TYPES } from "@/config/operational-extras";
 import { calculatePrice } from "@/lib/hostaway";
 import { formatBRLPrecise } from "@/lib/cn";
 
@@ -30,7 +31,7 @@ type Search = {
   package?: string;
   choices?: string;
   pkgExtras?: string; // extras ativos do pacote (labels "|") — removíveis omitidos saem
-  extras?: string;    // extras de serviço (ids "," com qty opcional "id:qty") — massagem, cestas
+  extras?: string;    // extras de serviço (ids "," com qty opcional "id:qty") + tipos operacionais (early_checkin, late_checkout)
 };
 
 function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "checkin" | "checkout">> & Search {
@@ -112,7 +113,9 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
   const packageHasCafe = Boolean(
     pkg && pkg.extras.some((e) => /café da manhã|cesta de café/i.test(e.label)),
   );
+  const opTypeSet = new Set<string>(OP_EXTRA_TYPES);
   const preselectedQty: Record<string, number> = {};
+  const preselectedOp: string[] = [];
   (searchParams.extras || "")
     .split(",")
     .map((s) => s.trim())
@@ -121,6 +124,10 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
       const [rawId, rawQty] = token.split(":");
       const id = (rawId || "").trim();
       if (!id) return;
+      if (opTypeSet.has(id)) {
+        if (!preselectedOp.includes(id)) preselectedOp.push(id);
+        return;
+      }
       const qty = rawQty ? Math.floor(Number(rawQty)) || 0 : 1;
       const clamped = Math.min(Math.max(0, qty), MAX_QTY_PER_EXTRA);
       if (clamped > 0) preselectedQty[id] = clamped;
@@ -179,6 +186,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
           packageChoices={packageInfo ? searchParams.choices : undefined}
           packageExtrasActive={packageInfo ? searchParams.pkgExtras : undefined}
           serviceExtras={serviceExtras}
+          opExtrasPreselected={preselectedOp}
         />
       </Container>
     </main>

@@ -4,6 +4,7 @@ import { getPaymentStatus } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
+import { blockOpExtraNights } from "@/lib/op-extras-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,9 +60,12 @@ export async function POST(req: Request) {
         extrasList: draft.extrasList,
         shortNotice: draft.shortNotice,
         serviceExtras: enrichServiceExtras(draft.serviceExtras),
+        opExtras: draft.opExtras,
       });
       if (reservation) {
         await updateDraft(merchantOrderId, { hostawayReservationId: reservation.reservationId });
+        // Bloqueio automático das noites adjacentes (best-effort; hostNote é a garantia).
+        await blockOpExtraNights(draft.propertyId, draft.opExtras);
         console.log("[Webhook:Cielo] Reserva criada:", reservation.reservationId);
       } else {
         console.error("[Webhook:Cielo] FALHA ao criar reserva Hostaway para draft:", merchantOrderId);

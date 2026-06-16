@@ -4,6 +4,7 @@ import { createCreditPayment } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
+import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -107,9 +108,14 @@ export async function POST(req: Request) {
         extrasList: draft.extrasList,
         shortNotice: draft.shortNotice,
         serviceExtras: enrichServiceExtras(draft.serviceExtras),
+        opExtras: draft.opExtras,
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
+
+        // Bloqueio automático das noites adjacentes (best-effort; hostNote é a garantia).
+        const opExtrasForEmail = await blockOpExtraNights(property.slug, draft.opExtras);
+
         console.log("📧 NOVA RESERVA PAGA:", {
           hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
           propriedade: draft.propertyName,
@@ -131,6 +137,7 @@ export async function POST(req: Request) {
           hostawayUrl: `https://dashboard.hostaway.com/reservations/${reservation.reservationId}/edit`,
           shortNotice: draft.shortNotice,
           serviceExtras: enrichServiceExtras(draft.serviceExtras),
+          opExtras: opExtrasForEmail,
         });
       } else {
         // Pagamento aprovado, Hostaway falhou → marca para criação manual

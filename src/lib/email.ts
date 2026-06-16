@@ -47,6 +47,7 @@ export async function enviarAlertaAprovacao(dados: {
   checkin: string; checkout: string; noites: number;
   metodo: string; hostawayUrl?: string; shortNotice?: boolean;
   serviceExtras?: { label: string; qty: number; note?: string }[];
+  opExtras?: { label: string; blockedNight: string; blockFailed?: boolean }[];
 }) {
   try {
     const resend = getResend();
@@ -63,6 +64,7 @@ export async function enviarAlertaAprovacao(dados: {
         <p><strong>Valor:</strong> R$ ${dados.valor.toFixed(2)} (${dados.metodo})</p>
         <p><strong>Período:</strong> ${dados.checkin} → ${dados.checkout} (${dados.noites} noites)</p>
         ${dados.serviceExtras?.length ? `<p><strong>Extras de serviço a acionar:</strong></p><ul>${dados.serviceExtras.map((e) => `<li>${e.qty}× ${e.label}${e.note ? ` — ${e.note}` : ""}</li>`).join("")}</ul>` : ""}
+        ${dados.opExtras?.length ? `<p><strong>Extras operacionais:</strong></p><ul>${dados.opExtras.map((e) => `<li>${e.label} — noite bloqueada: ${e.blockedNight}${e.blockFailed ? ' <strong style="color:#c00">⚠️ BLOQUEAR MANUALMENTE</strong>' : " ✅"}</li>`).join("")}</ul>` : ""}
         ${dados.hostawayUrl ? `<p><a href="${dados.hostawayUrl}">Abrir no Hostaway para marcar como paga</a></p>` : ""}
       `,
     });
