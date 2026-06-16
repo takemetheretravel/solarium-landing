@@ -46,6 +46,7 @@ export async function enviarAlertaAprovacao(dados: {
   hospede: string; propriedade: string; valor: number;
   checkin: string; checkout: string; noites: number;
   metodo: string; hostawayUrl?: string; shortNotice?: boolean;
+  serviceExtras?: { label: string; note?: string }[];
 }) {
   try {
     const resend = getResend();
@@ -61,6 +62,7 @@ export async function enviarAlertaAprovacao(dados: {
         <p><strong>Casa:</strong> ${dados.propriedade}</p>
         <p><strong>Valor:</strong> R$ ${dados.valor.toFixed(2)} (${dados.metodo})</p>
         <p><strong>Período:</strong> ${dados.checkin} → ${dados.checkout} (${dados.noites} noites)</p>
+        ${dados.serviceExtras?.length ? `<p><strong>Extras de serviço a acionar:</strong></p><ul>${dados.serviceExtras.map((e) => `<li>${e.label}${e.note ? ` — ${e.note}` : ""}</li>`).join("")}</ul>` : ""}
         ${dados.hostawayUrl ? `<p><a href="${dados.hostawayUrl}">Abrir no Hostaway para marcar como paga</a></p>` : ""}
       `,
     });

@@ -422,6 +422,7 @@ export async function createHostawayReservation(params: {
   packageName?: string;      // nome do pacote, se a reserva veio de /pacotes
   extrasList?: string[];     // extras do pacote (para o concierge preparar)
   shortNotice?: boolean;     // check-in < 3 dias: parceiros precisam ser acionados já
+  serviceExtras?: { id: string; label: string; price: number; note?: string }[]; // massagem/cestas a acionar
 }): Promise<{ reservationId: number } | null> {
   try {
     const token = await getAccessToken();
@@ -454,6 +455,13 @@ export async function createHostawayReservation(params: {
     if (params.packageName) {
       hostNoteParts.push(
         `PACOTE: ${params.packageName}${params.extrasList?.length ? ` | Extras: ${params.extrasList.join("; ")}` : ""}`,
+      );
+    }
+    if (params.serviceExtras?.length) {
+      hostNoteParts.push(
+        `EXTRAS DE SERVIÇO: ${params.serviceExtras
+          .map((e) => `${e.label} (R$ ${e.price.toFixed(2)})${e.note ? ` — ${e.note}` : ""}`)
+          .join("; ")}`,
       );
     }
     const hostNote = hostNoteParts.join(" | ");

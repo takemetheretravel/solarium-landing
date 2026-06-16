@@ -5,6 +5,7 @@ import { calculatePrice } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
 import { getPackageBySlug, validatePackageDates, packageTotalActive, extrasTotalActive, isExtraActive } from "@/config/packages";
+import { getServiceExtra, serviceExtraTotal, CAFE_EXTRA_IDS } from "@/config/service-extras";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ type Body = {
   packageSlug?: string;
   packageChoices?: string; // labels das opções escolhidas, separados por "|"
   extrasActive?: string;   // labels dos extras ativos (removíveis omitidos saem), separados por "|"
+  serviceExtras?: string[]; // ids dos extras de serviço (massagem, cestas)
   guest: {
     name: string;
     email: string;
@@ -162,6 +164,28 @@ export async function POST(req: NextRequest) {
   const pixDiscount = paymentMethod === "pix" ? Math.round(runningTotal * 0.03) : 0;
   runningTotal -= pixDiscount;
 
+  // Extras de serviço (massagem, cestas): REVALIDA preço no server pelo config.
+  // Adicionais de serviço — somados após cupom e Pix (não recebem desconto).
+  // Se o pacote já inclui café, descartar cestas (evita duplicar).
+  let serviceExtras: { id: string; label: string; price: number }[] | undefined;
+  const serviceIdsRequested = Array.isArray(body.serviceExtras) ? body.serviceExtras : [];
+  if (serviceIdsRequested.length > 0) {
+    const packageHasCafe = Boolean(
+      pkg && pkg.extras.some((e) => /café da manhã|cesta de café/i.test(e.label)),
+    );
+    const resolved = serviceIdsRequested
+      .map((id) => {
+        const cfg = getServiceExtra(id);
+        if (!cfg) return null;
+        if (packageHasCafe && CAFE_EXTRA_IDS.includes(id)) return null;
+        return { id: cfg.id, label: cfg.label, price: serviceExtraTotal(id, quote.nights) };
+      })
+      .filter((e): e is { id: string; label: string; price: number } => e !== null && e.price > 0);
+    if (resolved.length > 0) serviceExtras = resolved;
+    console.log("[Draft] serviceExtras:", JSON.stringify(resolved));
+  }
+  const serviceExtrasSum = (serviceExtras ?? []).reduce((s, e) => s + e.price, 0);
+
   const nameParts = guest.name.trim().split(/\s+/);
   const guestFirstName = nameParts[0] || "";
   const guestLastName = nameParts.slice(1).join(" ") || "";
@@ -183,7 +207,7 @@ export async function POST(req: NextRequest) {
     couponCode: pkg ? undefined : body.couponCode?.trim().toUpperCase() || undefined,
     couponDiscount,
     discountAmount: pkg ? subtotal - Math.round(runningTotal) : couponDiscount + pixDiscount,
-    finalTotal: Math.round(runningTotal),
+    finalTotal: Math.round(runningTotal) + serviceExtrasSum,
     paymentMethod,
     packageSlug: pkg?.slug,
     packageName: pkg?.name,
@@ -193,6 +217,7 @@ export async function POST(req: NextRequest) {
       pkg && body.checkin < new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
         ? true
         : undefined,
+    serviceExtras,
     guestFirstName,
     guestLastName,
     guestEmail: guest.email.trim().toLowerCase(),
@@ -213,6 +238,7 @@ export async function POST(req: NextRequest) {
     finalTotal: draft.finalTotal,
     couponCode: draft.couponCode,
     packageSlug: draft.packageSlug,
+    serviceExtras: draft.serviceExtras?.map((e) => `${e.id}@${e.price}`),
   });
 
   try {

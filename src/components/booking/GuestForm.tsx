@@ -16,6 +16,7 @@ type Props = {
   packageSlug?: string;
   packageChoices?: string;
   packageExtrasActive?: string;
+  serviceExtras?: string[];
 };
 
 function maskCPF(v: string): string {
@@ -91,6 +92,7 @@ export default function GuestForm(props: Props) {
           packageSlug: props.packageSlug,
           packageChoices: props.packageChoices,
           extrasActive: props.packageExtrasActive,
+          serviceExtras: props.serviceExtras?.length ? props.serviceExtras : undefined,
           guest: { name, email, cpf, phone, notes },
         }),
       });

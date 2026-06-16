@@ -3,6 +3,7 @@ import { getDraft, updateDraft } from "@/lib/kv-store";
 import { getPaymentStatus } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
+import { enrichServiceExtras } from "@/config/service-extras";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
         packageName: draft.packageName,
         extrasList: draft.extrasList,
         shortNotice: draft.shortNotice,
+        serviceExtras: enrichServiceExtras(draft.serviceExtras),
       });
       if (reservation) {
         await updateDraft(merchantOrderId, { hostawayReservationId: reservation.reservationId });

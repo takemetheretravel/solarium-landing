@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronDown, Tag } from "lucide-react";
+import { ChevronDown, Tag, Check } from "lucide-react";
 import SmartImage from "@/components/ui/SmartImage";
 import Kicker from "@/components/ui/Kicker";
 import GuestForm from "@/components/booking/GuestForm";
@@ -31,6 +31,14 @@ type PackageInfo = {
   aLaCarte: number;
 };
 
+type ServiceExtraOption = {
+  id: string;
+  label: string;
+  amount: number;
+  restriction?: string;
+  preselected: boolean;
+};
+
 type Props = {
   property: PropertySummary;
   checkin: string;
@@ -42,6 +50,7 @@ type Props = {
   packageInfo?: PackageInfo | null;
   packageChoices?: string;
   packageExtrasActive?: string;
+  serviceExtras?: ServiceExtraOption[];
 };
 
 export default function BookingPageClient({
@@ -55,6 +64,7 @@ export default function BookingPageClient({
   packageInfo,
   packageChoices,
   packageExtrasActive,
+  serviceExtras = [],
 }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">(initialPaymentMethod);
 
@@ -97,10 +107,24 @@ export default function BookingPageClient({
     setAppliedCoupon(result.valid ? code : "");
   }
 
+  // Extras de serviço (massagem, cestas): marcáveis; itens vindos do link já pré-marcados.
+  // Adicionais de serviço — somados após cupom e Pix (não recebem desconto).
+  const [activeServices, setActiveServices] = useState<string[]>(() =>
+    serviceExtras.filter((e) => e.preselected).map((e) => e.id),
+  );
+  function toggleService(id: string) {
+    setActiveServices((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
+  }
+  const servicesTotal = serviceExtras
+    .filter((e) => activeServices.includes(e.id))
+    .reduce((s, e) => s + e.amount, 0);
+
   const couponDiscount = couponResult?.valid ? couponResult.discountAmount : 0;
   const afterCoupon = (quote?.totalPrice ?? 0) - couponDiscount;
   const pixDiscount = paymentMethod === "pix" ? afterCoupon * 0.03 : 0;
-  const runningTotal = afterCoupon - pixDiscount;
+  const runningTotal = afterCoupon - pixDiscount + servicesTotal;
 
   return (
     <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_420px] lg:gap-12">
@@ -117,7 +141,54 @@ export default function BookingPageClient({
           packageSlug={packageInfo?.slug}
           packageChoices={packageInfo ? packageChoices : undefined}
           packageExtrasActive={packageInfo ? packageExtrasActive : undefined}
+          serviceExtras={activeServices}
         />
+
+        {/* Adicione à sua experiência — extras de serviço marcáveis */}
+        {serviceExtras.length > 0 && (
+          <div className="mt-10 border-t border-charcoal/10 pt-8">
+            <span className="block font-sans text-[0.65rem] uppercase tracking-[0.3em] text-copper">
+              Adicione à sua experiência
+            </span>
+            <p className="mt-2 font-sans text-sm text-charcoal/60">
+              Opcionais cobrados junto com a reserva. Nosso concierge organiza tudo.
+            </p>
+            <div className="mt-5 space-y-3">
+              {serviceExtras.map((e) => {
+                const active = activeServices.includes(e.id);
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => toggleService(e.id)}
+                    className={`flex w-full items-start gap-3 border p-4 text-left transition-all ${
+                      active ? "border-serra bg-serra/5" : "border-charcoal/15 hover:border-charcoal/30"
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center border ${
+                        active ? "border-serra bg-serra text-cream" : "border-charcoal/30"
+                      }`}
+                    >
+                      {active && <Check className="h-3.5 w-3.5" />}
+                    </span>
+                    <span className="flex-1">
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span className="font-serif text-base text-charcoal">{e.label}</span>
+                        <span className="flex-shrink-0 font-sans text-sm text-charcoal/80">
+                          {formatBRLPrecise(e.amount)}
+                        </span>
+                      </span>
+                      {e.restriction && (
+                        <span className="mt-1 block font-sans text-xs text-copper">{e.restriction}</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       <aside className="lg:sticky lg:top-24 lg:self-start">
@@ -249,6 +320,14 @@ export default function BookingPageClient({
                     <span>− {formatBRLPrecise(pixDiscount)}</span>
                   </div>
                 )}
+                {serviceExtras
+                  .filter((e) => activeServices.includes(e.id))
+                  .map((e) => (
+                    <div key={e.id} className="flex justify-between gap-4 text-charcoal/80">
+                      <span className="min-w-0">{e.label}</span>
+                      <span className="flex-shrink-0">{formatBRLPrecise(e.amount)}</span>
+                    </div>
+                  ))}
                 <div className="mt-3 flex items-baseline justify-between border-t border-charcoal/10 pt-3 font-serif">
                   <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
                   <span className="text-3xl text-charcoal">{formatBRLPrecise(runningTotal)}</span>

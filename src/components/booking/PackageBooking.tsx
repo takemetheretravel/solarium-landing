@@ -162,8 +162,9 @@ export default function PackageBooking({ pkg }: Props) {
     const chosen = Object.values(selectedChoices);
     if (chosen.length > 0) params.set("choices", chosen.join("|"));
     // Só envia a lista de extras ativos se algo foi removido; senão o server mantém tudo.
+    // ("pkgExtras" — o param "extras" é dos extras de serviço no /reservar)
     if (removedExtras.length > 0) {
-      params.set("extras", extrasAtivos.map((e) => e.label).join("|"));
+      params.set("pkgExtras", extrasAtivos.map((e) => e.label).join("|"));
     }
     router.push(`/reservar?${params.toString()}`);
   }

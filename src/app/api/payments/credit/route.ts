@@ -3,6 +3,7 @@ import { getDraft, updateDraft } from "@/lib/kv-store";
 import { createCreditPayment } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
+import { enrichServiceExtras } from "@/config/service-extras";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -105,6 +106,7 @@ export async function POST(req: Request) {
         packageName: draft.packageName,
         extrasList: draft.extrasList,
         shortNotice: draft.shortNotice,
+        serviceExtras: enrichServiceExtras(draft.serviceExtras),
       });
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
@@ -128,6 +130,7 @@ export async function POST(req: Request) {
           metodo: `Cartão ${installments || 1}x`,
           hostawayUrl: `https://dashboard.hostaway.com/reservations/${reservation.reservationId}/edit`,
           shortNotice: draft.shortNotice,
+          serviceExtras: enrichServiceExtras(draft.serviceExtras),
         });
       } else {
         // Pagamento aprovado, Hostaway falhou → marca para criação manual

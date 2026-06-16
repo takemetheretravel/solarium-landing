@@ -286,7 +286,12 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                 <div className="flex justify-between text-charcoal/70">
                   <span>Estadia ({draft!.nights} noites) — pacote</span>
                   <span>
-                    {formatBRLPrecise(draft!.finalTotal + draft!.pixDiscount - (draft!.extrasTotal ?? 0))}
+                    {formatBRLPrecise(
+                      draft!.finalTotal +
+                        draft!.pixDiscount -
+                        (draft!.extrasTotal ?? 0) -
+                        (draft!.serviceExtras ?? []).reduce((s, e) => s + e.price, 0),
+                    )}
                   </span>
                 </div>
                 {(draft!.extrasList ?? []).map((e) => (
@@ -313,6 +318,12 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                 <span>− {formatBRLPrecise(draft!.pixDiscount)}</span>
               </div>
             )}
+            {(draft!.serviceExtras ?? []).map((e) => (
+              <div key={e.id} className="flex justify-between gap-4 text-charcoal/70">
+                <span className="min-w-0">{e.label}</span>
+                <span className="flex-shrink-0">{formatBRLPrecise(e.price)}</span>
+              </div>
+            ))}
             <div className="flex items-baseline justify-between border-t border-charcoal/10 pt-4 font-serif">
               <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
               <span className="text-3xl text-charcoal">{formatBRLPrecise(draft!.finalTotal)}</span>

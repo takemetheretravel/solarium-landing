@@ -8,6 +8,7 @@ import SmartImage from "@/components/ui/SmartImage";
 import BookingPageClient from "@/components/booking/BookingPageClient";
 import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
 import { getPackageBySlug, validatePackageDates, round10down, isExtraActive } from "@/config/packages";
+import { SERVICE_EXTRAS, CAFE_EXTRA_IDS, serviceExtraTotal } from "@/config/service-extras";
 import { calculatePrice } from "@/lib/hostaway";
 import { formatBRLPrecise } from "@/lib/cn";
 
@@ -28,7 +29,8 @@ type Search = {
   coupon?: string;
   package?: string;
   choices?: string;
-  extras?: string;
+  pkgExtras?: string; // extras ativos do pacote (labels "|") — removíveis omitidos saem
+  extras?: string;    // extras de serviço (ids ",") — massagem, cestas
 };
 
 function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "checkin" | "checkout">> & Search {
@@ -77,8 +79,8 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
   ) {
     const stayTotal = round10down(quote.totalPrice * (1 - pkg.stayDiscountPct / 100));
     const chosenLabels = (searchParams.choices || "").split("|").filter(Boolean);
-    const activeLabels = searchParams.extras
-      ? searchParams.extras.split("|").filter(Boolean)
+    const activeLabels = searchParams.pkgExtras
+      ? searchParams.pkgExtras.split("|").filter(Boolean)
       : null;
     const extras = pkg.extras
       .filter((e) => isExtraActive(e, activeLabels))
@@ -103,6 +105,23 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
       aLaCarte: quote.totalPrice + extrasSum,
     };
   }
+
+  // Extras de serviço (massagem, cestas) — marcáveis no checkout, sem bloqueio de calendário.
+  // Se o pacote já inclui café, escondemos as cestas (só a massagem aparece).
+  const nights = quote?.nights ?? 0;
+  const packageHasCafe = Boolean(
+    pkg && pkg.extras.some((e) => /café da manhã|cesta de café/i.test(e.label)),
+  );
+  const preselected = (searchParams.extras || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const serviceExtras = SERVICE_EXTRAS.filter(
+    (e) => !(packageHasCafe && CAFE_EXTRA_IDS.includes(e.id)),
+  ).map((e) => ({
+    id: e.id,
+    label: e.label,
+    amount: serviceExtraTotal(e.id, nights),
+    restriction: e.restriction,
+    preselected: preselected.includes(e.id),
+  }));
 
   return (
     <main className="bg-cream pt-32 pb-20">
@@ -146,7 +165,8 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
           }
           packageInfo={packageInfo}
           packageChoices={packageInfo ? searchParams.choices : undefined}
-          packageExtrasActive={packageInfo ? searchParams.extras : undefined}
+          packageExtrasActive={packageInfo ? searchParams.pkgExtras : undefined}
+          serviceExtras={serviceExtras}
         />
       </Container>
     </main>
