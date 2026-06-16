@@ -21,12 +21,6 @@ export const OP_EXTRA_NOTES: Record<OpExtraType, string> = {
   late_checkout: "Permitir saída até as 18h — noite do checkout bloqueada para preparo",
 };
 
-// Aviso fino ao cliente (restrição) na linha do extra
-export const OP_EXTRA_CLIENT_HINT: Record<OpExtraType, string> = {
-  early_checkin: "Sujeito à noite anterior livre — reservamos a casa na véspera.",
-  late_checkout: "Sujeito à noite do check-out livre — reservamos a casa no dia da saída.",
-};
-
 // Noite que precisa ser bloqueada (ISO)
 export function blockedNightFor(type: OpExtraType, checkin: string, checkout: string): string {
   if (type === "early_checkin") {
@@ -37,13 +31,28 @@ export function blockedNightFor(type: OpExtraType, checkin: string, checkout: st
   return checkout; // late_checkout bloqueia a noite do próprio checkout
 }
 
-// fds = noite bloqueada cai em sexta(5) ou sábado(6)
-export function opExtraPrice(propertySlug: string, type: OpExtraType, checkin: string, checkout: string): number {
+// Preço cobrado + âncora riscada (visual). Regra pela noite bloqueada:
+//  sex(5)/sáb(6) → fds cheio, sem âncora
+//  dom(0)        → cobra semana, mas mostra fds riscado (corte de preço)
+//  seg-qui       → semana, sem âncora
+export function opExtraPricing(
+  propertySlug: string,
+  type: OpExtraType,
+  checkin: string,
+  checkout: string,
+): { price: number; anchor: number | null } {
   const table = PRICING[propertySlug];
-  if (!table) return 0;
+  if (!table) return { price: 0, anchor: null };
   const night = blockedNightFor(type, checkin, checkout);
   const dow = new Date(night + "T12:00:00").getDay();
-  return dow === 5 || dow === 6 ? table.fds : table.semana;
+  if (dow === 5 || dow === 6) return { price: table.fds, anchor: null };
+  if (dow === 0) return { price: table.semana, anchor: table.fds };
+  return { price: table.semana, anchor: null };
+}
+
+// Preço cobrado (usado no recálculo server-side). A âncora é puramente visual.
+export function opExtraPrice(propertySlug: string, type: OpExtraType, checkin: string, checkout: string): number {
+  return opExtraPricing(propertySlug, type, checkin, checkout).price;
 }
 
 // Listings físicas a verificar/bloquear para cada casa.

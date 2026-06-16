@@ -8,7 +8,7 @@ import Kicker from "@/components/ui/Kicker";
 import GuestForm from "@/components/booking/GuestForm";
 import { SITE, whatsappLink, validateCoupon, type CouponValidation } from "@/config/site";
 import { MAX_QTY_PER_EXTRA } from "@/config/service-extras";
-import { OP_EXTRA_TYPES, OP_EXTRA_CLIENT_HINT } from "@/config/operational-extras";
+import { OP_EXTRA_TYPES } from "@/config/operational-extras";
 import { formatBRLPrecise, formatExtraPrice } from "@/lib/cn";
 import { trackInitiateCheckout } from "@/lib/tracking";
 
@@ -46,6 +46,7 @@ type OpExtraOption = {
   label: string;
   available: boolean;
   price: number;
+  anchor: number | null; // valor fds riscado (corte de preço no domingo); null = sem âncora
   blockedNight: string;
 };
 
@@ -264,7 +265,6 @@ export default function BookingPageClient({
               >
                 {opOptions.map((o) => {
                   const active = o.available && activeOps.includes(o.type);
-                  const hint = OP_EXTRA_CLIENT_HINT[o.type as keyof typeof OP_EXTRA_CLIENT_HINT];
                   return (
                     <div key={o.type} className="flex items-center justify-between gap-3 py-1">
                       <div className="min-w-0 flex-1">
@@ -272,12 +272,14 @@ export default function BookingPageClient({
                           {o.label}
                         </p>
                         {o.available ? (
-                          <p className="font-sans text-xs text-charcoal/45">{formatExtraPrice(o.price)}</p>
+                          <p className="font-sans text-xs text-charcoal/45">
+                            {o.anchor != null && (
+                              <span className="text-charcoal/35 line-through">{formatExtraPrice(o.anchor)} </span>
+                            )}
+                            {formatExtraPrice(o.price)}
+                          </p>
                         ) : (
                           <p className="font-sans text-xs text-charcoal/40">indisponível para estas datas</p>
-                        )}
-                        {active && hint && (
-                          <p className="mt-0.5 font-sans text-xs text-copper">{hint}</p>
                         )}
                       </div>
                       {o.available && (

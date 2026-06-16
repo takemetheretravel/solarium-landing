@@ -6,7 +6,7 @@ import {
   OP_EXTRA_TYPES,
   OP_EXTRA_LABELS,
   blockedNightFor,
-  opExtraPrice,
+  opExtraPricing,
   listingsForProperty,
 } from "@/config/operational-extras";
 
@@ -58,10 +58,12 @@ export async function POST(req: Request) {
     types.map(async (type) => {
       const night = blockedNightFor(type, checkin, checkout);
       const available = await nightIsFree(listings, night);
+      const { price, anchor } = opExtraPricing(property.slug, type, checkin, checkout);
       return {
         type,
         available,
-        price: opExtraPrice(property.slug, type, checkin, checkout),
+        price,
+        anchor,
         blockedNight: night,
         label: OP_EXTRA_LABELS[type],
       };
