@@ -553,7 +553,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                 </select>
                 <p className="mt-1 font-sans text-[0.65rem] text-charcoal/40">
                   {appliedCoupon?.installmentsWithoutInterest === 1
-                    ? "Cupom à vista — parcelamentos sujeitos a juros embutidos no valor cobrado."
+                    ? `À vista com ${appliedCoupon!.discount}% de desconto. Parcelamentos de 2x a ${maxParcelas}x têm juros inclusos no valor exibido.`
                     : `Parcelamentos acima de ${semJurosLimite}x: juros já inclusos no valor mostrado. Total final cobrado conforme exibido.`}
                 </p>
                 {isSingleNight && (

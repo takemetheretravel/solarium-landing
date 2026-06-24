@@ -53,7 +53,7 @@ export const COUPONS: Coupon[] = [
     code: "PAULA15",
     discount: 15,
     type: "percentage",
-    minNights: 1,
+    minNights: 2,
     maxInstallments: 12,
     installmentsWithoutInterest: 1,
     validFrom: "2026-01-01",
