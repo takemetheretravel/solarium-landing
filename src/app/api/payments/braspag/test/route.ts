@@ -1,8 +1,24 @@
 import { NextResponse } from "next/server";
 import { createBraspagSaleSimulado } from "@/lib/braspag";
+import { getPaymentProvider } from "@/config/payment-provider";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Health check público — usado pela equipe Braspag para confirmar que o
+// ambiente de staging está acessível. NÃO expõe nenhum segredo: apenas
+// booleanos de "configurado/não configurado".
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    service: "braspag-gateway",
+    env: process.env.BRASPAG_ENVIRONMENT === "production" ? "production" : "sandbox",
+    provider: getPaymentProvider(),
+    merchantIdConfigured: Boolean(process.env.BRASPAG_MERCHANT_ID),
+    merchantKeyConfigured: Boolean(process.env.BRASPAG_MERCHANT_KEY),
+    timestamp: new Date().toISOString(),
+  });
+}
 
 // Rota de validação de conexão com o gateway Braspag (sandbox, Provider Simulado).
 // Protegida: só responde se o header x-braspag-test bater com o MerchantId configurado.
