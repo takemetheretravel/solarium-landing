@@ -30,6 +30,20 @@ export class Braspag3dsAuthError extends Error {
   }
 }
 
+// EstablishmentCode real (sandbox/produção), fornecido pela Braspag. Lido SEMPRE
+// do env var — NÃO há fallback silencioso para o "1006993069" de exemplo da doc
+// (esse valor só serve de exemplo no .env.example; usá-lo num ambiente real
+// causa 401/MPI900). NÃO é segredo; pode ser exibido em log/tela.
+export function getBraspag3dsEstablishmentCode(): string {
+  const code = (process.env.BRASPAG_3DS_ESTABLISHMENT_CODE || "").trim();
+  if (!code) {
+    throw new Error(
+      "BRASPAG_3DS_ESTABLISHMENT_CODE não configurado. Defina o EstablishmentCode real (sandbox/produção) fornecido pela Braspag — não use o 1006993069 de exemplo da doc.",
+    );
+  }
+  return code;
+}
+
 // 1A — Access token do MPI 3DS 2.0 (browser SDK).
 // Endpoint de auth do MPI: POST {mpi}/v2/auth/token, Basic base64(ClientId:ClientSecret).
 // O access_token resultante é DESTINADO AO CLIENTE (vai na classe bpmpi_accesstoken
@@ -46,9 +60,9 @@ export async function getBraspag3dsAccessToken(): Promise<string> {
   // extras nem quebras de linha.
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-  // EstablishmentCode: env var dedicada, default = código de SANDBOX da doc.
-  // NUNCA usar o MerchantId do gateway aqui (são identificadores diferentes).
-  const establishmentCode = process.env.BRASPAG_3DS_ESTABLISHMENT_CODE || "1006993069";
+  // EstablishmentCode: exigido do env (sem default silencioso). NUNCA usar o
+  // MerchantId do gateway aqui (são identificadores diferentes).
+  const establishmentCode = getBraspag3dsEstablishmentCode();
   const body = {
     EstablishmentCode: establishmentCode,
     MerchantName: process.env.BRASPAG_3DS_MERCHANT_NAME || "Solarium Mantiqueira",

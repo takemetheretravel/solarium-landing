@@ -154,18 +154,19 @@ export default function Braspag3dsTestPage() {
     try {
       const res = await fetch("/api/payments/braspag/3ds-session", { method: "POST" });
       const data = await res.json().catch(() => ({}));
+      const ecLabel = `EstablishmentCode=${data.establishmentCode ?? "(não setado)"}`;
       if (!res.ok || !data.accessToken) {
         const detail =
           data.mpiStatus !== undefined
             ? `MPI ${data.mpiStatus}: ${JSON.stringify(data.mpiBody)}`
             : data.error || "sem accessToken";
-        addLog(`Token NÃO obtido nesta tentativa (HTTP ${res.status}). ${detail}`);
+        addLog(`Token NÃO obtido nesta tentativa (HTTP ${res.status}). ${ecLabel}. ${detail}`);
         setBusy(false);
         return;
       }
       syncHiddenInputs(data.accessToken);
       addLog(
-        `Token obtido (${String(data.accessToken).length} chars) e inputs sincronizados: cartão …${cardNumber.slice(-4)}, valor ${amount}, order ${orderId}.`,
+        `Token obtido (${String(data.accessToken).length} chars), ${ecLabel}, inputs sincronizados: cartão …${cardNumber.slice(-4)}, valor ${amount}, order ${orderId}.`,
       );
     } catch (err) {
       addLog(`Token NÃO obtido (erro de rede): ${(err as Error)?.message || "erro"}`);
