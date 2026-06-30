@@ -63,9 +63,10 @@ export default function Braspag3dsTestPage() {
   const [installments, setInstallments] = useState(1);
 
   const configuredRef = useRef(false);
-  // O token vai para o input por REF (imperativo), garantindo que o SDK leia o
-  // valor recém-buscado nesta tentativa — sem depender do flush do React.
-  const tokenInputRef = useRef<HTMLInputElement>(null);
+  // Container dos inputs bpmpi_*. Sincronizamos TODOS imperativamente a cada
+  // clique, a partir do estado atual do formulário — sem depender do flush do
+  // React, garantindo que o SDK leia exatamente o que está na tela agora.
+  const hiddenRef = useRef<HTMLDivElement>(null);
 
   function addLog(msg: string) {
     const ts = new Date().toLocaleTimeString("pt-BR");
@@ -122,13 +123,30 @@ export default function Braspag3dsTestPage() {
     }
   }, []);
 
-  const [expMonth, expYear] = (() => {
-    const [m = "", y = ""] = expiration.split("/");
-    return [m.trim(), y.trim()];
-  })();
+  // Sincroniza os inputs bpmpi_* com os valores ATUAIS do formulário + token
+  // recém-buscado, lendo o estado vigente neste clique e escrevendo direto no
+  // DOM (o SDK lê os inputs por classe no momento do authenticate).
+  function syncHiddenInputs(token: string) {
+    const root = hiddenRef.current;
+    if (!root) return;
+    const set = (cls: string, val: string) => {
+      const el = root.querySelector<HTMLInputElement>(`.${cls}`);
+      if (el) el.value = val;
+    };
+    const [m = "", y = ""] = expiration.split("/").map((s) => s.trim());
+    set("bpmpi_accesstoken", token);
+    set("bpmpi_ordernumber", orderId);
+    set("bpmpi_currency", "BRL");
+    set("bpmpi_totalamount", String(amount));
+    set("bpmpi_installments", String(installments));
+    set("bpmpi_paymentmethod", "credit");
+    set("bpmpi_cardnumber", cardNumber);
+    set("bpmpi_cardexpirationmonth", m);
+    set("bpmpi_cardexpirationyear", y);
+  }
 
-  // Busca SEMPRE um token novo nesta tentativa (tokens MPI têm vida curta) e só
-  // então dispara a autenticação.
+  // Busca SEMPRE um token novo nesta tentativa (token MPI é de curta duração),
+  // sincroniza os inputs com o formulário atual e só então dispara o SDK.
   async function authenticate() {
     if (busy) return;
     setBusy(true);
@@ -137,12 +155,18 @@ export default function Braspag3dsTestPage() {
       const res = await fetch("/api/payments/braspag/3ds-session", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.accessToken) {
-        addLog(`Token NÃO obtido nesta tentativa (HTTP ${res.status}): ${data.error || "sem accessToken"}`);
+        const detail =
+          data.mpiStatus !== undefined
+            ? `MPI ${data.mpiStatus}: ${JSON.stringify(data.mpiBody)}`
+            : data.error || "sem accessToken";
+        addLog(`Token NÃO obtido nesta tentativa (HTTP ${res.status}). ${detail}`);
         setBusy(false);
         return;
       }
-      if (tokenInputRef.current) tokenInputRef.current.value = data.accessToken;
-      addLog(`Token obtido nesta tentativa — ${String(data.accessToken).length} chars.`);
+      syncHiddenInputs(data.accessToken);
+      addLog(
+        `Token obtido (${String(data.accessToken).length} chars) e inputs sincronizados: cartão …${cardNumber.slice(-4)}, valor ${amount}, order ${orderId}.`,
+      );
     } catch (err) {
       addLog(`Token NÃO obtido (erro de rede): ${(err as Error)?.message || "erro"}`);
       setBusy(false);
@@ -224,19 +248,19 @@ export default function Braspag3dsTestPage() {
           - CVV NÃO tem classe bpmpi_* — é dado de autorização (1C).
           - O desafio é renderizado pelo próprio SDK; não há container nomeado.
          =================================================================== */}
-      <div style={{ display: "none" }} aria-hidden>
-        <input type="hidden" className="bpmpi_auth" value="true" readOnly />
+      <div ref={hiddenRef} style={{ display: "none" }} aria-hidden>
+        <input type="hidden" className="bpmpi_auth" defaultValue="true" />
 
-        <input type="hidden" className="bpmpi_accesstoken" ref={tokenInputRef} defaultValue="" readOnly />
-        <input type="hidden" className="bpmpi_ordernumber" value={orderId} readOnly />
-        <input type="hidden" className="bpmpi_currency" value="BRL" readOnly />
-        <input type="hidden" className="bpmpi_totalamount" value={String(amount)} readOnly />
-        <input type="hidden" className="bpmpi_installments" value={String(installments)} readOnly />
-        <input type="hidden" className="bpmpi_paymentmethod" value="credit" readOnly />
+        <input type="hidden" className="bpmpi_accesstoken" defaultValue="" />
+        <input type="hidden" className="bpmpi_ordernumber" defaultValue="" />
+        <input type="hidden" className="bpmpi_currency" defaultValue="BRL" />
+        <input type="hidden" className="bpmpi_totalamount" defaultValue="" />
+        <input type="hidden" className="bpmpi_installments" defaultValue="" />
+        <input type="hidden" className="bpmpi_paymentmethod" defaultValue="credit" />
 
-        <input type="hidden" className="bpmpi_cardnumber" value={cardNumber} readOnly />
-        <input type="hidden" className="bpmpi_cardexpirationmonth" value={expMonth} readOnly />
-        <input type="hidden" className="bpmpi_cardexpirationyear" value={expYear} readOnly />
+        <input type="hidden" className="bpmpi_cardnumber" defaultValue="" />
+        <input type="hidden" className="bpmpi_cardexpirationmonth" defaultValue="" />
+        <input type="hidden" className="bpmpi_cardexpirationyear" defaultValue="" />
       </div>
 
       <button

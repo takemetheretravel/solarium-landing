@@ -17,6 +17,19 @@ function gatewayHeaders(): Record<string, string> {
   };
 }
 
+// Erro de autenticação do MPI 3DS, carregando status + corpo da resposta da
+// Braspag para que a rota possa propagá-los (sem expor segredos).
+export class Braspag3dsAuthError extends Error {
+  status: number;
+  mpiBody: unknown;
+  constructor(status: number, mpiBody: unknown) {
+    super(`Falha ao obter access token 3DS (HTTP ${status}).`);
+    this.name = "Braspag3dsAuthError";
+    this.status = status;
+    this.mpiBody = mpiBody;
+  }
+}
+
 // 1A — Access token do MPI 3DS 2.0 (browser SDK).
 // Endpoint de auth do MPI: POST {mpi}/v2/auth/token, Basic base64(ClientId:ClientSecret).
 // O access_token resultante é DESTINADO AO CLIENTE (vai na classe bpmpi_accesstoken
@@ -28,24 +41,52 @@ export async function getBraspag3dsAccessToken(): Promise<string> {
     throw new Error("Credenciais 3DS ausentes (BRASPAG_3DS_CLIENT_ID/BRASPAG_3DS_CLIENT_SECRET).");
   }
 
+  // Authorization = "Basic " + base64(clientId:clientSecret). NÃO usar trim no
+  // secret (preservar o "=" final do base64). Concatenação direta, sem espaços
+  // extras nem quebras de linha.
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  // EstablishmentCode: env var dedicada, default = código de SANDBOX da doc.
+  // NUNCA usar o MerchantId do gateway aqui (são identificadores diferentes).
+  const establishmentCode = process.env.BRASPAG_3DS_ESTABLISHMENT_CODE || "1006993069";
   const body = {
-    EstablishmentCode: process.env.BRASPAG_3DS_ESTABLISHMENT_CODE || process.env.BRASPAG_MERCHANT_ID || "",
+    EstablishmentCode: establishmentCode,
     MerchantName: process.env.BRASPAG_3DS_MERCHANT_NAME || "Solarium Mantiqueira",
     MCC: process.env.BRASPAG_3DS_MCC || "7011", // 7011 = hospedagem
   };
 
-  const res = await fetch(`${BRASPAG_URLS.mpi3ds}/v2/auth/token`, {
+  const url = `${BRASPAG_URLS.mpi3ds}/v2/auth/token`;
+  // Log seguro (sem valores de segredo): só comprimentos e formato.
+  console.log(
+    "[Braspag:3DS auth] env=%s url=%s clientIdLen=%d secretLen=%d secretEndsWithEq=%s establishmentCode=%s",
+    ENV,
+    url,
+    clientId.length,
+    clientSecret.length,
+    String(clientSecret.endsWith("=")),
+    establishmentCode,
+  );
+
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Basic ${basic}` },
     body: JSON.stringify(body),
   });
-  const data = await res.json().catch(() => ({} as Record<string, unknown>));
-  if (!res.ok || !data?.access_token) {
-    console.error("[Braspag:3DS auth]", res.status, JSON.stringify(data).slice(0, 300));
-    throw new Error(`Falha ao obter access token 3DS (HTTP ${res.status}).`);
+
+  const raw = await res.text();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = raw;
   }
-  return data.access_token as string;
+
+  const accessToken = (parsed as Record<string, unknown>)?.access_token;
+  if (!res.ok || !accessToken) {
+    console.error("[Braspag:3DS auth] FALHA", res.status, raw.slice(0, 500));
+    throw new Braspag3dsAuthError(res.status, parsed);
+  }
+  return accessToken as string;
 }
 
 // Teste de conexão: venda simulada SEM 3DS (Provider Simulado).
