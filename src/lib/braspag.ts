@@ -17,6 +17,37 @@ function gatewayHeaders(): Record<string, string> {
   };
 }
 
+// 1A — Access token do MPI 3DS 2.0 (browser SDK).
+// Endpoint de auth do MPI: POST {mpi}/v2/auth/token, Basic base64(ClientId:ClientSecret).
+// O access_token resultante é DESTINADO AO CLIENTE (vai na classe bpmpi_accesstoken
+// no navegador). NUNCA expor ClientId/ClientSecret. Credenciais só em env vars.
+export async function getBraspag3dsAccessToken(): Promise<string> {
+  const clientId = process.env.BRASPAG_3DS_CLIENT_ID || "";
+  const clientSecret = process.env.BRASPAG_3DS_CLIENT_SECRET || "";
+  if (!clientId || !clientSecret) {
+    throw new Error("Credenciais 3DS ausentes (BRASPAG_3DS_CLIENT_ID/BRASPAG_3DS_CLIENT_SECRET).");
+  }
+
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const body = {
+    EstablishmentCode: process.env.BRASPAG_3DS_ESTABLISHMENT_CODE || process.env.BRASPAG_MERCHANT_ID || "",
+    MerchantName: process.env.BRASPAG_3DS_MERCHANT_NAME || "Solarium Mantiqueira",
+    MCC: process.env.BRASPAG_3DS_MCC || "7011", // 7011 = hospedagem
+  };
+
+  const res = await fetch(`${BRASPAG_URLS.mpi3ds}/v2/auth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Basic ${basic}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({} as Record<string, unknown>));
+  if (!res.ok || !data?.access_token) {
+    console.error("[Braspag:3DS auth]", res.status, JSON.stringify(data).slice(0, 300));
+    throw new Error(`Falha ao obter access token 3DS (HTTP ${res.status}).`);
+  }
+  return data.access_token as string;
+}
+
 // Teste de conexão: venda simulada SEM 3DS (Provider Simulado).
 // Serve apenas para validar credenciais/conectividade do gateway sandbox.
 export async function createBraspagSaleSimulado(params: {
