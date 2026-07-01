@@ -8,15 +8,17 @@ import { useEffect, useRef, useState } from "react";
 // Objetivo: provar a mecânica do SDK e capturar o resultado da AUTENTICAÇÃO
 // (Cavv, Eci, Xid, Version, ReferenceId). NÃO autoriza (isso é 1C).
 //
-// Mecânica do SDK (doc/exemplo oficial Braspag/Cielo):
-//  - window.bpmpi_config() é lido pelo script para obter Environment/Debug e
-//    os callbacks de resultado. Deve existir ANTES de o script carregar.
-//  - Os DADOS da transação são lidos do HTML por classes "bpmpi_*" nos inputs.
-//  - window.bpmpi_authenticate() dispara o fluxo; o desafio é renderizado pelo
-//    PRÓPRIO SDK (não exige container nomeado — confirmado no exemplo oficial).
-//  - 3DS completo (com desafio): bpmpi_auth=true e bpmpi_auth_notifyonly AUSENTE
-//    (notifyonly só é exigido em Data Only; presença pode suprimir desafio).
-//  - Sandbox: Environment "SDB" + script mpisandbox.braspag.com.br.
+// ORDEM DE INICIALIZAÇÃO (crítica):
+//  O SDK dispara POST /v2/3ds/init já no LOAD do script (bpmpi_load), lendo o
+//  bpmpi_accesstoken do DOM naquele instante. Portanto o token PRECISA estar
+//  injetado ANTES de o script ser anexado. Fluxo ao montar:
+//   (1) define window.bpmpi_config;
+//   (2) busca o access token em /api/payments/braspag/3ds-session;
+//   (3) injeta o token no input .bpmpi_accesstoken;
+//   (4) SÓ ENTÃO anexa o script BP.Mpi.3ds20.min.js.
+//  Cada RELOAD da página = token novo + init novo (token MPI é de curta duração).
+//  3DS completo (com desafio): bpmpi_auth=true, bpmpi_auth_notifyonly=false.
+//  Sandbox: Environment "SDB" + script mpisandbox.braspag.com.br.
 // =============================================================================
 
 const SDK_SRC = "https://mpisandbox.braspag.com.br/Scripts/BP.Mpi.3ds20.min.js";
@@ -51,7 +53,7 @@ export default function Braspag3dsTestPage() {
   const [sdkReady, setSdkReady] = useState(false);
   const [result, setResult] = useState<AuthResult | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [tokenInjected, setTokenInjected] = useState<boolean | null>(null);
 
   // Formulário mínimo
   const [cardNumber, setCardNumber] = useState("4000000000002503");
@@ -62,15 +64,19 @@ export default function Braspag3dsTestPage() {
   const [orderId, setOrderId] = useState("");
   const [installments, setInstallments] = useState(1);
 
-  const configuredRef = useRef(false);
-  // Container dos inputs bpmpi_*. Sincronizamos TODOS imperativamente a cada
-  // clique, a partir do estado atual do formulário — sem depender do flush do
-  // React, garantindo que o SDK leia exatamente o que está na tela agora.
+  const initRef = useRef(false);
+  // Container dos inputs bpmpi_*. Sincronizamos os DADOS do formulário
+  // imperativamente no clique; o TOKEN é injetado no load (antes do script).
   const hiddenRef = useRef<HTMLDivElement>(null);
 
   function addLog(msg: string) {
     const ts = new Date().toLocaleTimeString("pt-BR");
-    setLogs((prev) => [`[${ts}] ${msg}`, ...prev].slice(0, 20));
+    setLogs((prev) => [`[${ts}] ${msg}`, ...prev].slice(0, 30));
+  }
+
+  function setInput(cls: string, val: string) {
+    const el = hiddenRef.current?.querySelector<HTMLInputElement>(`.${cls}`);
+    if (el) el.value = val;
   }
 
   // orderId default gerado no cliente (evita mismatch de hidratação)
@@ -78,18 +84,19 @@ export default function Braspag3dsTestPage() {
     if (!orderId) setOrderId(`3ds-test-${Date.now()}`);
   }, [orderId]);
 
-  // Define window.bpmpi_config ANTES do script e carrega o SDK
+  // Inicialização na ordem correta: config → token → injeta token → carrega script
   useEffect(() => {
-    if (configuredRef.current) return;
-    configuredRef.current = true;
+    if (initRef.current) return;
+    initRef.current = true;
 
+    // (1) bpmpi_config PRECISA existir antes do script
     window.bpmpi_config = function () {
       return {
         Debug: true,
         Environment: "SDB", // sandbox
         onReady: function () {
           setSdkReady(true);
-          addLog("SDK pronto (onReady).");
+          addLog("SDK pronto (onReady) — init /v2/3ds/init OK.");
         },
         onSuccess: function (e: unknown) {
           setResult({ event: "onSuccess", fields: pick(e) });
@@ -112,75 +119,70 @@ export default function Braspag3dsTestPage() {
       };
     };
 
-    // Carrega o script só DEPOIS de bpmpi_config estar definido
-    if (!document.getElementById(SDK_SCRIPT_ID)) {
-      const s = document.createElement("script");
-      s.id = SDK_SCRIPT_ID;
-      s.src = SDK_SRC;
-      s.async = true;
-      s.onerror = () => addLog("ERRO: falha ao carregar o SDK BP.Mpi.3ds20.");
-      document.body.appendChild(s);
-    }
+    // (2)(3)(4) busca token → injeta → só então carrega o script
+    (async () => {
+      try {
+        const res = await fetch("/api/payments/braspag/3ds-session", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        const ecLabel = `EstablishmentCode=${data.establishmentCode ?? "(não setado)"}`;
+
+        if (!res.ok || !data.accessToken) {
+          const detail =
+            data.mpiStatus !== undefined
+              ? `MPI ${data.mpiStatus}: ${JSON.stringify(data.mpiBody)}`
+              : data.error || "sem accessToken";
+          setTokenInjected(false);
+          addLog(`Token injetado em bpmpi_accesstoken ANTES do load do script? NÃO — falha ao obter token (HTTP ${res.status}). ${ecLabel}. ${detail}`);
+          addLog("Script NÃO carregado (sem token não faz sentido iniciar o SDK). Recarregue após corrigir o env.");
+          return;
+        }
+
+        // (3) injeta o token ANTES do script
+        setInput("bpmpi_accesstoken", data.accessToken);
+        setTokenInjected(true);
+        addLog(`Token injetado em bpmpi_accesstoken ANTES do load do script? SIM (${String(data.accessToken).length} chars, ${ecLabel}).`);
+
+        // (4) só agora carrega o script → dispara /v2/3ds/init com o token presente
+        if (!document.getElementById(SDK_SCRIPT_ID)) {
+          const s = document.createElement("script");
+          s.id = SDK_SCRIPT_ID;
+          s.src = SDK_SRC;
+          s.async = true;
+          s.onerror = () => addLog("ERRO: falha ao carregar o SDK BP.Mpi.3ds20.");
+          document.body.appendChild(s);
+          addLog("Script BP.Mpi.3ds20 anexado ao DOM (depois do token).");
+        }
+      } catch (err) {
+        setTokenInjected(false);
+        addLog(`Token injetado ANTES do load? NÃO — erro de rede ao obter token: ${(err as Error)?.message || "erro"}`);
+      }
+    })();
   }, []);
 
-  // Sincroniza os inputs bpmpi_* com os valores ATUAIS do formulário + token
-  // recém-buscado, lendo o estado vigente neste clique e escrevendo direto no
-  // DOM (o SDK lê os inputs por classe no momento do authenticate).
-  function syncHiddenInputs(token: string) {
-    const root = hiddenRef.current;
-    if (!root) return;
-    const set = (cls: string, val: string) => {
-      const el = root.querySelector<HTMLInputElement>(`.${cls}`);
-      if (el) el.value = val;
-    };
+  // Sincroniza os DADOS do formulário com os inputs bpmpi_* usando os valores
+  // ATUAIS. Não toca no token (esse é da sessão do load).
+  function syncFormInputs() {
     const [m = "", y = ""] = expiration.split("/").map((s) => s.trim());
-    set("bpmpi_accesstoken", token);
-    set("bpmpi_ordernumber", orderId);
-    set("bpmpi_currency", "BRL");
-    set("bpmpi_totalamount", String(amount));
-    set("bpmpi_installments", String(installments));
-    set("bpmpi_paymentmethod", "credit");
-    set("bpmpi_cardnumber", cardNumber);
-    set("bpmpi_cardexpirationmonth", m);
-    set("bpmpi_cardexpirationyear", y);
+    setInput("bpmpi_ordernumber", orderId);
+    setInput("bpmpi_currency", "BRL");
+    setInput("bpmpi_totalamount", String(amount));
+    setInput("bpmpi_installments", String(installments));
+    setInput("bpmpi_paymentmethod", "credit");
+    setInput("bpmpi_cardnumber", cardNumber);
+    setInput("bpmpi_cardexpirationmonth", m);
+    setInput("bpmpi_cardexpirationyear", y);
   }
 
-  // Busca SEMPRE um token novo nesta tentativa (token MPI é de curta duração),
-  // sincroniza os inputs com o formulário atual e só então dispara o SDK.
-  async function authenticate() {
-    if (busy) return;
-    setBusy(true);
+  function authenticate() {
+    if (!sdkReady) return;
     setResult(null);
-    try {
-      const res = await fetch("/api/payments/braspag/3ds-session", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      const ecLabel = `EstablishmentCode=${data.establishmentCode ?? "(não setado)"}`;
-      if (!res.ok || !data.accessToken) {
-        const detail =
-          data.mpiStatus !== undefined
-            ? `MPI ${data.mpiStatus}: ${JSON.stringify(data.mpiBody)}`
-            : data.error || "sem accessToken";
-        addLog(`Token NÃO obtido nesta tentativa (HTTP ${res.status}). ${ecLabel}. ${detail}`);
-        setBusy(false);
-        return;
-      }
-      syncHiddenInputs(data.accessToken);
-      addLog(
-        `Token obtido (${String(data.accessToken).length} chars), ${ecLabel}, inputs sincronizados: cartão …${cardNumber.slice(-4)}, valor ${amount}, order ${orderId}.`,
-      );
-    } catch (err) {
-      addLog(`Token NÃO obtido (erro de rede): ${(err as Error)?.message || "erro"}`);
-      setBusy(false);
-      return;
-    }
-
+    syncFormInputs();
+    addLog(`Autenticando com cartão …${cardNumber.slice(-4)}, valor ${amount}, order ${orderId}.`);
     if (typeof window.bpmpi_authenticate === "function") {
-      addLog("Disparando window.bpmpi_authenticate()…");
       window.bpmpi_authenticate();
     } else {
       addLog("SDK ainda não carregado (window.bpmpi_authenticate indisponível).");
     }
-    setBusy(false);
   }
 
   const labelCls = "block text-sm font-medium text-gray-700 mb-1";
@@ -189,13 +191,29 @@ export default function Braspag3dsTestPage() {
   return (
     <div className="mx-auto max-w-2xl p-6">
       <h1 className="text-xl font-semibold mb-2">Teste 3DS 2.0 — Braspag (sandbox)</h1>
-      <p className="text-sm text-gray-600 mb-4">
+      <p className="text-sm text-gray-600 mb-2">
         Página isolada. Apenas autentica (3DS completo, com desafio) e exibe o resultado. Não
-        autoriza, não faz parte do checkout real. Token é buscado a cada clique em “Autenticar”.
+        autoriza, não faz parte do checkout real.
+      </p>
+      <p className="text-sm font-medium text-amber-700 mb-4">
+        Para testar com um token fresco, RECARREGUE a página. Cada carregamento busca um token novo
+        e refaz o init do SDK (o token MPI é de curta duração).
       </p>
 
-      <div className="mb-4 text-sm">
-        SDK: {sdkReady ? <span className="text-green-700">pronto (onReady)</span> : <span className="text-gray-500">carregando…</span>}
+      <div className="mb-4 text-sm space-y-1">
+        <div>
+          Token injetado antes do script:{" "}
+          {tokenInjected === null ? (
+            <span className="text-gray-500">carregando…</span>
+          ) : tokenInjected ? (
+            <span className="text-green-700">sim</span>
+          ) : (
+            <span className="text-red-700">não</span>
+          )}
+        </div>
+        <div>
+          SDK: {sdkReady ? <span className="text-green-700">pronto (onReady)</span> : <span className="text-gray-500">carregando…</span>}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
@@ -241,16 +259,16 @@ export default function Braspag3dsTestPage() {
 
       {/* ===================================================================
           Inputs lidos pelo SDK por classe bpmpi_*. Mantidos ocultos.
-          - bpmpi_auth = true  → autenticação habilitada (3DS completo).
-          - bpmpi_auth_notifyonly INTENCIONALMENTE AUSENTE: ele só é exigido em
-            Data Only e sua presença pode suprimir o desafio. O exemplo oficial
-            da Braspag também o omite.
-          - O token é injetado por ref no momento do clique (vida curta).
+          - bpmpi_auth = true → autenticação habilitada (3DS completo).
+          - bpmpi_auth_notifyonly = false → NÃO suprimir desafio (não é Data Only).
+          - bpmpi_accesstoken é injetado no LOAD, antes do script (init).
+          - Os demais são sincronizados do formulário a cada clique em Autenticar.
           - CVV NÃO tem classe bpmpi_* — é dado de autorização (1C).
           - O desafio é renderizado pelo próprio SDK; não há container nomeado.
          =================================================================== */}
       <div ref={hiddenRef} style={{ display: "none" }} aria-hidden>
         <input type="hidden" className="bpmpi_auth" defaultValue="true" />
+        <input type="hidden" className="bpmpi_auth_notifyonly" defaultValue="false" />
 
         <input type="hidden" className="bpmpi_accesstoken" defaultValue="" />
         <input type="hidden" className="bpmpi_ordernumber" defaultValue="" />
@@ -266,10 +284,10 @@ export default function Braspag3dsTestPage() {
 
       <button
         onClick={authenticate}
-        disabled={!sdkReady || busy}
+        disabled={!sdkReady}
         className="rounded bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
       >
-        {busy ? "Autenticando…" : "Autenticar"}
+        Autenticar
       </button>
 
       {result && (
@@ -290,10 +308,10 @@ export default function Braspag3dsTestPage() {
         </div>
       )}
 
-      {/* Log visível na página: ajuda a descartar token expirado entre tentativas */}
+      {/* Log visível na página: confirma a ORDEM (token antes do script) */}
       <div className="mt-6">
         <div className="mb-1 text-sm font-semibold">Log da sessão</div>
-        <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs font-mono text-gray-700 max-h-48 overflow-auto">
+        <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs font-mono text-gray-700 max-h-56 overflow-auto">
           {logs.length === 0 ? (
             <div className="text-gray-400">sem eventos ainda…</div>
           ) : (
