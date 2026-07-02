@@ -49,11 +49,65 @@ function pick(e: unknown): Record<string, unknown> {
   };
 }
 
+// URL exata que o SDK chama no load (sandbox), só para o diagnóstico.
+const INIT_URL = "https://mpisandbox.braspag.com.br/v2/3ds/init";
+
+// Decodifica APENAS o payload (parte do meio) de um JWT. NÃO expõe a assinatura.
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const json = decodeURIComponent(
+      atob(b64)
+        .split("")
+        .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+        .join(""),
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+// Serializa qualquer objeto (inclusive props não-enumeráveis de Error) sem
+// quebrar em referências circulares.
+function safeStringify(obj: unknown): string {
+  try {
+    return JSON.stringify(
+      obj,
+      (() => {
+        const seen = new WeakSet();
+        return (_k: string, v: unknown) => {
+          if (typeof v === "object" && v !== null) {
+            if (seen.has(v as object)) return "[circular]";
+            seen.add(v as object);
+          }
+          return v;
+        };
+      })(),
+      2,
+    );
+  } catch {
+    try {
+      return String(obj);
+    } catch {
+      return "[não serializável]";
+    }
+  }
+}
+
 export default function Braspag3dsTestPage() {
   const [sdkReady, setSdkReady] = useState(false);
   const [result, setResult] = useState<AuthResult | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [tokenInjected, setTokenInjected] = useState<boolean | null>(null);
+  // Diagnóstico p/ enviar à Braspag
+  const [tokenClaims, setTokenClaims] = useState<Record<string, unknown> | null>(null);
+  const [establishmentCode, setEstablishmentCode] = useState<string>("(não setado)");
+  const [errorObj, setErrorObj] = useState<unknown>(null);
+  const [copied, setCopied] = useState(false);
 
   // Formulário mínimo
   const [cardNumber, setCardNumber] = useState("4000000000002503");
@@ -112,6 +166,8 @@ export default function Braspag3dsTestPage() {
         },
         onError: function (e: unknown) {
           setResult({ event: "onError", fields: pick(e) });
+          setErrorObj(e); // objeto COMPLETO para o diagnóstico
+          addLog(`onError capturado: ${safeStringify(e)}`);
         },
         onUnsupportedBrand: function (e: unknown) {
           setResult({ event: "onUnsupportedBrand", fields: pick(e) });
@@ -124,6 +180,7 @@ export default function Braspag3dsTestPage() {
       try {
         const res = await fetch("/api/payments/braspag/3ds-session", { method: "POST" });
         const data = await res.json().catch(() => ({}));
+        setEstablishmentCode(data.establishmentCode ?? "(não setado)");
         const ecLabel = `EstablishmentCode=${data.establishmentCode ?? "(não setado)"}`;
 
         if (!res.ok || !data.accessToken) {
@@ -141,6 +198,26 @@ export default function Braspag3dsTestPage() {
         setInput("bpmpi_accesstoken", data.accessToken);
         setTokenInjected(true);
         addLog(`Token injetado em bpmpi_accesstoken ANTES do load do script? SIM (${String(data.accessToken).length} chars, ${ecLabel}).`);
+
+        // Decodifica o payload do JWT (sem assinatura) e exibe os claims.
+        const claims = decodeJwtPayload(data.accessToken);
+        setTokenClaims(claims);
+        if (claims) {
+          addLog(`Claims do token (payload, sem assinatura): ${safeStringify(claims)}`);
+          const exp = typeof claims.exp === "number" ? claims.exp : undefined;
+          if (exp) {
+            const expMs = exp * 1000;
+            const nowMs = Date.now();
+            const expired = expMs <= nowMs;
+            addLog(
+              `Token exp=${new Date(expMs).toISOString()} | agora=${new Date(nowMs).toISOString()} | ${expired ? "EXPIRADO no init" : `válido (~${Math.round((expMs - nowMs) / 1000)}s restantes)`}`,
+            );
+          } else {
+            addLog("Token sem claim 'exp' numérico (ver payload acima).");
+          }
+        } else {
+          addLog("Não foi possível decodificar o payload do token como JWT.");
+        }
 
         // (4) só agora carrega o script → dispara /v2/3ds/init com o token presente
         if (!document.getElementById(SDK_SCRIPT_ID)) {
@@ -182,6 +259,36 @@ export default function Braspag3dsTestPage() {
       window.bpmpi_authenticate();
     } else {
       addLog("SDK ainda não carregado (window.bpmpi_authenticate indisponível).");
+    }
+  }
+
+  // Monta o texto de diagnóstico p/ enviar à Braspag e copia para o clipboard.
+  function buildDiagnostic(): string {
+    return [
+      "=== Diagnóstico 3DS Braspag (MPI900 / 401 no /v2/3ds/init) ===",
+      `Gerado em: ${new Date().toISOString()}`,
+      `Environment: SDB (sandbox)`,
+      `EstablishmentCode: ${establishmentCode}`,
+      `URL do init: POST ${INIT_URL}`,
+      "",
+      "--- Token access (payload JWT decodificado, SEM assinatura) ---",
+      tokenClaims ? safeStringify(tokenClaims) : "(sem claims — token não decodificado)",
+      "",
+      "--- onError retornado pelo SDK no init ---",
+      errorObj !== null ? safeStringify(errorObj) : "(nenhum onError capturado até agora)",
+    ].join("\n");
+  }
+
+  async function copyDiagnostic() {
+    const text = buildDiagnostic();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      addLog("Diagnóstico copiado para a área de transferência.");
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      addLog("Falha ao copiar automaticamente — texto do diagnóstico impresso no log abaixo:");
+      addLog(text);
     }
   }
 
@@ -282,13 +389,21 @@ export default function Braspag3dsTestPage() {
         <input type="hidden" className="bpmpi_cardexpirationyear" defaultValue="" />
       </div>
 
-      <button
-        onClick={authenticate}
-        disabled={!sdkReady}
-        className="rounded bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
-      >
-        Autenticar
-      </button>
+      <div className="flex gap-3">
+        <button
+          onClick={authenticate}
+          disabled={!sdkReady}
+          className="rounded bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+        >
+          Autenticar
+        </button>
+        <button
+          onClick={copyDiagnostic}
+          className="rounded border border-gray-400 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+        >
+          {copied ? "Copiado!" : "Copiar diagnóstico"}
+        </button>
+      </div>
 
       {result && (
         <div className="mt-6 rounded border border-gray-300 p-4">
