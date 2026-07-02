@@ -62,9 +62,14 @@ export async function getBraspag3dsAccessToken(): Promise<string> {
 
   // EstablishmentCode: exigido do env (sem default silencioso). NUNCA usar o
   // MerchantId do gateway aqui (são identificadores diferentes).
+  // O exemplo oficial da Braspag envia o campo SEM aspas (número). Enviamos como
+  // Number; se o valor do env não for numérico, mantém string (fallback defensivo).
   const establishmentCode = getBraspag3dsEstablishmentCode();
+  const establishmentCodeNumeric = /^\d+$/.test(establishmentCode)
+    ? Number(establishmentCode)
+    : establishmentCode;
   const body = {
-    EstablishmentCode: establishmentCode,
+    EstablishmentCode: establishmentCodeNumeric,
     MerchantName: process.env.BRASPAG_3DS_MERCHANT_NAME || "Solarium Mantiqueira",
     MCC: process.env.BRASPAG_3DS_MCC || "7011", // 7011 = hospedagem
   };
