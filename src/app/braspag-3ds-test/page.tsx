@@ -148,9 +148,15 @@ export default function Braspag3dsTestPage() {
   const [installments, setInstallments] = useState(1);
 
   const initRef = useRef(false);
-  // Container dos inputs bpmpi_*. Sincronizamos os DADOS do formulário
-  // imperativamente no clique; o TOKEN é injetado no load (antes do script).
-  const hiddenRef = useRef<HTMLDivElement>(null);
+  // Container dos inputs bpmpi_*. Os inputs são criados IMPERATIVAMENTE via
+  // document.createElement — NUNCA pelo JSX. Motivo (causa raiz do 401 Code 600):
+  // inputs renderizados pelo React com defaultValue="" eram recriados/resetados
+  // por re-renders entre o appendChild do script e a execução assíncrona dele,
+  // e o SDK lia tudo vazio (Authorization "Bearer " len=7, orderNumber="",
+  // amount="" no HAR). Além disso o SDK REMOVE o nó bpmpi_accesstoken após ler —
+  // nenhuma reconciliação do React pode recriá-lo ou conflitar com isso.
+  // O React renderiza apenas o div vazio; nenhum render depende dos filhos.
+  const bpmpiContainerRef = useRef<HTMLDivElement>(null);
   // Token da sessão (para comparar com o Authorization interceptado no XHR).
   const sessionTokenRef = useRef<string>("");
 
@@ -159,21 +165,15 @@ export default function Braspag3dsTestPage() {
     setLogs((prev) => [`[${ts}] ${msg}`, ...prev].slice(0, 30));
   }
 
-  // Seta o valor do input TANTO na propriedade DOM (.value) QUANTO no atributo
-  // HTML (setAttribute("value", …)). O SDK lê via .value, mas alguns fluxos leem
-  // via getAttribute — setar ambos evita ler vazio.
+  // Atualiza um input imperativo existente no container (propriedade + atributo).
+  // NÃO cria nós — criação acontece uma única vez no init.
   function setInput(cls: string, val: string) {
-    const el = hiddenRef.current?.querySelector<HTMLInputElement>(`.${cls}`);
+    const el = bpmpiContainerRef.current?.querySelector<HTMLInputElement>(`.${cls}`);
     if (el) {
       el.value = val;
       el.setAttribute("value", val);
     }
   }
-
-  // orderId default gerado no cliente (evita mismatch de hidratação)
-  useEffect(() => {
-    if (!orderId) setOrderId(`3ds-test-${Date.now()}`);
-  }, [orderId]);
 
   // Inicialização na ordem correta: config → token → injeta token → carrega script
   useEffect(() => {
@@ -253,11 +253,54 @@ export default function Braspag3dsTestPage() {
           return;
         }
 
-        // (3) injeta o token ANTES do script
+        // (3) cria TODOS os inputs bpmpi_* imperativamente (fora do React) já
+        // com os valores preenchidos, e injeta o token. document.createElement +
+        // appendChild — o React nunca reconcilia esses nós.
+        const container = bpmpiContainerRef.current;
+        if (!container) {
+          addLog("ERRO: container bpmpi indisponível no DOM.");
+          return;
+        }
+        container.innerHTML = ""; // estado limpo (remount de dev não duplica nós)
+
+        const mk = (cls: string, val: string) => {
+          const el = document.createElement("input");
+          el.type = "hidden";
+          el.className = cls;
+          el.value = val;
+          container.appendChild(el);
+        };
+
+        const generatedOrder = `3ds-test-${Date.now()}`;
+        setOrderId(generatedOrder); // espelha no formulário React (só exibição)
+        const [expM = "", expY = ""] = expiration.split("/").map((s) => s.trim());
+
         sessionTokenRef.current = String(data.accessToken);
-        setInput("bpmpi_accesstoken", data.accessToken);
+        mk("bpmpi_accesstoken", String(data.accessToken));
+        mk("bpmpi_auth", "true");
+        mk("bpmpi_auth_notifyonly", "false");
+        mk("bpmpi_ordernumber", generatedOrder);
+        mk("bpmpi_currency", "BRL");
+        mk("bpmpi_totalamount", String(amount));
+        mk("bpmpi_installments", String(installments));
+        mk("bpmpi_paymentmethod", "Credit");
+        mk("bpmpi_cardnumber", cardNumber);
+        mk("bpmpi_cardexpirationmonth", expM);
+        mk("bpmpi_cardexpirationyear", expY);
+        mk("bpmpi_merchant_url", MERCHANT_URL);
+        mk("bpmpi_order_productcode", ORDER_PRODUCTCODE);
+        mk("bpmpi_transaction_mode", TRANSACTION_MODE);
+        mk("bpmpi_billto_name", BILLTO.name);
+        mk("bpmpi_billto_email", BILLTO.email);
+        mk("bpmpi_billto_phonenumber", BILLTO.phonenumber);
+        mk("bpmpi_billto_street1", BILLTO.street1);
+        mk("bpmpi_billto_city", BILLTO.city);
+        mk("bpmpi_billto_state", BILLTO.state);
+        mk("bpmpi_billto_country", BILLTO.country);
+        mk("bpmpi_billto_zipcode", BILLTO.zipcode);
+
         setTokenInjected(true);
-        addLog(`Token injetado em bpmpi_accesstoken ANTES do load do script? SIM (${String(data.accessToken).length} chars, ${ecLabel}).`);
+        addLog(`Token injetado em bpmpi_accesstoken ANTES do load do script? SIM (${String(data.accessToken).length} chars, ${ecLabel}). Inputs criados imperativamente (fora do React).`);
 
         // Decodifica o payload do JWT (sem assinatura) e exibe os claims.
         const claims = decodeJwtPayload(data.accessToken);
@@ -278,11 +321,6 @@ export default function Braspag3dsTestPage() {
         } else {
           addLog("Não foi possível decodificar o payload do token como JWT.");
         }
-
-        // Popula os demais inputs (fixos + formulário) ANTES do script, para que
-        // o init já encontre tudo preenchido no DOM.
-        syncStaticInputs();
-        syncFormInputs();
 
         // Verificação de duplicidade/vazio: o SDK lê APENAS o .value da PRIMEIRA
         // ocorrência da classe (getElementsByClassName(...)[0].value). Logamos o
@@ -319,8 +357,8 @@ export default function Braspag3dsTestPage() {
     })();
   }, []);
 
-  // Campos fixos (estabelecimento + billto de teste). Não mudam com o formulário;
-  // setados no load (antes do script) e reforçados no authenticate.
+  // Campos fixos (estabelecimento + billto de teste). Criados no init; aqui
+  // apenas reescreve os valores nos nós imperativos existentes (não cria nada).
   function syncStaticInputs() {
     setInput("bpmpi_merchant_url", MERCHANT_URL);
     setInput("bpmpi_order_productcode", ORDER_PRODUCTCODE);
@@ -335,15 +373,16 @@ export default function Braspag3dsTestPage() {
     setInput("bpmpi_billto_zipcode", BILLTO.zipcode);
   }
 
-  // Sincroniza os DADOS do formulário com os inputs bpmpi_* usando os valores
-  // ATUAIS. Não toca no token (esse é da sessão do load).
+  // Sincroniza os nós imperativos com os valores ATUAIS do formulário React.
+  // NÃO toca no token: o SDK REMOVE o nó bpmpi_accesstoken após ler (comportamento
+  // normal dele) e não devemos recriá-lo no clique.
   function syncFormInputs() {
     const [m = "", y = ""] = expiration.split("/").map((s) => s.trim());
     setInput("bpmpi_ordernumber", orderId);
     setInput("bpmpi_currency", "BRL");
     setInput("bpmpi_totalamount", String(amount));
     setInput("bpmpi_installments", String(installments));
-    setInput("bpmpi_paymentmethod", "credit");
+    setInput("bpmpi_paymentmethod", "Credit");
     setInput("bpmpi_cardnumber", cardNumber);
     setInput("bpmpi_cardexpirationmonth", m);
     setInput("bpmpi_cardexpirationyear", y);
@@ -465,43 +504,14 @@ export default function Braspag3dsTestPage() {
       </div>
 
       {/* ===================================================================
-          Inputs lidos pelo SDK por classe bpmpi_*. Mantidos ocultos.
-          - bpmpi_auth = true → autenticação habilitada (3DS completo).
-          - bpmpi_auth_notifyonly = false → NÃO suprimir desafio (não é Data Only).
-          - bpmpi_accesstoken é injetado no LOAD, antes do script (init).
-          - Os demais são sincronizados do formulário a cada clique em Autenticar.
-          - CVV NÃO tem classe bpmpi_* — é dado de autorização (1C).
-          - O desafio é renderizado pelo próprio SDK; não há container nomeado.
+          Container dos inputs bpmpi_*. O React renderiza APENAS este div vazio.
+          Os inputs são criados imperativamente (document.createElement) no init,
+          já preenchidos, ANTES do load do script — assim nenhum re-render do
+          React recria/reseta os nós, e a remoção do bpmpi_accesstoken pelo SDK
+          (comportamento normal após a leitura) não conflita com reconciliação.
          =================================================================== */}
-      <div ref={hiddenRef} style={{ display: "none" }} aria-hidden>
-        <input type="hidden" className="bpmpi_auth" defaultValue="true" />
-        <input type="hidden" className="bpmpi_auth_notifyonly" defaultValue="false" />
+      <div ref={bpmpiContainerRef} style={{ display: "none" }} />
 
-        <input type="hidden" className="bpmpi_accesstoken" defaultValue="" />
-        <input type="hidden" className="bpmpi_ordernumber" defaultValue="" />
-        <input type="hidden" className="bpmpi_currency" defaultValue="BRL" />
-        <input type="hidden" className="bpmpi_totalamount" defaultValue="" />
-        <input type="hidden" className="bpmpi_installments" defaultValue="" />
-        <input type="hidden" className="bpmpi_paymentmethod" defaultValue="credit" />
-
-        <input type="hidden" className="bpmpi_cardnumber" defaultValue="" />
-        <input type="hidden" className="bpmpi_cardexpirationmonth" defaultValue="" />
-        <input type="hidden" className="bpmpi_cardexpirationyear" defaultValue="" />
-
-        {/* Campos do exemplo oficial (estabelecimento + billto de teste).
-            Valores setados via setInput (atributo + propriedade) em syncStaticInputs. */}
-        <input type="hidden" className="bpmpi_merchant_url" defaultValue="" />
-        <input type="hidden" className="bpmpi_order_productcode" defaultValue="" />
-        <input type="hidden" className="bpmpi_transaction_mode" defaultValue="" />
-        <input type="hidden" className="bpmpi_billto_name" defaultValue="" />
-        <input type="hidden" className="bpmpi_billto_email" defaultValue="" />
-        <input type="hidden" className="bpmpi_billto_phonenumber" defaultValue="" />
-        <input type="hidden" className="bpmpi_billto_street1" defaultValue="" />
-        <input type="hidden" className="bpmpi_billto_city" defaultValue="" />
-        <input type="hidden" className="bpmpi_billto_state" defaultValue="" />
-        <input type="hidden" className="bpmpi_billto_country" defaultValue="" />
-        <input type="hidden" className="bpmpi_billto_zipcode" defaultValue="" />
-      </div>
 
       <div className="flex gap-3">
         <button
