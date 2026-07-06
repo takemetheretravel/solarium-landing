@@ -18,11 +18,34 @@ import { useEffect, useRef, useState } from "react";
 //   (4) SÓ ENTÃO anexa o script BP.Mpi.3ds20.min.js.
 //  Cada RELOAD da página = token novo + init novo (token MPI é de curta duração).
 //  3DS completo (com desafio): bpmpi_auth=true, bpmpi_auth_notifyonly=false.
-//  Sandbox: Environment "SDB" + script mpisandbox.braspag.com.br.
+//  Sandbox: Environment "SDB".
+//
+// SCRIPT SELF-HOSTED (exigência da doc: "O arquivo JavaScript deve ser salvo no
+// servidor onde está a aplicação da loja"). O arquivo em
+// public/scripts/BP.Mpi.3ds20.min.js foi baixado de
+// https://mpisandbox.braspag.com.br/Scripts/BP.Mpi.3ds20.min.js em 2026-07-05.
+// Se a Braspag atualizar o SDK, re-baixar dessa origem e recommitar.
 // =============================================================================
 
-const SDK_SRC = "https://mpisandbox.braspag.com.br/Scripts/BP.Mpi.3ds20.min.js";
+const SDK_SRC = "/scripts/BP.Mpi.3ds20.min.js"; // mesmo domínio (self-hosted)
 const SDK_SCRIPT_ID = "bpmpi-3ds20-sdk";
+
+// Campos fixos do pedido/estabelecimento e billto (dados de TESTE) alinhados ao
+// exemplo oficial. productcode = "PHY" (o domínio oficial não traz "ACC").
+// transaction_mode = "S" conforme especificado.
+const MERCHANT_URL = "https://staging.solariummantiqueira.com";
+const ORDER_PRODUCTCODE = "PHY";
+const TRANSACTION_MODE = "S";
+const BILLTO = {
+  name: "Teste Solarium",
+  email: "teste@solariummantiqueira.com",
+  phonenumber: "5535999990000",
+  street1: "Rua das Flores, 100",
+  city: "Itanhandu",
+  state: "MG",
+  country: "BR",
+  zipcode: "37464000",
+};
 
 type AuthResult = {
   event: string;
@@ -128,9 +151,15 @@ export default function Braspag3dsTestPage() {
     setLogs((prev) => [`[${ts}] ${msg}`, ...prev].slice(0, 30));
   }
 
+  // Seta o valor do input TANTO na propriedade DOM (.value) QUANTO no atributo
+  // HTML (setAttribute("value", …)). O SDK lê via .value, mas alguns fluxos leem
+  // via getAttribute — setar ambos evita ler vazio.
   function setInput(cls: string, val: string) {
     const el = hiddenRef.current?.querySelector<HTMLInputElement>(`.${cls}`);
-    if (el) el.value = val;
+    if (el) {
+      el.value = val;
+      el.setAttribute("value", val);
+    }
   }
 
   // orderId default gerado no cliente (evita mismatch de hidratação)
@@ -219,6 +248,11 @@ export default function Braspag3dsTestPage() {
           addLog("Não foi possível decodificar o payload do token como JWT.");
         }
 
+        // Popula os demais inputs (fixos + formulário) ANTES do script, para que
+        // o init já encontre tudo preenchido no DOM.
+        syncStaticInputs();
+        syncFormInputs();
+
         // (4) só agora carrega o script → dispara /v2/3ds/init com o token presente
         if (!document.getElementById(SDK_SCRIPT_ID)) {
           const s = document.createElement("script");
@@ -235,6 +269,22 @@ export default function Braspag3dsTestPage() {
       }
     })();
   }, []);
+
+  // Campos fixos (estabelecimento + billto de teste). Não mudam com o formulário;
+  // setados no load (antes do script) e reforçados no authenticate.
+  function syncStaticInputs() {
+    setInput("bpmpi_merchant_url", MERCHANT_URL);
+    setInput("bpmpi_order_productcode", ORDER_PRODUCTCODE);
+    setInput("bpmpi_transaction_mode", TRANSACTION_MODE);
+    setInput("bpmpi_billto_name", BILLTO.name);
+    setInput("bpmpi_billto_email", BILLTO.email);
+    setInput("bpmpi_billto_phonenumber", BILLTO.phonenumber);
+    setInput("bpmpi_billto_street1", BILLTO.street1);
+    setInput("bpmpi_billto_city", BILLTO.city);
+    setInput("bpmpi_billto_state", BILLTO.state);
+    setInput("bpmpi_billto_country", BILLTO.country);
+    setInput("bpmpi_billto_zipcode", BILLTO.zipcode);
+  }
 
   // Sincroniza os DADOS do formulário com os inputs bpmpi_* usando os valores
   // ATUAIS. Não toca no token (esse é da sessão do load).
@@ -253,6 +303,7 @@ export default function Braspag3dsTestPage() {
   function authenticate() {
     if (!sdkReady) return;
     setResult(null);
+    syncStaticInputs();
     syncFormInputs();
     addLog(`Autenticando com cartão …${cardNumber.slice(-4)}, valor ${amount}, order ${orderId}.`);
     if (typeof window.bpmpi_authenticate === "function") {
@@ -387,6 +438,20 @@ export default function Braspag3dsTestPage() {
         <input type="hidden" className="bpmpi_cardnumber" defaultValue="" />
         <input type="hidden" className="bpmpi_cardexpirationmonth" defaultValue="" />
         <input type="hidden" className="bpmpi_cardexpirationyear" defaultValue="" />
+
+        {/* Campos do exemplo oficial (estabelecimento + billto de teste).
+            Valores setados via setInput (atributo + propriedade) em syncStaticInputs. */}
+        <input type="hidden" className="bpmpi_merchant_url" defaultValue="" />
+        <input type="hidden" className="bpmpi_order_productcode" defaultValue="" />
+        <input type="hidden" className="bpmpi_transaction_mode" defaultValue="" />
+        <input type="hidden" className="bpmpi_billto_name" defaultValue="" />
+        <input type="hidden" className="bpmpi_billto_email" defaultValue="" />
+        <input type="hidden" className="bpmpi_billto_phonenumber" defaultValue="" />
+        <input type="hidden" className="bpmpi_billto_street1" defaultValue="" />
+        <input type="hidden" className="bpmpi_billto_city" defaultValue="" />
+        <input type="hidden" className="bpmpi_billto_state" defaultValue="" />
+        <input type="hidden" className="bpmpi_billto_country" defaultValue="" />
+        <input type="hidden" className="bpmpi_billto_zipcode" defaultValue="" />
       </div>
 
       <div className="flex gap-3">
