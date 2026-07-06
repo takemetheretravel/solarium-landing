@@ -75,6 +75,12 @@ function pick(e: unknown): Record<string, unknown> {
 // URL exata que o SDK chama no load (sandbox), só para o diagnóstico.
 const INIT_URL = "https://mpisandbox.braspag.com.br/v2/3ds/init";
 
+// Recorte seguro para log: comprimento + 25 primeiros + 25 últimos chars.
+// NUNCA logar o valor inteiro (token/Authorization).
+function excerpt(s: string): string {
+  return `len=${s.length} | inicio="${s.slice(0, 25)}" | fim="${s.slice(-25)}"`;
+}
+
 // Decodifica APENAS o payload (parte do meio) de um JWT. NÃO expõe a assinatura.
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -145,6 +151,8 @@ export default function Braspag3dsTestPage() {
   // Container dos inputs bpmpi_*. Sincronizamos os DADOS do formulário
   // imperativamente no clique; o TOKEN é injetado no load (antes do script).
   const hiddenRef = useRef<HTMLDivElement>(null);
+  // Token da sessão (para comparar com o Authorization interceptado no XHR).
+  const sessionTokenRef = useRef<string>("");
 
   function addLog(msg: string) {
     const ts = new Date().toLocaleTimeString("pt-BR");
@@ -204,6 +212,28 @@ export default function Braspag3dsTestPage() {
       };
     };
 
+    // Experimento B: monkey-patch de XMLHttpRequest ANTES do script do SDK,
+    // para capturar o Authorization REAL enviado ao /v2/3ds/init. Loga apenas
+    // recorte seguro (len + 25 primeiros/últimos) — NUNCA o valor inteiro.
+    type PatchedXhr = XMLHttpRequest & { __bpmpiUrl?: string };
+    const xhrProto = XMLHttpRequest.prototype;
+    const origOpen = xhrProto.open;
+    const origSetRequestHeader = xhrProto.setRequestHeader;
+    xhrProto.open = function (this: PatchedXhr) {
+      // eslint-disable-next-line prefer-rest-params
+      const args = arguments as unknown as Parameters<typeof origOpen>;
+      this.__bpmpiUrl = String(args[1]);
+      return origOpen.apply(this, args);
+    } as typeof xhrProto.open;
+    xhrProto.setRequestHeader = function (this: PatchedXhr, name: string, value: string) {
+      if (this.__bpmpiUrl?.includes("/v2/3ds/init") && name.toLowerCase() === "authorization") {
+        addLog(
+          `[intercept /v2/3ds/init] Authorization enviado pelo SDK: ${excerpt(value)} ||| accessToken da sessão: ${excerpt(sessionTokenRef.current || "(vazio)")}`,
+        );
+      }
+      return origSetRequestHeader.call(this, name, value);
+    };
+
     // (2)(3)(4) busca token → injeta → só então carrega o script
     (async () => {
       try {
@@ -224,6 +254,7 @@ export default function Braspag3dsTestPage() {
         }
 
         // (3) injeta o token ANTES do script
+        sessionTokenRef.current = String(data.accessToken);
         setInput("bpmpi_accesstoken", data.accessToken);
         setTokenInjected(true);
         addLog(`Token injetado em bpmpi_accesstoken ANTES do load do script? SIM (${String(data.accessToken).length} chars, ${ecLabel}).`);
