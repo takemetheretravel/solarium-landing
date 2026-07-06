@@ -284,6 +284,24 @@ export default function Braspag3dsTestPage() {
         syncStaticInputs();
         syncFormInputs();
 
+        // Verificação de duplicidade/vazio: o SDK lê APENAS o .value da PRIMEIRA
+        // ocorrência da classe (getElementsByClassName(...)[0].value). Logamos o
+        // estado exato do DOM no instante imediatamente anterior ao anexo do script.
+        {
+          const els = document.getElementsByClassName("bpmpi_accesstoken");
+          const firstLen = (els[0] as HTMLInputElement | undefined)?.value?.length ?? 0;
+          const expectedLen = String(data.accessToken).length;
+          if (els.length !== 1 || firstLen === 0) {
+            addLog(
+              `⚠️ PROBLEMA PRÉ-SCRIPT: elementos com class bpmpi_accesstoken = ${els.length}; value.length do PRIMEIRO = ${firstLen} (esperado ${expectedLen}). ${els.length > 1 ? "DUPLICIDADE — o SDK lê só o primeiro!" : ""}${firstLen === 0 ? " PRIMEIRO ESTÁ VAZIO — init sairá sem token!" : ""}`,
+            );
+          } else {
+            addLog(
+              `Pré-script OK: 1 elemento bpmpi_accesstoken, value.length do primeiro = ${firstLen} (token emitido = ${expectedLen}).`,
+            );
+          }
+        }
+
         // (4) só agora carrega o script → dispara /v2/3ds/init com o token presente
         if (!document.getElementById(SDK_SCRIPT_ID)) {
           const s = document.createElement("script");
