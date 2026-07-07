@@ -152,3 +152,127 @@ export async function createBraspagSaleSimulado(params: {
   console.log("[Braspag:Simulado]", res.status, JSON.stringify(data).slice(0, 400));
   return { status: res.status, data };
 }
+
+// Resultado normalizado das operações transacionais (autorização/captura).
+export type BraspagTransactionResult = {
+  status: number; // HTTP status
+  paymentId?: string;
+  returnCode?: string;
+  returnMessage?: string;
+  statusCode?: number; // Payment.Status (1=Autorizado, 2=Pago/Capturado, 3=Negado…)
+  raw: unknown;
+};
+
+// 1C — Autorização com autenticação externa (3DS já feito no navegador).
+// POST /v2/sales/ com o bloco ExternalAuthentication (Cavv/Xid/Eci/Version/
+// ReferenceID vindos do onSuccess do SDK). SEM Capture: a captura é SEPARADA
+// (decisão de arquitetura: autoriza → antifraude → PUT /capture). SEM o bloco
+// Credentials por ora — só incluir (com os dummies do exemplo oficial, Code
+// 9999999 etc.) se a API passar a exigir.
+export async function createBraspagAuthorization(params: {
+  orderId: string;
+  amount: number; // centavos
+  installments: number;
+  customer: { name: string; identity: string; email: string; ipAddress: string };
+  card: { number: string; holder: string; expiration: string; cvv: string; brand: string };
+  externalAuthentication: {
+    Cavv: string;
+    Xid: string;
+    Eci: string;
+    Version: string;
+    ReferenceId: string;
+  };
+}): Promise<BraspagTransactionResult> {
+  const body = {
+    MerchantOrderId: params.orderId,
+    Customer: {
+      Name: params.customer.name,
+      Identity: params.customer.identity,
+      IdentityType: "CPF",
+      Email: params.customer.email,
+      IpAddress: params.customer.ipAddress,
+    },
+    Payment: {
+      Provider: "Simulado",
+      Type: "CreditCard",
+      Amount: params.amount,
+      Currency: "BRL",
+      Country: "BRA",
+      Installments: params.installments,
+      Interest: "ByMerchant",
+      Authenticate: true,
+      Recurrent: false,
+      SoftDescriptor: "SolariumTest",
+      CreditCard: {
+        CardNumber: params.card.number,
+        Holder: params.card.holder,
+        ExpirationDate: params.card.expiration, // "MM/AAAA"
+        SecurityCode: params.card.cvv,
+        Brand: params.card.brand,
+        SaveCard: false,
+      },
+      ExternalAuthentication: {
+        Cavv: params.externalAuthentication.Cavv,
+        Xid: params.externalAuthentication.Xid,
+        Eci: params.externalAuthentication.Eci,
+        Version: params.externalAuthentication.Version,
+        ReferenceID: params.externalAuthentication.ReferenceId, // API usa "ReferenceID"
+      },
+    },
+  };
+
+  const res = await fetch(`${BRASPAG_URLS.transactional}/v2/sales/`, {
+    method: "POST",
+    headers: gatewayHeaders(),
+    body: JSON.stringify(body),
+  });
+  const raw = await res.json().catch(() => ({}));
+  const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
+  // Log sem dados sensíveis: nunca o número do cartão (nem mascarado aqui).
+  console.log(
+    "[Braspag:authorize] http=%d order=%s status=%s returnCode=%s paymentId=%s",
+    res.status,
+    params.orderId,
+    String(payment.Status ?? "-"),
+    String(payment.ReturnCode ?? "-"),
+    String(payment.PaymentId ?? "-"),
+  );
+  return {
+    status: res.status,
+    paymentId: payment.PaymentId as string | undefined,
+    returnCode: payment.ReturnCode as string | undefined,
+    returnMessage: payment.ReturnMessage as string | undefined,
+    statusCode: payment.Status as number | undefined,
+    raw,
+  };
+}
+
+// 1C — Captura SEPARADA de uma autorização prévia.
+// PUT /v2/sales/{paymentId}/capture?amount={amount}. Status esperado: 2.
+export async function captureBraspagPayment(
+  paymentId: string,
+  amount: number,
+): Promise<BraspagTransactionResult> {
+  const res = await fetch(
+    `${BRASPAG_URLS.transactional}/v2/sales/${encodeURIComponent(paymentId)}/capture?amount=${amount}`,
+    { method: "PUT", headers: gatewayHeaders() },
+  );
+  const raw = await res.json().catch(() => ({}));
+  // A resposta da captura vem "flat" (Status/ReturnCode na raiz), não sob Payment.
+  const flat = raw as Record<string, unknown>;
+  console.log(
+    "[Braspag:capture] http=%d paymentId=%s status=%s returnCode=%s",
+    res.status,
+    paymentId,
+    String(flat.Status ?? "-"),
+    String(flat.ReturnCode ?? "-"),
+  );
+  return {
+    status: res.status,
+    paymentId,
+    returnCode: flat.ReturnCode as string | undefined,
+    returnMessage: flat.ReturnMessage as string | undefined,
+    statusCode: flat.Status as number | undefined,
+    raw,
+  };
+}

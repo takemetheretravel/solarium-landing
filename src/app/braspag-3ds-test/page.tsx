@@ -138,6 +138,19 @@ export default function Braspag3dsTestPage() {
   const [errorObj, setErrorObj] = useState<unknown>(null);
   const [copied, setCopied] = useState(false);
 
+  // 1C — etapa transacional (autorização + captura separada)
+  type TxResult = {
+    status?: number;
+    paymentId?: string;
+    returnCode?: string;
+    returnMessage?: string;
+    statusCode?: number;
+    error?: string;
+  };
+  const [authResult, setAuthResult] = useState<TxResult | null>(null);
+  const [captureResult, setCaptureResult] = useState<TxResult | null>(null);
+  const [txBusy, setTxBusy] = useState(false);
+
   // Formulário mínimo
   const [cardNumber, setCardNumber] = useState("4000000000002503");
   const [holder, setHolder] = useState("TESTE SOLARIUM");
@@ -431,6 +444,80 @@ export default function Braspag3dsTestPage() {
     }
   }
 
+  // 1C — Autorização no Pagador com ExternalAuthentication (resultado do 3DS).
+  // NOTA: o Provider Simulado decide aprovação pelo NÚMERO do cartão, não pelo
+  // 3DS. Se a autorização vier negada com o cartão usado na autenticação, edite
+  // o número do cartão no formulário e reautorize — em sandbox o
+  // ExternalAuthentication não é invalidado pela troca do número.
+  async function authorize() {
+    if (!result || result.event !== "onSuccess" || txBusy) return;
+    setTxBusy(true);
+    setAuthResult(null);
+    setCaptureResult(null);
+    const f = result.fields;
+    addLog(`1C: autorizando order ${orderId}, valor ${amount}, cartão ****${cardNumber.slice(-4)}…`);
+    try {
+      const res = await fetch("/api/payments/braspag/authorize-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          amount,
+          installments,
+          card: {
+            number: cardNumber,
+            holder,
+            expiration,
+            cvv,
+            brand: "Visa", // cartões de teste em uso são Visa
+          },
+          externalAuthentication: {
+            Cavv: f.Cavv,
+            Xid: f.Xid,
+            Eci: f.Eci,
+            Version: f.Version,
+            ReferenceId: f.ReferenceId,
+          },
+        }),
+      });
+      const data: TxResult = await res.json().catch(() => ({ error: "resposta inválida" }));
+      setAuthResult(data);
+      addLog(
+        `1C autorização: HTTP ${res.status} | Payment.Status=${data.statusCode ?? "-"} | PaymentId=${data.paymentId ?? "-"} | ReturnCode=${data.returnCode ?? "-"} | ReturnMessage=${data.returnMessage ?? data.error ?? "-"}`,
+      );
+    } catch (err) {
+      const msg = (err as Error)?.message || "erro";
+      setAuthResult({ error: msg });
+      addLog(`1C autorização: erro de rede — ${msg}`);
+    }
+    setTxBusy(false);
+  }
+
+  // 1C — Captura SEPARADA (nunca Capture:true no fluxo real).
+  async function capture() {
+    if (!authResult?.paymentId || authResult.statusCode !== 1 || txBusy) return;
+    setTxBusy(true);
+    setCaptureResult(null);
+    addLog(`1C: capturando PaymentId ${authResult.paymentId}, valor ${amount}…`);
+    try {
+      const res = await fetch("/api/payments/braspag/capture-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId: authResult.paymentId, amount }),
+      });
+      const data: TxResult = await res.json().catch(() => ({ error: "resposta inválida" }));
+      setCaptureResult(data);
+      addLog(
+        `1C captura: HTTP ${res.status} | Status=${data.statusCode ?? "-"} (esperado 2=capturado) | ReturnCode=${data.returnCode ?? "-"} | ReturnMessage=${data.returnMessage ?? data.error ?? "-"}`,
+      );
+    } catch (err) {
+      const msg = (err as Error)?.message || "erro";
+      setCaptureResult({ error: msg });
+      addLog(`1C captura: erro de rede — ${msg}`);
+    }
+    setTxBusy(false);
+  }
+
   const labelCls = "block text-sm font-medium text-gray-700 mb-1";
   const inputCls = "w-full rounded border border-gray-300 px-3 py-2 text-sm";
 
@@ -544,6 +631,92 @@ export default function Braspag3dsTestPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* 1C — etapa transacional: autorização com ExternalAuthentication + captura separada */}
+      {result?.event === "onSuccess" && (
+        <div className="mt-6 rounded border border-blue-300 bg-blue-50 p-4">
+          <div className="mb-2 text-sm font-semibold">1C — Autorização + captura separada</div>
+          <p className="mb-3 text-xs text-gray-600">
+            Usa o resultado 3DS acima (Cavv/Xid/Eci/Version/ReferenceId) no bloco
+            ExternalAuthentication. O Provider Simulado aprova/nega pelo número do cartão — se a
+            autorização for negada, edite o número no formulário e reautorize.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={authorize}
+              disabled={txBusy}
+              className="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            >
+              {txBusy && !authResult ? "Autorizando…" : "Autorizar (1C)"}
+            </button>
+            <button
+              onClick={capture}
+              disabled={txBusy || authResult?.statusCode !== 1 || !authResult?.paymentId}
+              className="rounded bg-green-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            >
+              {txBusy && authResult ? "Capturando…" : "Capturar"}
+            </button>
+          </div>
+
+          {authResult && (
+            <div className="mt-3 text-sm">
+              <div className="font-semibold">Autorização</div>
+              <table className="w-full text-sm">
+                <tbody>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-1 pr-4 font-medium text-gray-600">Payment.Status</td>
+                    <td className="py-1 font-mono">
+                      {authResult.statusCode ?? "—"}{" "}
+                      {authResult.statusCode === 1
+                        ? "(autorizado)"
+                        : authResult.statusCode === 3
+                          ? "(negado)"
+                          : ""}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-1 pr-4 font-medium text-gray-600">PaymentId</td>
+                    <td className="py-1 font-mono break-all">{authResult.paymentId ?? "—"}</td>
+                  </tr>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-1 pr-4 font-medium text-gray-600">ReturnCode</td>
+                    <td className="py-1 font-mono">{authResult.returnCode ?? "—"}</td>
+                  </tr>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-1 pr-4 font-medium text-gray-600">ReturnMessage</td>
+                    <td className="py-1 font-mono">{authResult.returnMessage ?? authResult.error ?? "—"}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {captureResult && (
+            <div className="mt-3 text-sm">
+              <div className="font-semibold">Captura (separada)</div>
+              <table className="w-full text-sm">
+                <tbody>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-1 pr-4 font-medium text-gray-600">Status final</td>
+                    <td className="py-1 font-mono">
+                      {captureResult.statusCode ?? "—"}{" "}
+                      {captureResult.statusCode === 2 ? "(capturado ✓)" : "(esperado 2=capturado)"}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-1 pr-4 font-medium text-gray-600">ReturnCode</td>
+                    <td className="py-1 font-mono">{captureResult.returnCode ?? "—"}</td>
+                  </tr>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-1 pr-4 font-medium text-gray-600">ReturnMessage</td>
+                    <td className="py-1 font-mono">{captureResult.returnMessage ?? captureResult.error ?? "—"}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
