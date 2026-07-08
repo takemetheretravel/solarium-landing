@@ -81,6 +81,24 @@ function excerpt(s: string): string {
   return `len=${s.length} | inicio="${s.slice(0, 25)}" | fim="${s.slice(-25)}"`;
 }
 
+// Status de venda Pix (Payment.Status).
+function pixStatusLabel(status?: number): string {
+  switch (status) {
+    case 12:
+      return "Pendente (aguardando pagamento)";
+    case 1:
+      return "Autorizado";
+    case 2:
+      return "Pago";
+    case 10:
+      return "Cancelado (Void)";
+    case 13:
+      return "Abortado";
+    default:
+      return status === undefined ? "—" : `código ${status}`;
+  }
+}
+
 // Status do antifraude Cybersource (Payment.FraudAnalysis.Status).
 function fraudLabel(status?: number): string {
   switch (status) {
@@ -183,6 +201,25 @@ export default function Braspag3dsTestPage() {
   const [afOrgId, setAfOrgId] = useState<string>("");
   const [afScriptStatus, setAfScriptStatus] = useState<"idle" | "injected" | "loaded" | "error">("idle");
   const afInitRef = useRef(false);
+
+  // Camada 3 — Pix (isolado do cartão)
+  type PixResult = {
+    status?: number;
+    paymentId?: string;
+    statusCode?: number;
+    qrCodeBase64Image?: string;
+    qrCodeString?: string;
+    returnCode?: string;
+    returnMessage?: string;
+    error?: string;
+  };
+  const [pixAmount, setPixAmount] = useState(1000);
+  const [pixOrderId, setPixOrderId] = useState("");
+  const [pixResult, setPixResult] = useState<PixResult | null>(null);
+  const [pixStatusCode, setPixStatusCode] = useState<number | undefined>(undefined);
+  const [pixBusy, setPixBusy] = useState(false);
+  const [pixPolling, setPixPolling] = useState(false);
+  const pixPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Formulário mínimo
   const [cardNumber, setCardNumber] = useState("4000000000002503");
@@ -617,6 +654,84 @@ export default function Braspag3dsTestPage() {
     setTxBusy(false);
   }
 
+  // ===================== Camada 3 — Pix =====================
+  useEffect(() => {
+    if (!pixOrderId) setPixOrderId(`pix-test-${Date.now()}`);
+  }, [pixOrderId]);
+
+  // Limpa o polling ao desmontar.
+  useEffect(() => {
+    return () => {
+      if (pixPollRef.current) clearInterval(pixPollRef.current);
+    };
+  }, []);
+
+  async function generatePix() {
+    if (pixBusy) return;
+    setPixBusy(true);
+    setPixResult(null);
+    setPixStatusCode(undefined);
+    stopPixPolling();
+    addLog(`3 Pix: gerando cobrança order ${pixOrderId}, valor ${pixAmount}…`);
+    try {
+      const res = await fetch("/api/payments/braspag/pix-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: pixOrderId, amount: pixAmount }),
+      });
+      const data: PixResult = await res.json().catch(() => ({ error: "resposta inválida" }));
+      setPixResult(data);
+      setPixStatusCode(data.statusCode);
+      addLog(
+        `3 Pix: HTTP ${res.status} | Status=${data.statusCode ?? "-"} (${pixStatusLabel(data.statusCode)}) | PaymentId=${data.paymentId ?? "-"} | ${data.returnMessage ?? data.error ?? ""}`,
+      );
+    } catch (err) {
+      const msg = (err as Error)?.message || "erro";
+      setPixResult({ error: msg });
+      addLog(`3 Pix: erro de rede — ${msg}`);
+    }
+    setPixBusy(false);
+  }
+
+  async function consultPixStatus() {
+    if (!pixResult?.paymentId) return;
+    try {
+      const res = await fetch(
+        `/api/payments/braspag/pix-status?paymentId=${encodeURIComponent(pixResult.paymentId)}`,
+      );
+      const data = await res.json().catch(() => ({}));
+      setPixStatusCode(data.statusCode);
+      addLog(`3 Pix consulta: Status=${data.statusCode ?? "-"} (${pixStatusLabel(data.statusCode)}).`);
+      return data.statusCode as number | undefined;
+    } catch (err) {
+      addLog(`3 Pix consulta: erro — ${(err as Error)?.message || "erro"}`);
+      return undefined;
+    }
+  }
+
+  // Polling opcional: a cada 5s por até 60s, para se virar Pago (2).
+  function startPixPolling() {
+    if (!pixResult?.paymentId || pixPolling) return;
+    setPixPolling(true);
+    addLog("3 Pix: polling iniciado (5s, até 60s).");
+    const startedAt = Date.now();
+    pixPollRef.current = setInterval(async () => {
+      const st = await consultPixStatus();
+      if (st === 2 || Date.now() - startedAt >= 60000) {
+        stopPixPolling();
+        addLog(st === 2 ? "3 Pix: PAGO — polling encerrado." : "3 Pix: 60s sem confirmação — polling encerrado.");
+      }
+    }, 5000);
+  }
+
+  function stopPixPolling() {
+    if (pixPollRef.current) {
+      clearInterval(pixPollRef.current);
+      pixPollRef.current = null;
+    }
+    setPixPolling(false);
+  }
+
   const labelCls = "block text-sm font-medium text-gray-700 mb-1";
   const inputCls = "w-full rounded border border-gray-300 px-3 py-2 text-sm";
 
@@ -922,6 +1037,126 @@ export default function Braspag3dsTestPage() {
           )}
         </div>
       )}
+
+      {/* ===================================================================
+          Camada 3 — Pix. Seção separada do cartão: criação de cobrança
+          server-side, QR Code + confirmação assíncrona (consulta/webhook).
+         =================================================================== */}
+      <div className="mt-8 rounded border border-teal-300 bg-teal-50 p-4">
+        <div className="mb-2 text-sm font-semibold">Camada 3 — Pix</div>
+        <p className="mb-3 text-xs text-gray-600">
+          Pix não tem 3DS, SDK, fingerprint nem captura separada. Gera a cobrança e o QR Code; a
+          confirmação chega depois (consulta de status ou webhook).
+        </p>
+        <p className="mb-3 text-xs font-medium text-amber-700">
+          No sandbox, a confirmação do Pix pode exigir simulação no painel Braspag ou confirmar
+          automaticamente — se o status não mudar, consulte a Braspag sobre como simular pagamento
+          Pix em sandbox.
+        </p>
+
+        <div className="mb-3 grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Valor (centavos)</label>
+            <input
+              className={inputCls}
+              type="number"
+              value={pixAmount}
+              onChange={(e) => setPixAmount(Number(e.target.value))}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>OrderId</label>
+            <input className={inputCls} value={pixOrderId} onChange={(e) => setPixOrderId(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={generatePix}
+            disabled={pixBusy}
+            className="rounded bg-teal-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          >
+            {pixBusy ? "Gerando…" : "Gerar Pix"}
+          </button>
+          <button
+            onClick={consultPixStatus}
+            disabled={!pixResult?.paymentId}
+            className="rounded border border-gray-400 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-40"
+          >
+            Consultar status
+          </button>
+          {!pixPolling ? (
+            <button
+              onClick={startPixPolling}
+              disabled={!pixResult?.paymentId}
+              className="rounded border border-teal-400 px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100 disabled:opacity-40"
+            >
+              Polling (5s/60s)
+            </button>
+          ) : (
+            <button
+              onClick={stopPixPolling}
+              className="rounded border border-red-400 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+            >
+              Parar polling
+            </button>
+          )}
+        </div>
+
+        {pixResult && (
+          <div className="mt-4 text-sm">
+            <table className="w-full text-sm">
+              <tbody>
+                <tr className="border-t border-gray-200">
+                  <td className="py-1 pr-4 font-medium text-gray-600">Status</td>
+                  <td className="py-1 font-mono">
+                    {pixStatusCode ?? pixResult.statusCode ?? "—"}{" "}
+                    <span className={(pixStatusCode ?? pixResult.statusCode) === 2 ? "text-green-700" : "text-gray-600"}>
+                      ({pixStatusLabel(pixStatusCode ?? pixResult.statusCode)})
+                    </span>
+                  </td>
+                </tr>
+                <tr className="border-t border-gray-200">
+                  <td className="py-1 pr-4 font-medium text-gray-600">PaymentId</td>
+                  <td className="py-1 font-mono break-all">{pixResult.paymentId ?? pixResult.error ?? "—"}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {pixResult.qrCodeBase64Image && (
+              <div className="mt-3">
+                <div className="mb-1 text-xs font-medium text-gray-600">QR Code</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt="QR Code Pix"
+                  src={`data:image/png;base64,${pixResult.qrCodeBase64Image}`}
+                  className="h-48 w-48 border border-gray-300 bg-white"
+                />
+              </div>
+            )}
+
+            {pixResult.qrCodeString ? (
+              <div className="mt-3">
+                <div className="mb-1 text-xs font-medium text-gray-600">Copia-e-cola</div>
+                <textarea
+                  readOnly
+                  value={pixResult.qrCodeString}
+                  className="w-full rounded border border-gray-300 p-2 text-xs font-mono"
+                  rows={3}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+              </div>
+            ) : (
+              pixResult.qrCodeBase64Image && (
+                <p className="mt-2 text-xs text-gray-500">
+                  (A API não retornou campo separado de copia-e-cola nesta versão; o código está
+                  embutido na imagem do QR.)
+                </p>
+              )
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Log visível na página: confirma a ORDEM (token antes do script) */}
       <div className="mt-6">

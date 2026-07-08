@@ -362,6 +362,83 @@ export async function createBraspagAuthorization(params: {
   };
 }
 
+// Resultado normalizado de uma cobrança Pix.
+export type BraspagPixResult = {
+  status: number; // HTTP
+  paymentId?: string;
+  statusCode?: number; // Payment.Status (12=Pendente, 2=Pago)
+  qrCodeBase64Image?: string; // Payment.QrcodeBase64Image (base64 da imagem)
+  qrCodeString?: string; // copia-e-cola, se a API retornar (não documentado no v1)
+  returnCode?: string;
+  returnMessage?: string;
+  raw: unknown;
+};
+
+// Camada 3 — Cria uma cobrança Pix (server-side). Pix NÃO tem 3DS/SDK/fingerprint
+// nem captura separada: retorna QR Code e a confirmação chega depois (webhook/
+// consulta). Provider "Cielo30" (o provider de Pix documentado; override via
+// BRASPAG_PIX_PROVIDER se o sandbox exigir outro). Type "Pix".
+export async function createBraspagPixPayment(params: {
+  orderId: string;
+  amount: number; // centavos
+  customer: { name: string; identity: string };
+}): Promise<BraspagPixResult> {
+  const body = {
+    MerchantOrderId: params.orderId,
+    Customer: {
+      Name: params.customer.name,
+      Identity: params.customer.identity, // Pix: CPF do pagador
+      IdentityType: "CPF",
+    },
+    Payment: {
+      Provider: process.env.BRASPAG_PIX_PROVIDER || "Cielo30",
+      Type: "Pix",
+      Amount: params.amount,
+    },
+  };
+
+  const res = await fetch(`${BRASPAG_URLS.transactional}/v2/sales/`, {
+    method: "POST",
+    headers: gatewayHeaders(),
+    body: JSON.stringify(body),
+  });
+  const raw = await res.json().catch(() => ({}));
+  const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
+  console.log(
+    "[Braspag:pix] http=%d order=%s status=%s paymentId=%s returnCode=%s",
+    res.status,
+    params.orderId,
+    String(payment.Status ?? "-"),
+    String(payment.PaymentId ?? "-"),
+    String(payment.ProviderReturnCode ?? "-"),
+  );
+  return {
+    status: res.status,
+    paymentId: payment.PaymentId as string | undefined,
+    statusCode: payment.Status as number | undefined,
+    qrCodeBase64Image: payment.QrcodeBase64Image as string | undefined,
+    qrCodeString: (payment.QrcodeString ?? payment.QrCodeString) as string | undefined,
+    returnCode: payment.ProviderReturnCode as string | undefined,
+    returnMessage: payment.ProviderReturnMessage as string | undefined,
+    raw,
+  };
+}
+
+// Consulta o status atual de uma venda (Pix confirma de forma assíncrona).
+// GET na API de QUERY (apiquery), não na transacional.
+export async function consultBraspagPayment(
+  paymentId: string,
+): Promise<{ status: number; statusCode?: number; raw: unknown }> {
+  const res = await fetch(
+    `${BRASPAG_URLS.query}/v2/sales/${encodeURIComponent(paymentId)}`,
+    { method: "GET", headers: gatewayHeaders() },
+  );
+  const raw = await res.json().catch(() => ({}));
+  const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
+  console.log("[Braspag:pix-status] http=%d paymentId=%s status=%s", res.status, paymentId, String(payment.Status ?? "-"));
+  return { status: res.status, statusCode: payment.Status as number | undefined, raw };
+}
+
 // 1C — Captura SEPARADA de uma autorização prévia.
 // PUT /v2/sales/{paymentId}/capture?amount={amount}. Status esperado: 2.
 export async function captureBraspagPayment(
