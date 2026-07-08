@@ -205,16 +205,20 @@ export default function Braspag3dsTestPage() {
   // Camada 3 — Pix (isolado do cartão)
   type PixResult = {
     status?: number;
+    providerUsed?: string;
     paymentId?: string;
     statusCode?: number;
     qrCodeBase64Image?: string;
     qrCodeString?: string;
     returnCode?: string;
     returnMessage?: string;
+    errorCode?: number;
+    errorMessage?: string;
     error?: string;
   };
   const [pixAmount, setPixAmount] = useState(1000);
   const [pixOrderId, setPixOrderId] = useState("");
+  const [pixProvider, setPixProvider] = useState(""); // vazio = usa default do server
   const [pixResult, setPixResult] = useState<PixResult | null>(null);
   const [pixStatusCode, setPixStatusCode] = useState<number | undefined>(undefined);
   const [pixBusy, setPixBusy] = useState(false);
@@ -672,9 +676,10 @@ export default function Braspag3dsTestPage() {
     setPixResult(null);
     setPixStatusCode(undefined);
     stopPixPolling();
-    addLog(`3 Pix: gerando cobrança order ${pixOrderId}, valor ${pixAmount}…`);
+    const qs = pixProvider.trim() ? `?provider=${encodeURIComponent(pixProvider.trim())}` : "";
+    addLog(`3 Pix: gerando cobrança order ${pixOrderId}, valor ${pixAmount}, provider=${pixProvider.trim() || "(default do server)"}…`);
     try {
-      const res = await fetch("/api/payments/braspag/pix-test", {
+      const res = await fetch(`/api/payments/braspag/pix-test${qs}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId: pixOrderId, amount: pixAmount }),
@@ -682,8 +687,10 @@ export default function Braspag3dsTestPage() {
       const data: PixResult = await res.json().catch(() => ({ error: "resposta inválida" }));
       setPixResult(data);
       setPixStatusCode(data.statusCode);
+      const errPart =
+        data.errorCode !== undefined ? `ERRO Braspag ${data.errorCode}: ${data.errorMessage}` : "";
       addLog(
-        `3 Pix: HTTP ${res.status} | Status=${data.statusCode ?? "-"} (${pixStatusLabel(data.statusCode)}) | PaymentId=${data.paymentId ?? "-"} | ${data.returnMessage ?? data.error ?? ""}`,
+        `3 Pix: HTTP ${res.status} | provider=${data.providerUsed ?? "-"} | Status=${data.statusCode ?? "-"} (${pixStatusLabel(data.statusCode)}) | PaymentId=${data.paymentId ?? "-"} | ${errPart || data.returnMessage || data.error || ""}`,
       );
     } catch (err) {
       const msg = (err as Error)?.message || "erro";
@@ -1068,6 +1075,17 @@ export default function Braspag3dsTestPage() {
             <label className={labelCls}>OrderId</label>
             <input className={inputCls} value={pixOrderId} onChange={(e) => setPixOrderId(e.target.value)} />
           </div>
+          <div className="col-span-2">
+            <label className={labelCls}>
+              Provider (teste) — vazio usa o default do server (Cielo30)
+            </label>
+            <input
+              className={inputCls}
+              value={pixProvider}
+              onChange={(e) => setPixProvider(e.target.value)}
+              placeholder="ex.: Cielo30, BancoDoBrasil3, Bradesco2…"
+            />
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-3">
@@ -1108,6 +1126,10 @@ export default function Braspag3dsTestPage() {
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-t border-gray-200">
+                  <td className="py-1 pr-4 font-medium text-gray-600">Provider usado</td>
+                  <td className="py-1 font-mono">{pixResult.providerUsed ?? "—"}</td>
+                </tr>
+                <tr className="border-t border-gray-200">
                   <td className="py-1 pr-4 font-medium text-gray-600">Status</td>
                   <td className="py-1 font-mono">
                     {pixStatusCode ?? pixResult.statusCode ?? "—"}{" "}
@@ -1118,8 +1140,16 @@ export default function Braspag3dsTestPage() {
                 </tr>
                 <tr className="border-t border-gray-200">
                   <td className="py-1 pr-4 font-medium text-gray-600">PaymentId</td>
-                  <td className="py-1 font-mono break-all">{pixResult.paymentId ?? pixResult.error ?? "—"}</td>
+                  <td className="py-1 font-mono break-all">{pixResult.paymentId ?? "—"}</td>
                 </tr>
+                {pixResult.errorCode !== undefined && (
+                  <tr className="border-t border-gray-200">
+                    <td className="py-1 pr-4 font-medium text-gray-600">Erro Braspag</td>
+                    <td className="py-1 font-mono text-red-700 break-all">
+                      Code {pixResult.errorCode}: {pixResult.errorMessage}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
 

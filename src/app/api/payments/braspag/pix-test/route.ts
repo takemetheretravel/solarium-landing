@@ -17,10 +17,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Campos obrigatórios: orderId, amount" }, { status: 400 });
     }
 
+    // ?provider=<valor> sobrescreve o provider naquela chamada (teste de candidatos).
+    const provider = new URL(req.url).searchParams.get("provider") || undefined;
+
     const result = await createBraspagPixPayment({
       orderId: String(orderId),
       amount: Number(amount),
       customer: { name: "Teste Solarium", identity: "12345678909" },
+      provider,
     });
 
     return NextResponse.json(result);

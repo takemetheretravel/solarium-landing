@@ -362,27 +362,40 @@ export async function createBraspagAuthorization(params: {
   };
 }
 
+// Default do provider de Pix. O manual oficial (pix-pagador-v1) usa "Cielo30"
+// como provider de Pix nos exemplos de sandbox — NÃO é "Simulado" (esse é do
+// cartão e causa "Affiliation not found" no Pix). Override por env/param.
+export const BRASPAG_PIX_PROVIDER_DEFAULT = "Cielo30";
+
 // Resultado normalizado de uma cobrança Pix.
 export type BraspagPixResult = {
   status: number; // HTTP
+  providerUsed: string;
   paymentId?: string;
   statusCode?: number; // Payment.Status (12=Pendente, 2=Pago)
   qrCodeBase64Image?: string; // Payment.QrcodeBase64Image (base64 da imagem)
   qrCodeString?: string; // copia-e-cola, se a API retornar (não documentado no v1)
   returnCode?: string;
   returnMessage?: string;
+  // Erro cru da Braspag (ex.: 400 [{"Code":129,"Message":"Affiliation not found"}]).
+  errorCode?: number;
+  errorMessage?: string;
   raw: unknown;
 };
 
 // Camada 3 — Cria uma cobrança Pix (server-side). Pix NÃO tem 3DS/SDK/fingerprint
 // nem captura separada: retorna QR Code e a confirmação chega depois (webhook/
-// consulta). Provider "Cielo30" (o provider de Pix documentado; override via
-// BRASPAG_PIX_PROVIDER se o sandbox exigir outro). Type "Pix".
+// consulta). Provider configurável (param > env BRASPAG_PIX_PROVIDER > default
+// "Cielo30"). Type "Pix".
 export async function createBraspagPixPayment(params: {
   orderId: string;
   amount: number; // centavos
   customer: { name: string; identity: string };
+  provider?: string; // override por chamada (teste de candidatos)
 }): Promise<BraspagPixResult> {
+  const providerUsed =
+    params.provider?.trim() || process.env.BRASPAG_PIX_PROVIDER || BRASPAG_PIX_PROVIDER_DEFAULT;
+
   const body = {
     MerchantOrderId: params.orderId,
     Customer: {
@@ -391,7 +404,7 @@ export async function createBraspagPixPayment(params: {
       IdentityType: "CPF",
     },
     Payment: {
-      Provider: process.env.BRASPAG_PIX_PROVIDER || "Cielo30",
+      Provider: providerUsed,
       Type: "Pix",
       Amount: params.amount,
     },
@@ -404,22 +417,29 @@ export async function createBraspagPixPayment(params: {
   });
   const raw = await res.json().catch(() => ({}));
   const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
+  // Erros do Pagador vêm como array na raiz: [{"Code":129,"Message":"..."}].
+  const errEntry = Array.isArray(raw) ? (raw[0] as Record<string, unknown> | undefined) : undefined;
   console.log(
-    "[Braspag:pix] http=%d order=%s status=%s paymentId=%s returnCode=%s",
+    "[Braspag:pix] http=%d provider=%s order=%s status=%s paymentId=%s err=%s/%s",
     res.status,
+    providerUsed,
     params.orderId,
     String(payment.Status ?? "-"),
     String(payment.PaymentId ?? "-"),
-    String(payment.ProviderReturnCode ?? "-"),
+    String(errEntry?.Code ?? "-"),
+    String(errEntry?.Message ?? "-"),
   );
   return {
     status: res.status,
+    providerUsed,
     paymentId: payment.PaymentId as string | undefined,
     statusCode: payment.Status as number | undefined,
     qrCodeBase64Image: payment.QrcodeBase64Image as string | undefined,
     qrCodeString: (payment.QrcodeString ?? payment.QrCodeString) as string | undefined,
     returnCode: payment.ProviderReturnCode as string | undefined,
     returnMessage: payment.ProviderReturnMessage as string | undefined,
+    errorCode: errEntry?.Code as number | undefined,
+    errorMessage: errEntry?.Message as string | undefined,
     raw,
   };
 }
