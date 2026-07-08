@@ -151,6 +151,13 @@ export default function Braspag3dsTestPage() {
   const [captureResult, setCaptureResult] = useState<TxResult | null>(null);
   const [txBusy, setTxBusy] = useState(false);
 
+  // Camada 2A — FingerPrint Antifraude Cybersource (coleta client-side isolada)
+  const [afSessionId, setAfSessionId] = useState<string>("");
+  const [afProviderIdentifier, setAfProviderIdentifier] = useState<string>("");
+  const [afOrgId, setAfOrgId] = useState<string>("");
+  const [afScriptStatus, setAfScriptStatus] = useState<"idle" | "injected" | "loaded" | "error">("idle");
+  const afInitRef = useRef(false);
+
   // Formulário mínimo
   const [cardNumber, setCardNumber] = useState("4000000000002503");
   const [holder, setHolder] = useState("TESTE SOLARIUM");
@@ -366,6 +373,63 @@ export default function Braspag3dsTestPage() {
       } catch (err) {
         setTokenInjected(false);
         addLog(`Token injetado ANTES do load? NÃO — erro de rede ao obter token: ${(err as Error)?.message || "erro"}`);
+      }
+    })();
+  }, []);
+
+  // =========================================================================
+  // Camada 2A — FingerPrint Antifraude Cybersource (isolado do 3DS/1C).
+  // Só coleta device data no navegador. Nada é enviado ao /v2/sales/ (isso é 2B).
+  // Formato oficial (doc web-fingerprint):
+  //   session_id = ProviderMerchantId + ProviderIdentifier (sem delimitador)
+  //   <script src="https://h.online-metrix.net/fp/tags.js?org_id=<OrgId>&session_id=<session_id>">
+  //   <noscript><iframe src="https://h.online-metrix.net/fp/tags?org_id=...&session_id=..."></noscript>
+  // Na 2B, Customer.BrowserFingerprint recebe SOMENTE o ProviderIdentifier.
+  // =========================================================================
+  useEffect(() => {
+    if (afInitRef.current) return;
+    afInitRef.current = true;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/payments/braspag/af-config");
+        const cfg = await res.json().catch(() => ({}));
+        const orgId: string = cfg.orgId || "";
+        const providerMerchantId: string = cfg.providerMerchantId || "";
+        if (!orgId || !providerMerchantId) {
+          addLog(`2A FingerPrint: config ausente (orgId="${orgId}", providerMerchantId="${providerMerchantId}"). Verifique BRASPAG_AF_* no env.`);
+          setAfScriptStatus("error");
+          return;
+        }
+
+        // ProviderIdentifier único por carregamento: UUID sem hífens.
+        const providerIdentifier = crypto.randomUUID().replace(/-/g, "");
+        const sessionId = `${providerMerchantId}${providerIdentifier}`;
+        setAfOrgId(orgId);
+        setAfProviderIdentifier(providerIdentifier);
+        setAfSessionId(sessionId);
+        addLog(`2A FingerPrint: sessionId=${sessionId} (orgId=${orgId}, providerIdentifier=${providerIdentifier}).`);
+
+        // Injeta o script de coleta conforme a doc (device fingerprint).
+        const src = `https://h.online-metrix.net/fp/tags.js?org_id=${encodeURIComponent(orgId)}&session_id=${encodeURIComponent(sessionId)}`;
+        const s = document.createElement("script");
+        s.type = "text/javascript";
+        s.src = src;
+        s.async = true;
+        s.onload = () => {
+          setAfScriptStatus("loaded");
+          addLog("2A FingerPrint: script de coleta carregado (h.online-metrix.net).");
+        };
+        s.onerror = () => {
+          setAfScriptStatus("error");
+          addLog("2A FingerPrint: ERRO ao carregar o script de coleta.");
+        };
+        document.head.appendChild(s);
+        setAfScriptStatus("injected");
+        addLog("2A FingerPrint: script de coleta injetado no <head>.");
+      } catch (err) {
+        setAfScriptStatus("error");
+        addLog(`2A FingerPrint: erro ao obter config/injetar — ${(err as Error)?.message || "erro"}`);
       }
     })();
   }, []);
@@ -598,6 +662,58 @@ export default function Braspag3dsTestPage() {
           (comportamento normal após a leitura) não conflita com reconciliação.
          =================================================================== */}
       <div ref={bpmpiContainerRef} style={{ display: "none" }} />
+
+      {/* ===================================================================
+          Camada 2A — FingerPrint (Antifraude Cybersource). Seção separada do
+          3DS: apenas coleta device data no navegador. Nada enviado ao /v2/sales.
+         =================================================================== */}
+      <div className="mt-2 mb-6 rounded border border-purple-300 bg-purple-50 p-4">
+        <div className="mb-2 text-sm font-semibold">Camada 2A — FingerPrint (Antifraude)</div>
+        <div className="text-xs text-gray-700 space-y-1">
+          <div>
+            OrgID:{" "}
+            <span className="font-mono">{afOrgId || "(carregando…)"}</span>
+          </div>
+          <div>
+            sessionId:{" "}
+            <span className="font-mono break-all">{afSessionId || "(gerando…)"}</span>
+          </div>
+          <div>
+            ProviderIdentifier (irá em Customer.BrowserFingerprint na 2B):{" "}
+            <span className="font-mono break-all">{afProviderIdentifier || "—"}</span>
+          </div>
+          <div>
+            Script de coleta:{" "}
+            <span
+              className={
+                afScriptStatus === "loaded"
+                  ? "text-green-700"
+                  : afScriptStatus === "error"
+                    ? "text-red-700"
+                    : "text-gray-600"
+              }
+            >
+              {afScriptStatus === "idle"
+                ? "aguardando…"
+                : afScriptStatus === "injected"
+                  ? "injetado (carregando…)"
+                  : afScriptStatus === "loaded"
+                    ? "carregado ✓"
+                    : "erro"}
+            </span>
+          </div>
+        </div>
+        {/* Fallback sem JS conforme a doc (device fingerprint Cybersource). */}
+        {afSessionId && afOrgId && (
+          <noscript>
+            <iframe
+              title="cybersource-fp"
+              style={{ width: 100, height: 100, border: 0, position: "absolute", top: -5000 }}
+              src={`https://h.online-metrix.net/fp/tags?org_id=${afOrgId}&session_id=${afSessionId}`}
+            />
+          </noscript>
+        )}
+      </div>
 
 
       <div className="flex gap-3">
