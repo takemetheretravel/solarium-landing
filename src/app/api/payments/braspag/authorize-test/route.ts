@@ -4,9 +4,21 @@ import { createBraspagAuthorization } from "@/lib/braspag";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 1C — Autorização de TESTE com ExternalAuthentication (resultado do 3DS 1B).
-// Usada apenas pela página braspag-3ds-test. Customer de teste fixo.
-// Guarda: indisponível em produção. NUNCA logar número de cartão completo.
+// Endereço de cobrança/entrega de TESTE (antifraude exige endereço completo).
+const TEST_ADDRESS = {
+  Street: "Rua das Flores",
+  Number: "100",
+  Complement: "Casa",
+  ZipCode: "37464000",
+  City: "Itanhandu",
+  State: "MG",
+  Country: "BRA",
+  District: "Centro",
+};
+
+// 2B — Autorização de TESTE com ExternalAuthentication (3DS) + Antifraude
+// Cybersource. Usada apenas pela página braspag-3ds-test. Customer/endereço de
+// teste fixos. Guarda: indisponível em produção. NUNCA logar número de cartão.
 export async function POST(req: Request) {
   if (process.env.BRASPAG_ENVIRONMENT === "production") {
     return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -14,7 +26,8 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { orderId, amount, installments, card, externalAuthentication } = body || {};
+    const { orderId, amount, installments, card, externalAuthentication, browserFingerprint } =
+      body || {};
 
     if (
       !orderId ||
@@ -30,16 +43,25 @@ export async function POST(req: Request) {
       );
     }
 
+    // O antifraude depende do fingerprint — não silenciar se ausente.
+    if (!browserFingerprint || String(browserFingerprint).trim() === "") {
+      return NextResponse.json(
+        { error: "browserFingerprint (ProviderIdentifier da Camada 2A) é obrigatório para a análise antifraude." },
+        { status: 400 },
+      );
+    }
+
     const ipAddress =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
       "127.0.0.1";
 
     console.log(
-      "[Braspag:authorize-test] order=%s amount=%d card=****%s",
+      "[Braspag:authorize-test] order=%s amount=%d card=****%s fp=%s",
       orderId,
       amount,
       String(card.number).slice(-4),
+      String(browserFingerprint).slice(0, 8) + "…",
     );
 
     const result = await createBraspagAuthorization({
@@ -51,6 +73,10 @@ export async function POST(req: Request) {
         identity: "12345678909",
         email: "teste@solariummantiqueira.com",
         ipAddress,
+        phone: "5535999990000",
+        birthdate: "1990-01-01",
+        billingAddress: TEST_ADDRESS,
+        deliveryAddress: TEST_ADDRESS,
       },
       card: {
         number: String(card.number),
@@ -65,6 +91,28 @@ export async function POST(req: Request) {
         Eci: String(externalAuthentication.Eci || ""),
         Version: String(externalAuthentication.Version || ""),
         ReferenceId: String(externalAuthentication.ReferenceId || ""),
+      },
+      fraud: {
+        browserFingerprint: String(browserFingerprint),
+        hostName: req.headers.get("host") || "",
+        cartItems: [
+          {
+            name: "Hospedagem Solarium (teste)",
+            quantity: 1,
+            sku: "SOL-HOSP-TEST",
+            unitPrice: Number(amount),
+            risk: "Normal",
+            type: "Default",
+          },
+        ],
+        // MDDs (MerchantDefinedFields) são configurados por lojista na Cybersource.
+        // Valores de teste ilustrativos p/ o ramo de hospedagem (7011) — ajustar
+        // conforme o mapa de MDDs cadastrado na conta.
+        merchantDefinedFields: [
+          { Id: 2, Value: "hospedagem" },
+          { Id: 4, Value: "reserva-direta" },
+        ],
+        shipping: { method: "None" }, // hospedagem não tem entrega física
       },
     });
 

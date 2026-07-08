@@ -160,7 +160,39 @@ export type BraspagTransactionResult = {
   returnCode?: string;
   returnMessage?: string;
   statusCode?: number; // Payment.Status (1=Autorizado, 2=Pago/Capturado, 3=Negado…)
+  // Antifraude (síncrono) — presente quando FraudAnalysis é enviado.
+  fraudStatus?: number; // 0=Unknown,1=Accept,2=Reject,3=Review,4=Aborted,5=Unfinished
+  fraudScore?: number;
+  fraudReasonCode?: number;
+  fraudProviderReturnCode?: string;
+  fraudProviderReturnMessage?: string;
   raw: unknown;
+};
+
+export type BraspagAddress = {
+  Street: string;
+  Number: string;
+  Complement?: string;
+  ZipCode: string;
+  City: string;
+  State: string;
+  Country: string; // "BRA" ou "BR" conforme campo
+  District: string;
+};
+
+export type BraspagFraudParams = {
+  browserFingerprint: string; // ProviderIdentifier (a Braspag reconstrói o session_id)
+  hostName?: string;
+  cartItems: Array<{
+    name: string;
+    quantity: number;
+    sku: string;
+    unitPrice: number; // centavos
+    risk?: string; // Low|Normal|High
+    type?: string; // Default|Service|…
+  }>;
+  merchantDefinedFields?: Array<{ Id: number; Value: string }>;
+  shipping?: { addressee?: string; method?: string; phone?: string };
 };
 
 // 1C — Autorização com autenticação externa (3DS já feito no navegador).
@@ -169,11 +201,26 @@ export type BraspagTransactionResult = {
 // (decisão de arquitetura: autoriza → antifraude → PUT /capture). SEM o bloco
 // Credentials por ora — só incluir (com os dummies do exemplo oficial, Code
 // 9999999 etc.) se a API passar a exigir.
+// 2B — Autorização com ExternalAuthentication (3DS) + Antifraude Cybersource.
+// O bloco `fraud` é OPCIONAL: quando presente, adiciona Payment.FraudAnalysis
+// (Cybersource) e os dados de Customer exigidos pela análise (endereço completo,
+// CPF, telefone, e-mail). Sem `fraud`, comporta-se como a 1C pura.
+// Fluxo: Sequence "AnalyseFirst" (análise ANTES da autorização) + captura
+// SEPARADA (CaptureOnLowRisk=false, VoidOnHighRisk=false → decisão manual).
 export async function createBraspagAuthorization(params: {
   orderId: string;
   amount: number; // centavos
   installments: number;
-  customer: { name: string; identity: string; email: string; ipAddress: string };
+  customer: {
+    name: string;
+    identity: string;
+    email: string;
+    ipAddress: string;
+    phone?: string;
+    birthdate?: string;
+    billingAddress?: BraspagAddress;
+    deliveryAddress?: BraspagAddress;
+  };
   card: { number: string; holder: string; expiration: string; cvv: string; brand: string };
   externalAuthentication: {
     Cavv: string;
@@ -182,44 +229,103 @@ export async function createBraspagAuthorization(params: {
     Version: string;
     ReferenceId: string;
   };
+  fraud?: BraspagFraudParams;
 }): Promise<BraspagTransactionResult> {
-  const body = {
-    MerchantOrderId: params.orderId,
-    Customer: {
-      Name: params.customer.name,
-      Identity: params.customer.identity,
-      IdentityType: "CPF",
-      Email: params.customer.email,
-      IpAddress: params.customer.ipAddress,
+  const f = params.fraud;
+
+  const Customer: Record<string, unknown> = {
+    Name: params.customer.name,
+    Identity: params.customer.identity,
+    IdentityType: "CPF",
+    Email: params.customer.email,
+    IpAddress: params.customer.ipAddress,
+  };
+  // Campos exigidos pela análise antifraude (endereço completo, telefone etc.).
+  if (f) {
+    // Doc do FingerPrint: Customer.BrowserFingerprint recebe SOMENTE o
+    // ProviderIdentifier — a Braspag reconstrói o session_id (ProviderMerchantId
+    // + identifier) para casar com o coletor. Enviar o session_id inteiro
+    // duplicaria o merchantId e quebraria a correlação.
+    Customer.BrowserFingerprint = f.browserFingerprint;
+    if (params.customer.phone) Customer.Phone = params.customer.phone;
+    if (params.customer.birthdate) Customer.Birthdate = params.customer.birthdate;
+    if (params.customer.billingAddress) Customer.BillingAddress = params.customer.billingAddress;
+    if (params.customer.deliveryAddress) Customer.DeliveryAddress = params.customer.deliveryAddress;
+  }
+
+  const Payment: Record<string, unknown> = {
+    Provider: "Simulado",
+    Type: "CreditCard",
+    Amount: params.amount,
+    Currency: "BRL",
+    Country: "BRA",
+    Installments: params.installments,
+    Interest: "ByMerchant",
+    Authenticate: true,
+    Recurrent: false,
+    SoftDescriptor: "SolariumTest",
+    CreditCard: {
+      CardNumber: params.card.number,
+      Holder: params.card.holder,
+      ExpirationDate: params.card.expiration, // "MM/AAAA"
+      SecurityCode: params.card.cvv,
+      Brand: params.card.brand,
+      SaveCard: false,
     },
-    Payment: {
-      Provider: "Simulado",
-      Type: "CreditCard",
-      Amount: params.amount,
-      Currency: "BRL",
-      Country: "BRA",
-      Installments: params.installments,
-      Interest: "ByMerchant",
-      Authenticate: true,
-      Recurrent: false,
-      SoftDescriptor: "SolariumTest",
-      CreditCard: {
-        CardNumber: params.card.number,
-        Holder: params.card.holder,
-        ExpirationDate: params.card.expiration, // "MM/AAAA"
-        SecurityCode: params.card.cvv,
-        Brand: params.card.brand,
-        SaveCard: false,
-      },
-      ExternalAuthentication: {
-        Cavv: params.externalAuthentication.Cavv,
-        Xid: params.externalAuthentication.Xid,
-        Eci: params.externalAuthentication.Eci,
-        Version: params.externalAuthentication.Version,
-        ReferenceID: params.externalAuthentication.ReferenceId, // API usa "ReferenceID"
-      },
+    ExternalAuthentication: {
+      Cavv: params.externalAuthentication.Cavv,
+      Xid: params.externalAuthentication.Xid,
+      Eci: params.externalAuthentication.Eci,
+      Version: params.externalAuthentication.Version,
+      ReferenceID: params.externalAuthentication.ReferenceId, // API usa "ReferenceID"
     },
   };
+
+  if (f) {
+    Payment.FraudAnalysis = {
+      Provider: "Cybersource",
+      Sequence: "AnalyseFirst", // análise ANTES da autorização
+      SequenceCriteria: "Always",
+      // Captura SEPARADA/manual: NÃO capturar nem cancelar automaticamente —
+      // a decisão fica no botão, considerando o resultado da análise.
+      CaptureOnLowRisk: false,
+      VoidOnHighRisk: false,
+      TotalOrderAmount: params.amount,
+      Browser: {
+        // Também replicado aqui (algumas versões leem de Browser.BrowserFingerprint).
+        BrowserFingerprint: f.browserFingerprint,
+        CookiesAccepted: false,
+        Email: params.customer.email,
+        HostName: f.hostName || "",
+        IpAddress: params.customer.ipAddress,
+        Type: "Web",
+      },
+      Cart: {
+        IsGift: false,
+        ReturnsAccepted: true,
+        Items: f.cartItems.map((it) => ({
+          Type: it.type || "Default",
+          Name: it.name,
+          Quantity: it.quantity,
+          Sku: it.sku,
+          UnitPrice: it.unitPrice,
+          Risk: it.risk || "Normal",
+        })),
+      },
+      ...(f.merchantDefinedFields?.length ? { MerchantDefinedFields: f.merchantDefinedFields } : {}),
+      ...(f.shipping
+        ? {
+            Shipping: {
+              Addressee: f.shipping.addressee || params.customer.name,
+              Method: f.shipping.method || "None",
+              Phone: f.shipping.phone || params.customer.phone || "",
+            },
+          }
+        : {}),
+    };
+  }
+
+  const body = { MerchantOrderId: params.orderId, Customer, Payment };
 
   const res = await fetch(`${BRASPAG_URLS.transactional}/v2/sales/`, {
     method: "POST",
@@ -228,14 +334,18 @@ export async function createBraspagAuthorization(params: {
   });
   const raw = await res.json().catch(() => ({}));
   const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
+  const fa = (payment.FraudAnalysis ?? {}) as Record<string, unknown>;
+  const replyData = (fa.ReplyData ?? {}) as Record<string, unknown>;
   // Log sem dados sensíveis: nunca o número do cartão (nem mascarado aqui).
   console.log(
-    "[Braspag:authorize] http=%d order=%s status=%s returnCode=%s paymentId=%s",
+    "[Braspag:authorize] http=%d order=%s payStatus=%s returnCode=%s paymentId=%s fraudStatus=%s score=%s",
     res.status,
     params.orderId,
     String(payment.Status ?? "-"),
     String(payment.ReturnCode ?? "-"),
     String(payment.PaymentId ?? "-"),
+    String(fa.Status ?? "-"),
+    String(replyData.Score ?? "-"),
   );
   return {
     status: res.status,
@@ -243,6 +353,11 @@ export async function createBraspagAuthorization(params: {
     returnCode: payment.ReturnCode as string | undefined,
     returnMessage: payment.ReturnMessage as string | undefined,
     statusCode: payment.Status as number | undefined,
+    fraudStatus: fa.Status as number | undefined,
+    fraudScore: replyData.Score as number | undefined,
+    fraudReasonCode: fa.FraudAnalysisReasonCode as number | undefined,
+    fraudProviderReturnCode: (fa.ProviderReturnCode ?? replyData.ProviderTransactionId) as string | undefined,
+    fraudProviderReturnMessage: fa.ProviderReturnMessage as string | undefined,
     raw,
   };
 }

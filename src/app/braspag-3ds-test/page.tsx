@@ -81,6 +81,26 @@ function excerpt(s: string): string {
   return `len=${s.length} | inicio="${s.slice(0, 25)}" | fim="${s.slice(-25)}"`;
 }
 
+// Status do antifraude Cybersource (Payment.FraudAnalysis.Status).
+function fraudLabel(status?: number): string {
+  switch (status) {
+    case 0:
+      return "Unknown";
+    case 1:
+      return "Accept";
+    case 2:
+      return "Reject";
+    case 3:
+      return "Review";
+    case 4:
+      return "Aborted";
+    case 5:
+      return "Unfinished";
+    default:
+      return "—";
+  }
+}
+
 // Decodifica APENAS o payload (parte do meio) de um JWT. NÃO expõe a assinatura.
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -145,6 +165,12 @@ export default function Braspag3dsTestPage() {
     returnCode?: string;
     returnMessage?: string;
     statusCode?: number;
+    // Antifraude (2B)
+    fraudStatus?: number; // 0=Unknown,1=Accept,2=Reject,3=Review,4=Aborted,5=Unfinished
+    fraudScore?: number;
+    fraudReasonCode?: number;
+    fraudProviderReturnCode?: string;
+    fraudProviderReturnMessage?: string;
     error?: string;
   };
   const [authResult, setAuthResult] = useState<TxResult | null>(null);
@@ -515,11 +541,16 @@ export default function Braspag3dsTestPage() {
   // ExternalAuthentication não é invalidado pela troca do número.
   async function authorize() {
     if (!result || result.event !== "onSuccess" || txBusy) return;
+    // O antifraude (2B) depende do ProviderIdentifier da 2A.
+    if (!afProviderIdentifier) {
+      addLog("2B: não é possível autorizar — FingerPrint da 2A ainda não gerou o ProviderIdentifier. Recarregue.");
+      return;
+    }
     setTxBusy(true);
     setAuthResult(null);
     setCaptureResult(null);
     const f = result.fields;
-    addLog(`1C: autorizando order ${orderId}, valor ${amount}, cartão ****${cardNumber.slice(-4)}…`);
+    addLog(`2B: autorizando+antifraude order ${orderId}, valor ${amount}, cartão ****${cardNumber.slice(-4)}, fp=${afProviderIdentifier.slice(0, 8)}…`);
     try {
       const res = await fetch("/api/payments/braspag/authorize-test", {
         method: "POST",
@@ -528,6 +559,7 @@ export default function Braspag3dsTestPage() {
           orderId,
           amount,
           installments,
+          browserFingerprint: afProviderIdentifier, // ProviderIdentifier da 2A
           card: {
             number: cardNumber,
             holder,
@@ -547,12 +579,15 @@ export default function Braspag3dsTestPage() {
       const data: TxResult = await res.json().catch(() => ({ error: "resposta inválida" }));
       setAuthResult(data);
       addLog(
-        `1C autorização: HTTP ${res.status} | Payment.Status=${data.statusCode ?? "-"} | PaymentId=${data.paymentId ?? "-"} | ReturnCode=${data.returnCode ?? "-"} | ReturnMessage=${data.returnMessage ?? data.error ?? "-"}`,
+        `2B autorização: HTTP ${res.status} | Payment.Status=${data.statusCode ?? "-"} | PaymentId=${data.paymentId ?? "-"} | ReturnCode=${data.returnCode ?? "-"} | ReturnMessage=${data.returnMessage ?? data.error ?? "-"}`,
+      );
+      addLog(
+        `2B antifraude: Status=${data.fraudStatus ?? "-"} (${fraudLabel(data.fraudStatus)}) | Score=${data.fraudScore ?? "-"} | ReasonCode=${data.fraudReasonCode ?? "-"} | ${data.fraudProviderReturnMessage ?? ""}`,
       );
     } catch (err) {
       const msg = (err as Error)?.message || "erro";
       setAuthResult({ error: msg });
-      addLog(`1C autorização: erro de rede — ${msg}`);
+      addLog(`2B autorização: erro de rede — ${msg}`);
     }
     setTxBusy(false);
   }
@@ -753,11 +788,17 @@ export default function Braspag3dsTestPage() {
       {/* 1C — etapa transacional: autorização com ExternalAuthentication + captura separada */}
       {result?.event === "onSuccess" && (
         <div className="mt-6 rounded border border-blue-300 bg-blue-50 p-4">
-          <div className="mb-2 text-sm font-semibold">1C — Autorização + captura separada</div>
+          <div className="mb-2 text-sm font-semibold">1C/2B — Autorização + antifraude + captura separada</div>
           <p className="mb-3 text-xs text-gray-600">
             Usa o resultado 3DS acima (Cavv/Xid/Eci/Version/ReferenceId) no bloco
-            ExternalAuthentication. O Provider Simulado aprova/nega pelo número do cartão — se a
-            autorização for negada, edite o número no formulário e reautorize.
+            ExternalAuthentication e o FingerPrint da 2A no bloco FraudAnalysis (Cybersource). O
+            Provider Simulado aprova/nega pelo número do cartão — se a autorização for negada, edite
+            o número no formulário e reautorize.
+          </p>
+          <p className="mb-3 text-xs font-medium text-amber-700">
+            Captura SEPARADA: a análise antifraude roda ANTES (AnalyseFirst) e nada é capturado
+            automaticamente. A decisão de clicar “Capturar” deve considerar o resultado do antifraude
+            (Accept/Reject/Review) — se vier Reject/Review, avalie antes de capturar.
           </p>
           <div className="flex gap-3">
             <button
@@ -765,7 +806,7 @@ export default function Braspag3dsTestPage() {
               disabled={txBusy}
               className="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
             >
-              {txBusy && !authResult ? "Autorizando…" : "Autorizar (1C)"}
+              {txBusy && !authResult ? "Autorizando…" : "Autorizar (2B)"}
             </button>
             <button
               onClick={capture}
@@ -777,35 +818,81 @@ export default function Braspag3dsTestPage() {
           </div>
 
           {authResult && (
-            <div className="mt-3 text-sm">
-              <div className="font-semibold">Autorização</div>
-              <table className="w-full text-sm">
-                <tbody>
-                  <tr className="border-t border-gray-200">
-                    <td className="py-1 pr-4 font-medium text-gray-600">Payment.Status</td>
-                    <td className="py-1 font-mono">
-                      {authResult.statusCode ?? "—"}{" "}
-                      {authResult.statusCode === 1
-                        ? "(autorizado)"
-                        : authResult.statusCode === 3
-                          ? "(negado)"
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div className="text-sm">
+                <div className="font-semibold">Autorização</div>
+                <table className="w-full text-sm">
+                  <tbody>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">Payment.Status</td>
+                      <td className="py-1 font-mono">
+                        {authResult.statusCode ?? "—"}{" "}
+                        {authResult.statusCode === 1
+                          ? "(autorizado)"
+                          : authResult.statusCode === 3
+                            ? "(negado)"
+                            : ""}
+                      </td>
+                    </tr>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">PaymentId</td>
+                      <td className="py-1 font-mono break-all">{authResult.paymentId ?? "—"}</td>
+                    </tr>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">ReturnCode</td>
+                      <td className="py-1 font-mono">{authResult.returnCode ?? "—"}</td>
+                    </tr>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">ReturnMessage</td>
+                      <td className="py-1 font-mono">{authResult.returnMessage ?? authResult.error ?? "—"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="text-sm">
+                <div className="font-semibold">Antifraude (Cybersource)</div>
+                <table className="w-full text-sm">
+                  <tbody>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">Status</td>
+                      <td className="py-1 font-mono">
+                        {authResult.fraudStatus ?? "—"}{" "}
+                        <span
+                          className={
+                            authResult.fraudStatus === 1
+                              ? "text-green-700"
+                              : authResult.fraudStatus === 2
+                                ? "text-red-700"
+                                : authResult.fraudStatus === 3
+                                  ? "text-amber-700"
+                                  : "text-gray-600"
+                          }
+                        >
+                          ({fraudLabel(authResult.fraudStatus)})
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">Score</td>
+                      <td className="py-1 font-mono">{authResult.fraudScore ?? "—"}</td>
+                    </tr>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">ReasonCode</td>
+                      <td className="py-1 font-mono">{authResult.fraudReasonCode ?? "—"}</td>
+                    </tr>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">Provider</td>
+                      <td className="py-1 font-mono break-all">
+                        {authResult.fraudProviderReturnCode ?? "—"}
+                        {authResult.fraudProviderReturnMessage
+                          ? ` — ${authResult.fraudProviderReturnMessage}`
                           : ""}
-                    </td>
-                  </tr>
-                  <tr className="border-t border-gray-200">
-                    <td className="py-1 pr-4 font-medium text-gray-600">PaymentId</td>
-                    <td className="py-1 font-mono break-all">{authResult.paymentId ?? "—"}</td>
-                  </tr>
-                  <tr className="border-t border-gray-200">
-                    <td className="py-1 pr-4 font-medium text-gray-600">ReturnCode</td>
-                    <td className="py-1 font-mono">{authResult.returnCode ?? "—"}</td>
-                  </tr>
-                  <tr className="border-t border-gray-200">
-                    <td className="py-1 pr-4 font-medium text-gray-600">ReturnMessage</td>
-                    <td className="py-1 font-mono">{authResult.returnMessage ?? authResult.error ?? "—"}</td>
-                  </tr>
-                </tbody>
-              </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
