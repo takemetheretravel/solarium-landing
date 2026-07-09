@@ -379,8 +379,9 @@ export type BraspagPixResult = {
   providerUsed: string;
   paymentId?: string;
   statusCode?: number; // Payment.Status (12=Pendente, 2=Pago)
-  qrCodeBase64Image?: string; // Payment.QrcodeBase64Image (base64 da imagem)
-  qrCodeString?: string; // copia-e-cola, se a API retornar (não documentado no v1)
+  qrCodeBase64Image?: string; // base64 da imagem (grafia varia entre versões)
+  qrCodeString?: string; // copia-e-cola (EMV), se a API retornar
+  qrFieldsDiagnostic?: string; // quais campos de QR vieram (nome + presente/ausente)
   returnCode?: string;
   returnMessage?: string;
   // Erro cru da Braspag (ex.: 400 [{"Code":129,"Message":"Affiliation not found"}]).
@@ -425,8 +426,23 @@ export async function createBraspagPixPayment(params: {
   const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
   // Erros do Pagador vêm como array na raiz: [{"Code":129,"Message":"..."}].
   const errEntry = Array.isArray(raw) ? (raw[0] as Record<string, unknown> | undefined) : undefined;
+
+  // Diagnóstico dos campos de QR: a grafia varia entre versões/providers e o
+  // Simulado pode não retornar a imagem. Lemos de forma defensiva e reportamos.
+  const imageCandidates = ["QrcodeBase64Image", "QrCodeBase64Image", "QRCodeBase64Image"];
+  const stringCandidates = ["QrcodeString", "QrCodeString", "QRCodeString", "QrcodeCopyPaste"];
+  const nonEmpty = (k: string) => {
+    const v = payment[k];
+    return typeof v === "string" && v.length > 0;
+  };
+  const qrCodeBase64Image = imageCandidates.map((k) => payment[k]).find((v) => typeof v === "string" && v.length > 0) as string | undefined;
+  const qrCodeString = stringCandidates.map((k) => payment[k]).find((v) => typeof v === "string" && v.length > 0) as string | undefined;
+  const qrFieldsDiagnostic = [...imageCandidates, ...stringCandidates]
+    .map((k) => `${k}=${k in payment ? (nonEmpty(k) ? `presente(${(payment[k] as string).length})` : "vazio") : "ausente"}`)
+    .join(", ");
+
   console.log(
-    "[Braspag:pix] http=%d provider=%s order=%s status=%s paymentId=%s err=%s/%s",
+    "[Braspag:pix] http=%d provider=%s order=%s status=%s paymentId=%s err=%s/%s | qr: %s",
     res.status,
     providerUsed,
     params.orderId,
@@ -434,14 +450,16 @@ export async function createBraspagPixPayment(params: {
     String(payment.PaymentId ?? "-"),
     String(errEntry?.Code ?? "-"),
     String(errEntry?.Message ?? "-"),
+    qrFieldsDiagnostic,
   );
   return {
     status: res.status,
     providerUsed,
     paymentId: payment.PaymentId as string | undefined,
     statusCode: payment.Status as number | undefined,
-    qrCodeBase64Image: payment.QrcodeBase64Image as string | undefined,
-    qrCodeString: (payment.QrcodeString ?? payment.QrCodeString) as string | undefined,
+    qrCodeBase64Image,
+    qrCodeString,
+    qrFieldsDiagnostic,
     returnCode: payment.ProviderReturnCode as string | undefined,
     returnMessage: payment.ProviderReturnMessage as string | undefined,
     errorCode: errEntry?.Code as number | undefined,
@@ -451,18 +469,44 @@ export async function createBraspagPixPayment(params: {
 }
 
 // Consulta o status atual de uma venda (Pix confirma de forma assíncrona).
-// GET na API de QUERY (apiquery), não na transacional.
-export async function consultBraspagPayment(
-  paymentId: string,
-): Promise<{ status: number; statusCode?: number; raw: unknown }> {
+// GET na API de QUERY (apiquery), não na transacional. Doc QueryV2: o Status
+// fica em Payment.Status (a venda completa vem na raiz). Fallback defensivo
+// para raw.Status caso alguma resposta venha "flat".
+export async function consultBraspagPayment(paymentId: string): Promise<{
+  status: number;
+  statusCode?: number;
+  foundAt: string;
+  rawKeys: string;
+  raw: unknown;
+}> {
   const res = await fetch(
     `${BRASPAG_URLS.query}/v2/sales/${encodeURIComponent(paymentId)}`,
     { method: "GET", headers: gatewayHeaders() },
   );
   const raw = await res.json().catch(() => ({}));
-  const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
-  console.log("[Braspag:pix-status] http=%d paymentId=%s status=%s", res.status, paymentId, String(payment.Status ?? "-"));
-  return { status: res.status, statusCode: payment.Status as number | undefined, raw };
+  const rawObj = (raw ?? {}) as Record<string, unknown>;
+  const payment = (rawObj.Payment ?? {}) as Record<string, unknown>;
+
+  let statusCode: number | undefined;
+  let foundAt = "não encontrado";
+  if (typeof payment.Status === "number") {
+    statusCode = payment.Status;
+    foundAt = "Payment.Status";
+  } else if (typeof rawObj.Status === "number") {
+    statusCode = rawObj.Status as number;
+    foundAt = "raw.Status";
+  }
+  const rawKeys = Array.isArray(raw) ? "[array]" : Object.keys(rawObj).join(",");
+
+  console.log(
+    "[Braspag:pix-status] http=%d paymentId=%s status=%s foundAt=%s rawKeys=%s",
+    res.status,
+    paymentId,
+    String(statusCode ?? "-"),
+    foundAt,
+    rawKeys,
+  );
+  return { status: res.status, statusCode, foundAt, rawKeys, raw };
 }
 
 // 1C — Captura SEPARADA de uma autorização prévia.

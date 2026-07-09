@@ -213,15 +213,20 @@ export default function Braspag3dsTestPage() {
     statusCode?: number;
     qrCodeBase64Image?: string;
     qrCodeString?: string;
+    qrFieldsDiagnostic?: string;
     returnCode?: string;
     returnMessage?: string;
     errorCode?: number;
     errorMessage?: string;
+    foundAt?: string;
+    rawKeys?: string;
     error?: string;
   };
   const [pixAmount, setPixAmount] = useState(1000);
   const [pixOrderId, setPixOrderId] = useState("");
   const [pixProvider, setPixProvider] = useState(""); // vazio = usa default do server
+  // QR gerado localmente a partir do copia-e-cola (quando a API não retorna imagem)
+  const [pixLocalQr, setPixLocalQr] = useState<string>("");
   const [pixResult, setPixResult] = useState<PixResult | null>(null);
   const [pixStatusCode, setPixStatusCode] = useState<number | undefined>(undefined);
   const [pixBusy, setPixBusy] = useState(false);
@@ -681,6 +686,7 @@ export default function Braspag3dsTestPage() {
     setPixBusy(true);
     setPixResult(null);
     setPixStatusCode(undefined);
+    setPixLocalQr("");
     stopPixPolling();
     const qs = pixProvider.trim() ? `?provider=${encodeURIComponent(pixProvider.trim())}` : "";
     addLog(`3 Pix: gerando cobrança order ${pixOrderId}, valor ${pixAmount}, provider=${pixProvider.trim() || "(default do server)"}…`);
@@ -698,6 +704,19 @@ export default function Braspag3dsTestPage() {
       addLog(
         `3 Pix: HTTP ${res.status} | provider=${data.providerUsed ?? "-"} | Status=${data.statusCode ?? "-"} (${pixStatusLabel(data.statusCode)}) | PaymentId=${data.paymentId ?? "-"} | ${errPart || data.returnMessage || data.error || ""}`,
       );
+      if (data.qrFieldsDiagnostic) addLog(`3 Pix campos de QR: ${data.qrFieldsDiagnostic}`);
+
+      // QR: se a API não trouxe imagem mas trouxe copia-e-cola, gera localmente.
+      if (!data.qrCodeBase64Image && data.qrCodeString) {
+        try {
+          const QR = (await import("qrcode")).default;
+          const dataUrl = await QR.toDataURL(data.qrCodeString, { margin: 1, width: 192 });
+          setPixLocalQr(dataUrl);
+          addLog("3 Pix: imagem ausente na resposta — QR gerado localmente a partir do copia-e-cola.");
+        } catch (e) {
+          addLog(`3 Pix: falha ao gerar QR local — ${(e as Error)?.message || "erro"}`);
+        }
+      }
     } catch (err) {
       const msg = (err as Error)?.message || "erro";
       setPixResult({ error: msg });
@@ -714,7 +733,11 @@ export default function Braspag3dsTestPage() {
       );
       const data = await res.json().catch(() => ({}));
       setPixStatusCode(data.statusCode);
-      addLog(`3 Pix consulta: Status=${data.statusCode ?? "-"} (${pixStatusLabel(data.statusCode)}).`);
+      const diag =
+        data.statusCode === undefined
+          ? ` | foundAt=${data.foundAt ?? "?"} | rawKeys=${data.rawKeys ?? "?"}`
+          : ` | foundAt=${data.foundAt ?? "?"}`;
+      addLog(`3 Pix consulta: Status=${data.statusCode ?? "-"} (${pixStatusLabel(data.statusCode)})${diag}`);
       return data.statusCode as number | undefined;
     } catch (err) {
       addLog(`3 Pix consulta: erro — ${(err as Error)?.message || "erro"}`);
@@ -1166,19 +1189,28 @@ export default function Braspag3dsTestPage() {
               </tbody>
             </table>
 
-            {pixResult.qrCodeBase64Image && (
+            {(pixResult.qrCodeBase64Image || pixLocalQr) && (
               <div className="mt-3">
                 <div className="mb-1 text-xs font-medium text-gray-600">QR Code</div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   alt="QR Code Pix"
-                  src={`data:image/png;base64,${pixResult.qrCodeBase64Image}`}
+                  src={
+                    pixResult.qrCodeBase64Image
+                      ? `data:image/png;base64,${pixResult.qrCodeBase64Image}`
+                      : pixLocalQr
+                  }
                   className="h-48 w-48 border border-gray-300 bg-white"
                 />
+                {!pixResult.qrCodeBase64Image && pixLocalQr && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    QR gerado localmente a partir do copia-e-cola (a API não retornou a imagem).
+                  </p>
+                )}
               </div>
             )}
 
-            {pixResult.qrCodeString ? (
+            {pixResult.qrCodeString && (
               <div className="mt-3">
                 <div className="mb-1 text-xs font-medium text-gray-600">Copia-e-cola</div>
                 <textarea
@@ -1189,13 +1221,12 @@ export default function Braspag3dsTestPage() {
                   onFocus={(e) => e.currentTarget.select()}
                 />
               </div>
-            ) : (
-              pixResult.qrCodeBase64Image && (
-                <p className="mt-2 text-xs text-gray-500">
-                  (A API não retornou campo separado de copia-e-cola nesta versão; o código está
-                  embutido na imagem do QR.)
-                </p>
-              )
+            )}
+
+            {pixResult.qrFieldsDiagnostic && (
+              <p className="mt-2 text-xs text-gray-500 break-all">
+                Campos de QR na resposta: {pixResult.qrFieldsDiagnostic}
+              </p>
             )}
           </div>
         )}
