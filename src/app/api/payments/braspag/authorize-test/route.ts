@@ -116,7 +116,12 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json(result);
+    // Eco de validação (sem HAR): caminho exato + valor do fingerprint enviado.
+    return NextResponse.json({
+      ...result,
+      fingerprintField: "Payment.FraudAnalysis.FingerPrintId",
+      fingerprintValue: String(browserFingerprint),
+    });
   } catch (err) {
     console.error("[Braspag:authorize-test] erro:", err);
     return NextResponse.json({ error: (err as Error)?.message || "erro" }, { status: 500 });

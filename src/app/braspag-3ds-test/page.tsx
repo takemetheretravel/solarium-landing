@@ -189,6 +189,9 @@ export default function Braspag3dsTestPage() {
     fraudReasonCode?: number;
     fraudProviderReturnCode?: string;
     fraudProviderReturnMessage?: string;
+    // Eco de validação do fingerprint (caminho + valor enviados no /v2/sales/)
+    fingerprintField?: string;
+    fingerprintValue?: string;
     error?: string;
   };
   const [authResult, setAuthResult] = useState<TxResult | null>(null);
@@ -625,6 +628,9 @@ export default function Braspag3dsTestPage() {
       addLog(
         `2B antifraude: Status=${data.fraudStatus ?? "-"} (${fraudLabel(data.fraudStatus)}) | Score=${data.fraudScore ?? "-"} | ReasonCode=${data.fraudReasonCode ?? "-"} | ${data.fraudProviderReturnMessage ?? ""}`,
       );
+      addLog(
+        `2B fingerprint enviado: ${data.fingerprintField ?? "?"} = "${data.fingerprintValue ?? "?"}"`,
+      );
     } catch (err) {
       const msg = (err as Error)?.message || "erro";
       setAuthResult({ error: msg });
@@ -836,7 +842,7 @@ export default function Braspag3dsTestPage() {
             <span className="font-mono break-all">{afSessionId || "(gerando…)"}</span>
           </div>
           <div>
-            ProviderIdentifier (irá em Customer.BrowserFingerprint na 2B):{" "}
+            ProviderIdentifier (irá em Payment.FraudAnalysis.FingerPrintId na 2B):{" "}
             <span className="font-mono break-all">{afProviderIdentifier || "—"}</span>
           </div>
           <div>
@@ -1012,6 +1018,13 @@ export default function Braspag3dsTestPage() {
                           : ""}
                       </td>
                     </tr>
+                    <tr className="border-t border-gray-200">
+                      <td className="py-1 pr-4 font-medium text-gray-600">Fingerprint enviado</td>
+                      <td className="py-1 font-mono break-all">
+                        {authResult.fingerprintField ?? "—"}
+                        {authResult.fingerprintValue ? ` = ${authResult.fingerprintValue}` : ""}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -1077,13 +1090,13 @@ export default function Braspag3dsTestPage() {
           </div>
           <div className="col-span-2">
             <label className={labelCls}>
-              Provider (teste) — vazio usa o default do server (Cielo30)
+              Provider (teste) — vazio usa o default do server (Simulado)
             </label>
             <input
               className={inputCls}
               value={pixProvider}
               onChange={(e) => setPixProvider(e.target.value)}
-              placeholder="ex.: Cielo30, BancoDoBrasil3, Bradesco2…"
+              placeholder="ex.: Simulado, Cielo30, BancoDoBrasil3…"
             />
           </div>
         </div>

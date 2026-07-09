@@ -181,7 +181,10 @@ export type BraspagAddress = {
 };
 
 export type BraspagFraudParams = {
-  browserFingerprint: string; // ProviderIdentifier (a Braspag reconstrói o session_id)
+  // ProviderIdentifier (uuid sem hífens, SEM o prefixo ProviderMerchantId).
+  // Vai em Payment.FraudAnalysis.FingerPrintId — manual do Pagador: "o valor do
+  // ProviderIdentifier deve ser enviado no parâmetro Payment.FraudAnalysis.FingerPrintId".
+  browserFingerprint: string;
   hostName?: string;
   cartItems: Array<{
     name: string;
@@ -242,11 +245,10 @@ export async function createBraspagAuthorization(params: {
   };
   // Campos exigidos pela análise antifraude (endereço completo, telefone etc.).
   if (f) {
-    // Doc do FingerPrint: Customer.BrowserFingerprint recebe SOMENTE o
-    // ProviderIdentifier — a Braspag reconstrói o session_id (ProviderMerchantId
-    // + identifier) para casar com o coletor. Enviar o session_id inteiro
-    // duplicaria o merchantId e quebraria a correlação.
-    Customer.BrowserFingerprint = f.browserFingerprint;
+    // NÃO enviar Customer.BrowserFingerprint aqui: esse campo é do contrato do
+    // Antifraude Gateway standalone. No Pagador, o fingerprint vai em
+    // Payment.FraudAnalysis.FingerPrintId (o eco de Customer.BrowserFingerprint
+    // vinha null e a Cybersource acusava "Device Fingerprint: Not Submitted").
     if (params.customer.phone) Customer.Phone = params.customer.phone;
     if (params.customer.birthdate) Customer.Birthdate = params.customer.birthdate;
     if (params.customer.billingAddress) Customer.BillingAddress = params.customer.billingAddress;
@@ -291,14 +293,18 @@ export async function createBraspagAuthorization(params: {
       CaptureOnLowRisk: false,
       VoidOnHighRisk: false,
       TotalOrderAmount: params.amount,
+      // Campo correto do fingerprint no Pagador: FingerPrintId (irmão de Browser),
+      // valor = ProviderIdentifier puro (sem prefixo ProviderMerchantId). A
+      // Cybersource remonta o session_id ProviderMerchantId+ProviderIdentifier.
+      FingerPrintId: f.browserFingerprint,
       Browser: {
-        // Também replicado aqui (algumas versões leem de Browser.BrowserFingerprint).
-        BrowserFingerprint: f.browserFingerprint,
+        // Contrato do Pagador: Browser NÃO tem BrowserFingerprint (o exemplo
+        // oficial traz só estes campos; Type = navegador, ex. "Chrome").
         CookiesAccepted: false,
         Email: params.customer.email,
         HostName: f.hostName || "",
         IpAddress: params.customer.ipAddress,
-        Type: "Web",
+        Type: "Chrome",
       },
       Cart: {
         IsGift: false,
@@ -362,10 +368,10 @@ export async function createBraspagAuthorization(params: {
   };
 }
 
-// Default do provider de Pix. O manual oficial (pix-pagador-v1) usa "Cielo30"
-// como provider de Pix nos exemplos de sandbox — NÃO é "Simulado" (esse é do
-// cartão e causa "Affiliation not found" no Pix). Override por env/param.
-export const BRASPAG_PIX_PROVIDER_DEFAULT = "Cielo30";
+// Default do provider de Pix em SANDBOX: "Simulado" — confirmado pela Braspag
+// após habilitarem a afiliação Pix na conta (o manual público usa "Cielo30",
+// mas o simulador de sandbox é o Simulado). Override por env/param.
+export const BRASPAG_PIX_PROVIDER_DEFAULT = "Simulado";
 
 // Resultado normalizado de uma cobrança Pix.
 export type BraspagPixResult = {
