@@ -51,6 +51,7 @@ export type ReservationDraft = {
   guestNotes?: string;
   status: "pending" | "paid" | "failed";
   cieloPaymentId?: string;
+  braspagPaymentId?: string;
   hostawayReservationId?: number;
   createdAt: string;
   expiresAt: string;

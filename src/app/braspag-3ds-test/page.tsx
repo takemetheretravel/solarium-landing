@@ -227,6 +227,11 @@ export default function Braspag3dsTestPage() {
   const [pixProvider, setPixProvider] = useState(""); // vazio = usa default do server
   // QR gerado localmente a partir do copia-e-cola (quando a API não retorna imagem)
   const [pixLocalQr, setPixLocalQr] = useState<string>("");
+
+  // A1 — fluxo real (server): chama /api/payments/braspag/credit com um draft real
+  const [a1DraftId, setA1DraftId] = useState("");
+  const [a1Busy, setA1Busy] = useState(false);
+  const [a1Result, setA1Result] = useState<Record<string, unknown> | null>(null);
   const [pixResult, setPixResult] = useState<PixResult | null>(null);
   const [pixStatusCode, setPixStatusCode] = useState<number | undefined>(undefined);
   const [pixBusy, setPixBusy] = useState(false);
@@ -669,6 +674,69 @@ export default function Braspag3dsTestPage() {
     setTxBusy(false);
   }
 
+  // A1 — dispara o fluxo real server-side com um draft real (criado no staging).
+  // Usa o resultado 3DS da sessão + o fingerprint da 2A + billing de teste fixo.
+  async function runA1RealFlow() {
+    if (a1Busy) return;
+    if (!a1DraftId.trim()) {
+      addLog("A1: informe um draftId (crie um draft no site de staging antes).");
+      return;
+    }
+    if (!result || result.event !== "onSuccess") {
+      addLog("A1: é preciso um 3DS onSuccess acima (autentique primeiro).");
+      return;
+    }
+    if (!afProviderIdentifier) {
+      addLog("A1: FingerPrint da 2A ainda não pronto. Recarregue.");
+      return;
+    }
+    setA1Busy(true);
+    setA1Result(null);
+    const f = result.fields;
+    addLog(`A1: POST /api/payments/braspag/credit draft=${a1DraftId.trim()} cartão ****${cardNumber.slice(-4)}…`);
+    try {
+      const res = await fetch("/api/payments/braspag/credit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draftId: a1DraftId.trim(),
+          cardNumber,
+          cardHolder: holder,
+          cardExpiration: expiration,
+          cardCvv: cvv,
+          installments,
+          browserFingerprint: afProviderIdentifier,
+          externalAuthentication: {
+            Cavv: f.Cavv,
+            Xid: f.Xid,
+            Eci: f.Eci,
+            Version: f.Version,
+            ReferenceId: f.ReferenceId,
+          },
+          billing: {
+            street: "Rua das Flores",
+            number: "100",
+            complement: "Casa",
+            neighborhood: "Centro",
+            city: "Itanhandu",
+            state: "MG",
+            zipCode: "37464000",
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setA1Result({ httpStatus: res.status, ...data });
+      addLog(
+        `A1: HTTP ${res.status} | approved=${data.approved} | ${data.redirectTo ?? data.returnMessage ?? data.error ?? ""}`,
+      );
+    } catch (err) {
+      const msg = (err as Error)?.message || "erro";
+      setA1Result({ error: msg });
+      addLog(`A1: erro de rede — ${msg}`);
+    }
+    setA1Busy(false);
+  }
+
   // ===================== Camada 3 — Pix =====================
   useEffect(() => {
     if (!pixOrderId) setPixOrderId(`pix-test-${Date.now()}`);
@@ -1080,6 +1148,45 @@ export default function Braspag3dsTestPage() {
           )}
         </div>
       )}
+
+      {/* ===================================================================
+          A1 — Fluxo real (server). Chama /api/payments/braspag/credit, que
+          espelha o pós-pagamento da rota Cielo (recalc + autoriza + antifraude
+          + captura separada + Hostaway). Requer um draftId REAL criado no
+          staging, o 3DS onSuccess acima e o FingerPrint da 2A.
+         =================================================================== */}
+      <div className="mt-8 rounded border border-indigo-300 bg-indigo-50 p-4">
+        <div className="mb-2 text-sm font-semibold">A1 — Fluxo real (server)</div>
+        <p className="mb-3 text-xs text-gray-600">
+          Testa a rota real ponta a ponta. Crie um draft no site de staging, cole o draftId aqui,
+          autentique o 3DS acima (onSuccess) e clique — usa o fingerprint da 2A e um billing de teste
+          fixo. Recálculo, autorização, antifraude, captura separada e Hostaway rodam no servidor.
+        </p>
+        <div className="mb-3">
+          <label className={labelCls}>draftId (real, do staging)</label>
+          <input
+            className={inputCls}
+            value={a1DraftId}
+            onChange={(e) => setA1DraftId(e.target.value)}
+            placeholder="ex.: 8f3a…"
+          />
+        </div>
+        <button
+          onClick={runA1RealFlow}
+          disabled={a1Busy || result?.event !== "onSuccess"}
+          className="rounded bg-indigo-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+        >
+          {a1Busy ? "Processando…" : "Rodar fluxo real (A1)"}
+        </button>
+        {result?.event !== "onSuccess" && (
+          <p className="mt-2 text-xs text-amber-700">Autentique o 3DS acima (onSuccess) para habilitar.</p>
+        )}
+        {a1Result && (
+          <pre className="mt-3 overflow-auto rounded border border-gray-300 bg-white p-3 text-xs">
+            {JSON.stringify(a1Result, null, 2)}
+          </pre>
+        )}
+      </div>
 
       {/* ===================================================================
           Camada 3 — Pix. Seção separada do cartão: criação de cobrança

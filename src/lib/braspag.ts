@@ -538,3 +538,54 @@ export async function captureBraspagPayment(
     raw,
   };
 }
+
+// Cancela uma autorização (não capturada) para não prender o limite do cliente.
+// PUT /v2/sales/{paymentId}/void?amount={amount}. Usado em Reject/Review do
+// antifraude, ou em qualquer falha após autorizar mas antes de capturar.
+export async function voidBraspagPayment(
+  paymentId: string,
+  amount: number,
+): Promise<BraspagTransactionResult> {
+  const res = await fetch(
+    `${BRASPAG_URLS.transactional}/v2/sales/${encodeURIComponent(paymentId)}/void?amount=${amount}`,
+    { method: "PUT", headers: gatewayHeaders() },
+  );
+  const raw = await res.json().catch(() => ({}));
+  const flat = raw as Record<string, unknown>;
+  console.log(
+    "[Braspag:void] http=%d paymentId=%s status=%s returnCode=%s",
+    res.status,
+    paymentId,
+    String(flat.Status ?? "-"),
+    String(flat.ReturnCode ?? "-"),
+  );
+  return {
+    status: res.status,
+    paymentId,
+    returnCode: flat.ReturnCode as string | undefined,
+    returnMessage: flat.ReturnMessage as string | undefined,
+    statusCode: flat.Status as number | undefined,
+    raw,
+  };
+}
+
+// Mapeamento de códigos de recusa (ProviderReturnCode) → mensagem amigável.
+// Análogo ao mapa da Cielo; os códigos ISO de autorização são os mesmos entre
+// adquirentes. Começa pelos comuns e cai num default seguro.
+export function mensagemRecusaBraspag(returnCode?: string): string {
+  const code = (returnCode || "").trim();
+  const map: Record<string, string> = {
+    "05": "Seu banco não autorizou a compra. Entre em contato com o emissor ou tente outro cartão.",
+    "51": "Limite insuficiente para esta compra. Tente outro cartão ou parcele em mais vezes.",
+    "70": "Limite insuficiente para esta compra. Tente outro cartão ou parcele em mais vezes.",
+    "54": "Cartão vencido. Verifique a data de validade ou use outro cartão.",
+    "57": "Este cartão não permite esse tipo de transação. Tente outro cartão ou pague via Pix.",
+    "14": "Número do cartão inválido. Verifique os dígitos e tente novamente.",
+    "82": "Código de segurança (CVV) incorreto. Verifique os 3 dígitos no verso do cartão.",
+    "83": "Código de segurança (CVV) incorreto. Verifique os 3 dígitos no verso do cartão.",
+    "78": "Cartão bloqueado ou não desbloqueado. Verifique com seu banco.",
+    "63": "Transação não autorizada por segurança. Entre em contato com seu banco.",
+  };
+  if (code && map[code]) return map[code];
+  return "Não foi possível aprovar o pagamento. Verifique os dados do cartão, tente outro cartão ou pague via Pix.";
+}
