@@ -84,6 +84,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   // ---- Caminho Braspag (só quando PAYMENT_PROVIDER=braspag) ----
   // Enquanto não carrega, assume "cielo" → comportamento idêntico ao atual.
   const [provider, setProvider] = useState<"cielo" | "braspag">("cielo");
+  const [sandbox, setSandbox] = useState(false); // habilita o checkbox de teste
+  const [testOverride, setTestOverride] = useState(false); // bypass de sandbox
   const [braspagReady, setBraspagReady] = useState(false); // 3DS onReady
   const providerIdRef = useRef<string>(""); // ProviderIdentifier do fingerprint
   const braspagInitRef = useRef(false);
@@ -126,7 +128,9 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     fetch("/api/payments/provider")
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled && d?.provider === "braspag") setProvider("braspag");
+        if (cancelled) return;
+        if (d?.provider === "braspag") setProvider("braspag");
+        if (d?.sandbox === true) setSandbox(true);
       })
       .catch(() => {});
     return () => {
@@ -418,6 +422,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
             ReferenceId: r3ds.ReferenceId,
           },
           billing,
+          // Só é enviado (e só surte efeito) em sandbox; o servidor ignora em produção.
+          testAuthCardOverride: sandbox && testOverride,
         }),
       });
       const data = await res.json();
@@ -909,6 +915,21 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                     </div>
                   </div>
                 </div>
+              )}
+
+              {provider === "braspag" && sandbox && (
+                <label className="flex items-start gap-2 text-charcoal/50">
+                  <input
+                    type="checkbox"
+                    checked={testOverride}
+                    onChange={(e) => setTestOverride(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span className="font-sans text-[0.65rem] leading-snug">
+                    Modo teste sandbox (usar cartão de autorização na cobrança). Mantém o 3DS do
+                    cartão digitado e troca só o número na autorização — exclusivo de sandbox.
+                  </span>
+                </label>
               )}
 
               {cardError && (

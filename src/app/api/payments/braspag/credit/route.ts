@@ -51,6 +51,7 @@ export async function POST(req: Request) {
         state?: string;
         zipCode?: string;
       };
+      testAuthCardOverride?: boolean;
     };
     const {
       draftId,
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
       browserFingerprint,
       externalAuthentication,
       billing,
+      testAuthCardOverride,
     } = body;
 
     // ---- Validação de entrada (Braspag exige 3DS + fingerprint) ----
@@ -121,6 +123,25 @@ export async function POST(req: Request) {
       req.headers.get("x-real-ip") ||
       "127.0.0.1";
 
+    // ---- Bypass de TESTE, EXCLUSIVO DE SANDBOX ----
+    // Limitação do sandbox Braspag: nenhum cartão único autentica no 3DS E é
+    // aprovado na autorização. Para validar o CAMINHO DE SUCESSO ponta a ponta,
+    // permitimos usar um cartão de autorização diferente (4091688625337641)
+    // SOMENTE na etapa de autorização/captura, mantendo o ExternalAuthentication
+    // gerado com o cartão de 3DS. NUNCA ativo em produção: o gate exige
+    // BRASPAG_ENVIRONMENT !== "production" — em produção o flag é ignorado e o
+    // cartão real do cliente é o único usado.
+    const isSandbox = process.env.BRASPAG_ENVIRONMENT !== "production";
+    const SANDBOX_AUTH_CARD = "4091688625337641";
+    const useTestAuthCard =
+      isSandbox && testAuthCardOverride === true && !!externalAuthentication.Cavv;
+    const authCardNumber = useTestAuthCard ? SANDBOX_AUTH_CARD : cardNumber;
+    if (useTestAuthCard) {
+      console.warn(
+        "[Braspag:credit] ⚠️ SANDBOX testAuthCardOverride ATIVO — usando cartão de autorização de teste (ExternalAuthentication preservado). Jamais ativo em produção.",
+      );
+    }
+
     // ---- Autorização (sem Capture) + Antifraude (FingerPrintId) ----
     const auth = await createBraspagAuthorization({
       orderId: draftId,
@@ -136,11 +157,11 @@ export async function POST(req: Request) {
         deliveryAddress: billingAddress,
       },
       card: {
-        number: cardNumber,
+        number: authCardNumber,
         holder: cardHolder,
         expiration: cardExpiration,
         cvv: cardCvv,
-        brand: detectCardBrand(cardNumber),
+        brand: detectCardBrand(authCardNumber),
       },
       externalAuthentication: {
         Cavv: externalAuthentication.Cavv || "",
@@ -166,7 +187,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const binLog = cardNumber.replace(/\s/g, "").slice(0, 6);
+    const binLog = authCardNumber.replace(/\s/g, "").slice(0, 6);
 
     // ============ DECISÃO ============
     // 1) Antifraude Reject(2) ou Review(3), ou análise ausente → NÃO capturar.
