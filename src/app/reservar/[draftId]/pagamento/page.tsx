@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Container from "@/components/ui/Container";
@@ -11,6 +11,16 @@ import { PROPERTIES } from "@/config/properties";
 import { COUPONS } from "@/config/coupons";
 import type { ReservationDraft } from "@/lib/kv-store";
 import { trackAddPaymentInfo } from "@/lib/tracking";
+import {
+  initBraspagFingerprint,
+  initBraspag3ds,
+  authenticate3ds,
+  resetBraspag3ds,
+  type ThreeDSResult,
+} from "@/lib/braspag-3ds-client";
+
+const MSG_3DS_FALHOU =
+  "Não foi possível validar seu cartão com o banco emissor. Nenhum valor foi cobrado — tente novamente, use outro cartão ou pague via Pix.";
 
 const TAXA_MENSAL = 1.99; // estimativa típica Cielo (% ao mês)
 
@@ -71,6 +81,25 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   const [cardProcessing, setCardProcessing] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
 
+  // ---- Caminho Braspag (só quando PAYMENT_PROVIDER=braspag) ----
+  // Enquanto não carrega, assume "cielo" → comportamento idêntico ao atual.
+  const [provider, setProvider] = useState<"cielo" | "braspag">("cielo");
+  const [braspagReady, setBraspagReady] = useState(false); // 3DS onReady
+  const providerIdRef = useRef<string>(""); // ProviderIdentifier do fingerprint
+  const braspagInitRef = useRef(false);
+  const threeDSResultRef = useRef<ThreeDSResult | null>(null);
+  const threeDSResolverRef = useRef<((r: ThreeDSResult) => void) | null>(null);
+
+  // Endereço de cobrança (exigido pelo antifraude no fluxo Braspag)
+  const [billCep, setBillCep] = useState("");
+  const [billStreet, setBillStreet] = useState("");
+  const [billNumber, setBillNumber] = useState("");
+  const [billComplement, setBillComplement] = useState("");
+  const [billNeighborhood, setBillNeighborhood] = useState("");
+  const [billCity, setBillCity] = useState("");
+  const [billUf, setBillUf] = useState("");
+  const [cepLoading, setCepLoading] = useState(false);
+
   useEffect(() => {
     fetch(`/api/reservations/draft?id=${params.draftId}`)
       .then((r) => r.json())
@@ -89,6 +118,55 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       paymentMethod: draft.paymentMethod as "card" | "pix",
     });
   }, [draft]);
+
+  // Descobre o provider (flag). Default "cielo" até responder → sem efeito no
+  // modo cielo. NENHUM script Braspag é tocado aqui.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/payments/provider")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d?.provider === "braspag") setProvider("braspag");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Caminho Braspag: prepara FingerPrint + 3DS APENAS quando provider=braspag e
+  // for pagamento com cartão. No modo cielo este efeito não faz absolutamente
+  // nada (early return), então nenhum fetch/af-config/3ds-session/script roda.
+  useEffect(() => {
+    if (provider !== "braspag") return;
+    if (!draft || draft.paymentMethod !== "card") return;
+    if (braspagInitRef.current) return;
+    braspagInitRef.current = true;
+
+    (async () => {
+      try {
+        const fp = await initBraspagFingerprint();
+        providerIdRef.current = fp.providerIdentifier;
+      } catch (e) {
+        console.error("[Braspag:checkout] fingerprint:", e);
+      }
+      try {
+        await initBraspag3ds({
+          orderNumber: params.draftId,
+          amountCentavos: Math.round(draft.finalTotal * 100),
+          installments: 1,
+          onReady: () => setBraspagReady(true),
+          onResult: (r) => {
+            threeDSResultRef.current = r;
+            threeDSResolverRef.current?.(r);
+          },
+        });
+      } catch (e) {
+        console.error("[Braspag:checkout] 3ds init:", e);
+        setCardError("Não foi possível preparar o pagamento seguro. Recarregue a página ou pague via Pix.");
+      }
+    })();
+  }, [provider, draft, params.draftId]);
 
   useEffect(() => {
     if (!draft || draft.paymentMethod !== "pix" || pixStarted) return;
@@ -205,6 +283,162 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       setCardError((err as Error)?.message || "Erro de conexão. Verifique sua internet e tente novamente.");
     } finally {
       setCardProcessing(false);
+    }
+  }
+
+  // ViaCEP: autopreenche cidade/UF/rua/bairro (campos seguem editáveis).
+  async function lookupCep(rawCep: string) {
+    const cep = rawCep.replace(/\D/g, "");
+    if (cep.length !== 8) return;
+    setCepLoading(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        if (data.logradouro) setBillStreet(data.logradouro);
+        if (data.bairro) setBillNeighborhood(data.bairro);
+        if (data.localidade) setBillCity(data.localidade);
+        if (data.uf) setBillUf(data.uf);
+      }
+    } catch {
+      // silencioso: usuário pode preencher manualmente
+    } finally {
+      setCepLoading(false);
+    }
+  }
+
+  // Espera o resultado do 3DS (um dos callbacks do SDK) após authenticate.
+  function aguardarResultado3ds(): Promise<ThreeDSResult> {
+    return new Promise((resolve) => {
+      threeDSResolverRef.current = (r) => {
+        threeDSResolverRef.current = null;
+        resolve(r);
+      };
+    });
+  }
+
+  // SUBMIT do caminho Braspag (substitui o handler APENAS quando provider=braspag).
+  async function handleCardSubmitBraspag() {
+    if (!draft) return;
+    setCardError(null);
+
+    const normalizedExpiration = normalizeExpiration(cardExpiration);
+    const expParts = normalizedExpiration.split("/");
+    if (expParts.length !== 2 || expParts[0].length !== 2 || expParts[1].length !== 4) {
+      setCardError("Data de validade inválida. Use o formato MM/AAAA (ex: 01/2028).");
+      return;
+    }
+    if (billCep.replace(/\D/g, "").length !== 8) {
+      setCardError("CEP inválido. Informe os 8 dígitos do CEP de cobrança.");
+      return;
+    }
+    if (!billNumber.trim()) {
+      setCardError("Informe o número do endereço de cobrança.");
+      return;
+    }
+    if (!braspagReady) {
+      setCardError("Estamos preparando o pagamento seguro. Aguarde um instante e tente novamente.");
+      return;
+    }
+
+    setCardProcessing(true);
+
+    const billing = {
+      street: billStreet,
+      number: billNumber,
+      complement: billComplement,
+      neighborhood: billNeighborhood,
+      city: billCity,
+      state: billUf,
+      zipCode: billCep.replace(/\D/g, ""),
+    };
+
+    // 1) Autenticação 3DS no navegador.
+    const resultadoPromise = aguardarResultado3ds();
+    const disparou = authenticate3ds({
+      card: { number: cardNumber, holder: cardHolder, expirationMMYYYY: normalizedExpiration },
+      amountCentavos: Math.round(valorACobrar * 100),
+      orderNumber: params.draftId,
+      installments,
+      billing: { zipcode: billing.zipCode, street1: billStreet, city: billCity, state: billUf },
+    });
+    if (!disparou) {
+      setCardError("Pagamento seguro ainda não pronto. Aguarde e tente novamente.");
+      setCardProcessing(false);
+      return;
+    }
+    const r3ds = await resultadoPromise;
+
+    // 2) Só o onSuccess segue para a cobrança. Demais = falha amigável + retry.
+    if (r3ds.event !== "onSuccess") {
+      console.warn("[Braspag:checkout] 3DS não-sucesso:", r3ds.event, r3ds.ReturnCode);
+      setCardError(MSG_3DS_FALHOU);
+      setCardProcessing(false);
+      // Novo token para a próxima tentativa.
+      resetBraspag3ds();
+      setBraspagReady(false);
+      braspagInitRef.current = false;
+      try {
+        await initBraspag3ds({
+          orderNumber: params.draftId,
+          amountCentavos: Math.round(draft.finalTotal * 100),
+          installments: 1,
+          onReady: () => setBraspagReady(true),
+          onResult: (r) => {
+            threeDSResultRef.current = r;
+            threeDSResolverRef.current?.(r);
+          },
+        });
+        braspagInitRef.current = true;
+      } catch {
+        // se falhar, o usuário pode recarregar
+      }
+      return;
+    }
+
+    // 3) Cobrança real (autoriza + antifraude + captura separada no servidor).
+    try {
+      const res = await fetch("/api/payments/braspag/credit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draftId: params.draftId,
+          cardNumber: cardNumber.replace(/\s/g, ""),
+          cardHolder,
+          cardExpiration: normalizedExpiration,
+          cardCvv,
+          installments,
+          amountOverride: valorACobrar,
+          browserFingerprint: providerIdRef.current,
+          externalAuthentication: {
+            Cavv: r3ds.Cavv,
+            Xid: r3ds.Xid,
+            Eci: r3ds.Eci,
+            Version: r3ds.Version,
+            ReferenceId: r3ds.ReferenceId,
+          },
+          billing,
+        }),
+      });
+      const data = await res.json();
+      if (data.approved) {
+        router.push(`/reservar/${params.draftId}/confirmacao`);
+      } else {
+        setCardError(data.returnMessage || data.error || "Pagamento não aprovado. Verifique os dados e tente novamente.");
+        setCardProcessing(false);
+      }
+    } catch (err) {
+      setCardError((err as Error)?.message || "Erro de conexão. Verifique sua internet e tente novamente.");
+      setCardProcessing(false);
+    }
+  }
+
+  // Dispatcher do botão Pagar: cielo = fluxo atual intacto; braspag = novo fluxo.
+  function onPayClick() {
+    if (provider === "braspag") {
+      void handleCardSubmitBraspag();
+    } else {
+      void handleCardSubmit();
     }
   }
 
@@ -572,6 +806,111 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                 )}
               </div>
 
+              {provider === "braspag" && (
+                <div className="space-y-5 border-t border-charcoal/10 pt-6">
+                  <p className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                    Endereço de cobrança
+                  </p>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                        CEP {cepLoading && <span className="text-copper">buscando…</span>}
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={billCep}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, "").slice(0, 8);
+                          setBillCep(v);
+                          if (v.length === 8) lookupCep(v);
+                        }}
+                        placeholder="00000000"
+                        maxLength={9}
+                        className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                        Número
+                      </label>
+                      <input
+                        type="text"
+                        value={billNumber}
+                        onChange={(e) => setBillNumber(e.target.value)}
+                        placeholder="123"
+                        className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                      Rua / Logradouro
+                    </label>
+                    <input
+                      type="text"
+                      value={billStreet}
+                      onChange={(e) => setBillStreet(e.target.value)}
+                      placeholder="Rua, avenida…"
+                      className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                        Complemento <span className="normal-case tracking-normal text-charcoal/30">(opcional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={billComplement}
+                        onChange={(e) => setBillComplement(e.target.value)}
+                        placeholder="Apto, bloco…"
+                        className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                        Bairro
+                      </label>
+                      <input
+                        type="text"
+                        value={billNeighborhood}
+                        onChange={(e) => setBillNeighborhood(e.target.value)}
+                        placeholder="Bairro"
+                        className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[1fr_100px] gap-6">
+                    <div>
+                      <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                        Cidade
+                      </label>
+                      <input
+                        type="text"
+                        value={billCity}
+                        onChange={(e) => setBillCity(e.target.value)}
+                        placeholder="Cidade"
+                        className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
+                        UF
+                      </label>
+                      <input
+                        type="text"
+                        value={billUf}
+                        onChange={(e) => setBillUf(e.target.value.toUpperCase().slice(0, 2))}
+                        placeholder="UF"
+                        maxLength={2}
+                        className="w-full border-b border-charcoal/20 bg-transparent pb-2 font-serif text-xl uppercase text-charcoal placeholder:text-charcoal/20 focus:border-copper focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {cardError && (
                 <div className="border border-red-200 bg-red-50 p-4">
                   <p className="font-sans text-xs text-red-700">{cardError}</p>
@@ -586,16 +925,32 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                 </div>
               )}
 
+              {provider === "braspag" && !braspagReady && !cardError && (
+                <div className="flex items-center gap-3 text-charcoal/60">
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-copper" />
+                  <p className="font-sans text-xs">Preparando pagamento seguro…</p>
+                </div>
+              )}
+
               <button
-                onClick={handleCardSubmit}
-                disabled={!cardNumber || !cardHolder || !cardExpiration || !cardCvv || cardProcessing}
+                onClick={onPayClick}
+                disabled={
+                  !cardNumber ||
+                  !cardHolder ||
+                  !cardExpiration ||
+                  !cardCvv ||
+                  cardProcessing ||
+                  (provider === "braspag" && !braspagReady)
+                }
                 className="w-full bg-copper py-4 font-sans text-xs uppercase tracking-[0.25em] text-cream transition-colors hover:bg-copper/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {cardProcessing ? "Processando..." : `Pagar ${formatBRLPrecise(valorACobrar)}`}
               </button>
 
               <p className="text-center font-sans text-[0.65rem] text-charcoal/40">
-                Pagamento processado com segurança pela Cielo. Seus dados estão protegidos.
+                {provider === "braspag"
+                  ? "Pagamento processado com segurança pela Cielo/Braspag. Seus dados estão protegidos."
+                  : "Pagamento processado com segurança pela Cielo. Seus dados estão protegidos."}
               </p>
             </div>
           </section>
