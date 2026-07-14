@@ -92,6 +92,12 @@ export default function Braspag3dsTestPage() {
   const [a1Busy, setA1Busy] = useState(false);
   const [a1Result, setA1Result] = useState<Record<string, unknown> | null>(null);
 
+  // Cancelamento / Estorno (void)
+  const [voidPaymentId, setVoidPaymentId] = useState("");
+  const [voidAmount, setVoidAmount] = useState(""); // vazio = void total
+  const [voidBusy, setVoidBusy] = useState(false);
+  const [voidResult, setVoidResult] = useState<Record<string, unknown> | null>(null);
+
   // Camada 3 — Pix
   type PixResult = {
     status?: number;
@@ -294,6 +300,30 @@ export default function Braspag3dsTestPage() {
     setA1Busy(false);
   }
 
+  // ---- Cancelamento / Estorno (void) ----
+  async function runVoid() {
+    if (voidBusy || !voidPaymentId.trim()) return;
+    setVoidBusy(true);
+    setVoidResult(null);
+    addLog(`Void: PaymentId ${voidPaymentId.trim()}${voidAmount ? `, amount ${voidAmount}` : " (total)"}…`);
+    try {
+      const res = await fetch("/api/payments/braspag/void-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: voidPaymentId.trim(),
+          ...(voidAmount ? { amount: Number(voidAmount) } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setVoidResult({ httpStatus: res.status, ...data });
+      addLog(`Void: HTTP ${res.status} | Status=${data.statusCode ?? "-"} (${data.statusName ?? "?"}) | ${data.returnMessage ?? data.error ?? ""}`);
+    } catch (err) {
+      setVoidResult({ error: (err as Error)?.message || "erro" });
+    }
+    setVoidBusy(false);
+  }
+
   // ---- Camada 3 — Pix ----
   useEffect(() => () => { if (pixPollRef.current) clearInterval(pixPollRef.current); }, []);
 
@@ -451,6 +481,41 @@ export default function Braspag3dsTestPage() {
           {a1Busy ? "Processando…" : "Rodar fluxo real (A1)"}
         </button>
         {a1Result && <pre className="mt-3 overflow-auto rounded border border-gray-300 bg-white p-3 text-xs">{JSON.stringify(a1Result, null, 2)}</pre>}
+      </div>
+
+      {/* Cancelamento / Estorno (void) */}
+      <div className="mt-8 rounded border border-rose-300 bg-rose-50 p-4">
+        <div className="mb-2 text-sm font-semibold">Cancelamento / Estorno (void)</div>
+        <p className="mb-3 text-xs text-gray-600">
+          Dois cenários (mesmo endpoint PUT /void): <strong>autorização não capturada</strong> →
+          cancelamento (Status 10 = Voided, libera o limite do cliente, sem valor cobrado);{" "}
+          <strong>transação já capturada</strong> → cancelamento no mesmo dia (Status 10) ou{" "}
+          <strong>estorno</strong> a partir do dia seguinte (Status 11 = Refunded, devolve o valor
+          cobrado). Sem amount = void total.
+        </p>
+        <div className="mb-3 grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className={labelCls}>PaymentId</label>
+            <input className={inputCls} value={voidPaymentId} onChange={(e) => setVoidPaymentId(e.target.value)} placeholder="GUID da transação" />
+          </div>
+          <div>
+            <label className={labelCls}>Amount em centavos (opcional — vazio = total)</label>
+            <input className={inputCls} type="number" value={voidAmount} onChange={(e) => setVoidAmount(e.target.value)} placeholder="ex.: 1000" />
+          </div>
+        </div>
+        <button onClick={runVoid} disabled={voidBusy || !voidPaymentId.trim()} className="rounded bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">
+          {voidBusy ? "Cancelando…" : "Cancelar / Estornar"}
+        </button>
+        {voidResult && (
+          <div className="mt-3 text-sm">
+            <div className="font-mono text-xs">
+              Status={String(voidResult.statusCode ?? "—")} · <strong>{String(voidResult.statusName ?? "?")}</strong>
+              {voidResult.returnMessage ? ` · ${voidResult.returnMessage}` : ""}
+              {voidResult.error ? ` · ERRO: ${voidResult.error}` : ""}
+            </div>
+            <pre className="mt-2 overflow-auto rounded border border-gray-300 bg-white p-3 text-xs max-h-40">{JSON.stringify(voidResult, null, 2)}</pre>
+          </div>
+        )}
       </div>
 
       {/* Camada 3 — Pix */}

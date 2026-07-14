@@ -77,6 +77,38 @@ export async function getDraft(id: string): Promise<ReservationDraft | null> {
   }
 }
 
+// Varre todos os drafts vivos no Redis (SCAN draft:*). Como o TTL do draft é
+// 2h, isso cobre com folga a janela de reconciliação de Pix pendente — não há
+// draft com mais de 2h no store. Usado pelo pix-reconcile.
+export async function scanAllDrafts(): Promise<ReservationDraft[]> {
+  try {
+    const redis = getRedis();
+    const keys: string[] = [];
+    let cursor = 0;
+    do {
+      const [next, batch] = await redis.scan(cursor, { match: "draft:*", count: 100 });
+      cursor = Number(next);
+      keys.push(...batch);
+    } while (cursor !== 0);
+    if (keys.length === 0) return [];
+
+    const values = await redis.mget<(string | ReservationDraft | null)[]>(...keys);
+    const drafts: ReservationDraft[] = [];
+    for (const raw of values) {
+      if (!raw) continue;
+      try {
+        drafts.push(typeof raw === "string" ? (JSON.parse(raw) as ReservationDraft) : (raw as ReservationDraft));
+      } catch {
+        // entrada corrompida: ignora
+      }
+    }
+    return drafts;
+  } catch (err) {
+    console.error("[kv-store:scanAllDrafts] Failed:", err);
+    return [];
+  }
+}
+
 export async function updateDraft(id: string, updates: Partial<ReservationDraft>): Promise<void> {
   try {
     const existing = await getDraft(id);

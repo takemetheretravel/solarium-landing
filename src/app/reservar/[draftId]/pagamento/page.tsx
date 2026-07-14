@@ -84,9 +84,12 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   // ---- Caminho Braspag (só quando PAYMENT_PROVIDER=braspag) ----
   // Enquanto não carrega, assume "cielo" → comportamento idêntico ao atual.
   const [provider, setProvider] = useState<"cielo" | "braspag">("cielo");
+  const [providerLoaded, setProviderLoaded] = useState(false); // flag respondeu
   const [sandbox, setSandbox] = useState(false); // habilita o checkbox de teste
   const [testOverride, setTestOverride] = useState(false); // bypass de sandbox
   const [braspagReady, setBraspagReady] = useState(false); // 3DS onReady
+  // QR do Pix Braspag gerado localmente quando a API não retorna a imagem
+  const [pixQrLocalSrc, setPixQrLocalSrc] = useState("");
   const providerIdRef = useRef<string>(""); // ProviderIdentifier do fingerprint
   const braspagInitRef = useRef(false);
   const threeDSResultRef = useRef<ThreeDSResult | null>(null);
@@ -131,8 +134,9 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         if (cancelled) return;
         if (d?.provider === "braspag") setProvider("braspag");
         if (d?.sandbox === true) setSandbox(true);
+        setProviderLoaded(true);
       })
-      .catch(() => {});
+      .catch(() => setProviderLoaded(true)); // falhou = segue como cielo (default)
     return () => {
       cancelled = true;
     };
@@ -174,32 +178,59 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
 
   useEffect(() => {
     if (!draft || draft.paymentMethod !== "pix" || pixStarted) return;
+    // Aguarda a flag do provider responder antes de gerar a cobrança — evita
+    // gerar o Pix no gateway errado. No modo cielo o endpoint e o fluxo são os
+    // mesmos de sempre (apenas aguarda 1 fetch rápido).
+    if (!providerLoaded) return;
     setPixStarted(true);
 
-    fetch("/api/payments/pix", {
+    // provider=braspag → Pix Braspag (reserva só nasce na confirmação).
+    // provider=cielo → fluxo atual intacto. VALIDAR EM PRODUÇÃO (braspag):
+    // em sandbox o Pix Braspag nunca muda de status.
+    const pixEndpoint = provider === "braspag" ? "/api/payments/braspag/pix" : "/api/payments/pix";
+
+    fetch(pixEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ draftId: params.draftId }),
     })
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const data = await r.json();
         if (data.error) throw new Error(data.error);
         setPixData({ qrCodeBase64: data.qrCodeBase64, qrCodeString: data.qrCodeString });
+        // Braspag (Simulado/algumas versões) pode não retornar a imagem: gera o
+        // QR localmente a partir do copia-e-cola (mesma técnica validada na
+        // página de teste).
+        if (provider === "braspag" && !data.qrCodeBase64 && data.qrCodeString) {
+          try {
+            const QR = (await import("qrcode")).default;
+            setPixQrLocalSrc(await QR.toDataURL(data.qrCodeString, { margin: 1, width: 224 }));
+          } catch {
+            // sem imagem local: copia-e-cola continua funcionando
+          }
+        }
         setPixStatus("pending");
       })
       .catch((err) => {
         setPixStatus("failed");
         setPixError((err as Error).message || "Erro ao gerar QR Code Pix.");
       });
-  }, [draft, params.draftId, pixStarted]);
+  }, [draft, params.draftId, pixStarted, provider, providerLoaded]);
 
   useEffect(() => {
     if (pixStatus !== "pending") return;
     let intervalId: ReturnType<typeof setInterval>;
 
+    // braspag: polling reconsulta a Braspag e confirma (reserva nasce lá).
+    // cielo: rota atual intacta. VALIDAR EM PRODUÇÃO (braspag).
+    const statusUrl =
+      provider === "braspag"
+        ? `/api/payments/braspag/pix/status?draftId=${params.draftId}`
+        : `/api/payments/pix/status?draftId=${params.draftId}`;
+
     async function checkStatus() {
       try {
-        const res = await fetch(`/api/payments/pix/status?draftId=${params.draftId}`);
+        const res = await fetch(statusUrl);
         const data = await res.json();
         if (data.status === "paid") {
           clearInterval(intervalId);
@@ -222,7 +253,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [pixStatus, params.draftId, router]);
+  }, [pixStatus, params.draftId, router, provider]);
 
   useEffect(() => {
     if (pixStatus !== "pending") return;
@@ -233,7 +264,11 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   async function handleManualCheck() {
     setManualChecking(true);
     try {
-      const res = await fetch(`/api/payments/pix/status?draftId=${params.draftId}`);
+      const statusUrl =
+        provider === "braspag"
+          ? `/api/payments/braspag/pix/status?draftId=${params.draftId}`
+          : `/api/payments/pix/status?draftId=${params.draftId}`;
+      const res = await fetch(statusUrl);
       const data = await res.json();
       if (data.status === "paid") {
         router.push(`/reservar/${params.draftId}/confirmacao`);
@@ -602,15 +637,19 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
               {pixStatus === "pending" && pixData && (
                 <div className="border border-charcoal/10 p-8">
                   <p className="mb-6 font-sans text-sm text-charcoal/70">
-                    Escaneie o QR Code abaixo ou copie o código Pix. Após o pagamento, a confirmação é automática.
+                    {provider === "braspag"
+                      ? "Escaneie o QR Code abaixo ou copie o código Pix. Após o pagamento, sua reserva será confirmada automaticamente."
+                      : "Escaneie o QR Code abaixo ou copie o código Pix. Após o pagamento, a confirmação é automática."}
                   </p>
-                  <div className="mb-6 flex justify-center">
-                    <img
-                      src={`data:image/png;base64,${pixData.qrCodeBase64}`}
-                      alt="QR Code Pix"
-                      className="h-56 w-56 border border-charcoal/10 p-2"
-                    />
-                  </div>
+                  {(pixData.qrCodeBase64 || pixQrLocalSrc) && (
+                    <div className="mb-6 flex justify-center">
+                      <img
+                        src={pixData.qrCodeBase64 ? `data:image/png;base64,${pixData.qrCodeBase64}` : pixQrLocalSrc}
+                        alt="QR Code Pix"
+                        className="h-56 w-56 border border-charcoal/10 p-2"
+                      />
+                    </div>
+                  )}
                   <div className="mb-4 rounded-sm bg-charcoal/5 p-4">
                     <p className="mb-2 font-sans text-[0.6rem] uppercase tracking-[0.2em] text-charcoal/60">
                       Pix copia e cola
