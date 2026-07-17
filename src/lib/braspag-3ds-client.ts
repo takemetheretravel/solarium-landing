@@ -13,8 +13,30 @@
 
 "use client";
 
-const SDK_SRC = "/scripts/BP.Mpi.3ds20.min.js"; // self-hosted (mesmo domínio)
+// Scripts self-hosted (mesmo domínio), escolhidos conforme BRASPAG_ENVIRONMENT
+// (resolvido via /api/payments/provider). Origem/data dos arquivos:
+//  - BP.Mpi.3ds20.min.js       ← mpisandbox.braspag.com.br/Scripts/… (2026-07-05)
+//  - BP.Mpi.3ds20.min.prod.js  ← mpi.braspag.com.br/Scripts/…       (2026-07-14)
+// (Na data do download os dois arquivos eram byte a byte idênticos; mantemos
+// separados para poder atualizar produção de forma independente.)
+const SDK_SRC_SANDBOX = "/scripts/BP.Mpi.3ds20.min.js";
+const SDK_SRC_PROD = "/scripts/BP.Mpi.3ds20.min.prod.js";
 const SDK_SCRIPT_ID = "bpmpi-3ds20-sdk";
+
+// Resolve o ambiente do gateway no servidor (BRASPAG_ENVIRONMENT) — o client
+// não tem acesso ao env var. Cacheado por sessão de página.
+let cachedSandbox: boolean | null = null;
+async function isSandboxEnvironment(): Promise<boolean> {
+  if (cachedSandbox !== null) return cachedSandbox;
+  try {
+    const res = await fetch("/api/payments/provider");
+    const data = await res.json().catch(() => ({}));
+    cachedSandbox = data?.sandbox !== false; // default seguro: sandbox
+  } catch {
+    cachedSandbox = true;
+  }
+  return cachedSandbox;
+}
 const FP_SCRIPT_ID = "bpmpi-fp-script";
 const FP_HOST = "https://h.online-metrix.net";
 const INPUTS_CONTAINER_ID = "bpmpi-inputs-container";
@@ -157,7 +179,11 @@ export async function initBraspag3ds(opts: {
   onReady: () => void;
   onResult: (r: ThreeDSResult) => void;
 }): Promise<void> {
-  const environment = opts.environment || "SDB";
+  // Ambiente do SDK: "SDB" (sandbox) vs "PRD" (produção), derivado de
+  // BRASPAG_ENVIRONMENT via /api/payments/provider — nunca hardcoded.
+  const sandbox = opts.environment ? opts.environment === "SDB" : await isSandboxEnvironment();
+  const environment = opts.environment || (sandbox ? "SDB" : "PRD");
+  const sdkSrc = sandbox ? SDK_SRC_SANDBOX : SDK_SRC_PROD;
   const billing = { ...DEFAULT_BILLING, ...(opts.billing || {}) };
 
   // (1) bpmpi_config PRECISA existir antes do script.
@@ -221,7 +247,7 @@ export async function initBraspag3ds(opts: {
   if (!document.getElementById(SDK_SCRIPT_ID)) {
     const s = document.createElement("script");
     s.id = SDK_SCRIPT_ID;
-    s.src = SDK_SRC;
+    s.src = sdkSrc;
     s.async = true;
     document.body.appendChild(s);
   }

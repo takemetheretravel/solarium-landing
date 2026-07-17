@@ -10,15 +10,12 @@ function establishmentCodeForDisplay(): string | undefined {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 1B — Sessão 3DS para a página de teste isolada.
+// Sessão 3DS — rota do FLUXO REAL (não é rota de teste): o módulo compartilhado
+// braspag-3ds-client a usa no checkout para obter o access token do MPI, em
+// sandbox E em produção. As URLs do MPI derivam de BRASPAG_ENVIRONMENT no lib.
 // Retorna APENAS o access token do MPI (destinado ao cliente, vai na classe
 // bpmpi_accesstoken). NUNCA retorna ClientId/ClientSecret.
-// Guarda: indisponível em produção (página de teste não existe em PRD).
 export async function POST() {
-  if (process.env.BRASPAG_ENVIRONMENT === "production") {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
-
   const establishmentCode = establishmentCodeForDisplay();
   try {
     const accessToken = await getBraspag3dsAccessToken();
