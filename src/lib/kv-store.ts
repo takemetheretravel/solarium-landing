@@ -49,7 +49,7 @@ export type ReservationDraft = {
   guestPhone: string;
   guestCpf: string;
   guestNotes?: string;
-  status: "pending" | "paid" | "failed";
+  status: "pending" | "paid" | "failed" | "expired";
   cieloPaymentId?: string;
   braspagPaymentId?: string;
   hostawayReservationId?: number;

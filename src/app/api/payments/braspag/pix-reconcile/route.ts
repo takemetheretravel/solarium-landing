@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { scanAllDrafts } from "@/lib/kv-store";
-import { confirmBraspagPixIfPaid } from "@/lib/braspag-pix-confirm";
+import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,14 +27,27 @@ export const maxDuration = 60;
 // sempre reportará "pending" — o caminho só confirma de verdade em produção.
 // =============================================================================
 export async function GET(req: Request) {
-  const secret = process.env.BRASPAG_RECONCILE_SECRET || "";
-  if (!secret) {
-    // Sem segredo configurado, o endpoint não opera (nunca deixar aberto).
-    return NextResponse.json({ error: "BRASPAG_RECONCILE_SECRET não configurado" }, { status: 503 });
+  const reconcileSecret = process.env.BRASPAG_RECONCILE_SECRET || "";
+  const cronSecret = process.env.CRON_SECRET || "";
+  if (!reconcileSecret && !cronSecret) {
+    // Sem NENHUM segredo configurado, o endpoint não opera (nunca deixar aberto).
+    return NextResponse.json(
+      { error: "Nem BRASPAG_RECONCILE_SECRET nem CRON_SECRET configurado" },
+      { status: 503 },
+    );
   }
+
+  // Duas formas de autorização:
+  // 1) Vercel Cron: envia automaticamente Authorization: Bearer <CRON_SECRET>
+  //    (basta definir a env CRON_SECRET; a Vercel injeta o header nas chamadas
+  //    agendadas em vercel.json). Ver docs de Vercel Cron.
+  // 2) Manual/externo: header x-reconcile-secret ou ?secret= == BRASPAG_RECONCILE_SECRET.
+  const authHeader = req.headers.get("authorization") || "";
   const provided =
     req.headers.get("x-reconcile-secret") || new URL(req.url).searchParams.get("secret") || "";
-  if (provided !== secret) {
+  const isVercelCron = !!cronSecret && authHeader === `Bearer ${cronSecret}`;
+  const isManual = !!reconcileSecret && provided === reconcileSecret;
+  if (!isVercelCron && !isManual) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -48,7 +61,7 @@ export async function GET(req: Request) {
     const results: Array<{ draftId: string; result: string }> = [];
     for (const d of candidates) {
       try {
-        const r = await confirmBraspagPixIfPaid(d.id);
+        const r = await confirmPixPaymentIfPaid(d.id);
         results.push({ draftId: d.id, result: r.status });
         if (r.status === "paid") {
           console.log("[Braspag:pix-reconcile] ✅ Pix confirmado via reconciliação:", d.id);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { confirmBraspagPixIfPaid } from "@/lib/braspag-pix-confirm";
+import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!draftId) return NextResponse.json({ status: "error" });
 
   try {
-    const result = await confirmBraspagPixIfPaid(draftId);
+    const result = await confirmPixPaymentIfPaid(draftId);
     return NextResponse.json(result);
   } catch (err) {
     console.error("[/api/payments/braspag/pix/status] Exception:", err);

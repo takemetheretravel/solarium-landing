@@ -235,7 +235,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         if (data.status === "paid") {
           clearInterval(intervalId);
           router.push(`/reservar/${params.draftId}/confirmacao`);
-        } else if (data.status === "failed") {
+        } else if (data.status === "failed" || data.status === "expired") {
+          if (data.status === "expired") setPixError("O prazo para pagamento deste Pix expirou. Gere uma nova reserva ou fale com o concierge.");
           setPixStatus("failed");
           clearInterval(intervalId);
         }
@@ -275,6 +276,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       } else if (data.status === "pending") {
         alert("Pagamento ainda não confirmado. Aguarde alguns instantes e tente novamente.");
       } else {
+        if (data.status === "expired") setPixError("O prazo para pagamento deste Pix expirou. Gere uma nova reserva ou fale com o concierge.");
         setPixStatus("failed");
       }
     } catch {

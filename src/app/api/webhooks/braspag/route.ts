@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { consultBraspagPayment } from "@/lib/braspag";
-import { confirmBraspagPixIfPaid } from "@/lib/braspag-pix-confirm";
+import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 // MerchantOrderId retornado pela PRÓPRIA consulta (não do payload). Um payload
 // forjado no máximo dispara uma consulta inócua.
 //
-// IDEMPOTÊNCIA: delegada ao confirmBraspagPixIfPaid (draft já pago + reserva
+// IDEMPOTÊNCIA: delegada ao confirmPixPaymentIfPaid (draft já pago + reserva
 // criada = no-op, retorna 200 sem efeito).
 //
 // Respondemos 200 mesmo em casos ignorados para não gerar retries infinitos;
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     // MerchantOrderId = draftId (é assim que criamos a cobrança).
-    const result = await confirmBraspagPixIfPaid(merchantOrderId);
+    const result = await confirmPixPaymentIfPaid(merchantOrderId);
     console.log("[Webhook:Braspag] resultado da confirmação:", JSON.stringify({ draftId: merchantOrderId, result }));
 
     return NextResponse.json({ ok: true, result: result.status });

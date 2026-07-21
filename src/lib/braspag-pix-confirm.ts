@@ -7,10 +7,15 @@ import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { enviarAlertaAprovacao } from "@/lib/email";
 
 // =============================================================================
-// Confirmação de Pix Braspag — helper ÚNICO usado por 3 entradas:
-//   (1) polling da página (/api/payments/braspag/pix/status),
-//   (2) webhook (/api/webhooks/braspag),
-//   (3) reconciliação (/api/payments/braspag/pix-reconcile).
+// Confirmação de Pix Braspag por CONSULTA — helper ÚNICO.
+// A Braspag NÃO tem webhook de Pix: o status é acompanhado pela API de Consulta
+// (NotPaid / Paid / Expired). Este helper é chamado por 3 entradas:
+//   (1) polling da página (/api/payments/braspag/pix/status) — confirma na hora
+//       se o hóspede está com a página aberta;
+//   (2) reconciliação/CRON (/api/payments/braspag/pix-reconcile) — rede de
+//       segurança que varre pendentes;
+//   (3) webhook (/api/webhooks/braspag) — mantido para eventos de CARTÃO; se um
+//       dia notificar Pix, reusa esta função (inofensivo).
 // Concentrar aqui garante idempotência e comportamento idêntico entre as vias.
 //
 // NUNCA confia em payload externo: sempre RECONSULTA o pagamento na Braspag
@@ -32,26 +37,39 @@ export type PixConfirmResult =
   | { status: "failed" }
   | { status: "expired" };
 
-export async function confirmBraspagPixIfPaid(draftId: string): Promise<PixConfirmResult> {
+// Códigos de retorno do provider Pix que indicam EXPIRAÇÃO do QR (o pagamento
+// não ocorreu no prazo). São específicos do provider (ex.: Bradesco 124=Expirado,
+// 130=QRCode removido/vencido). VALIDAR EM PRODUÇÃO: confirmar os códigos do
+// provider de produção; o Payment.Status numérico continua sendo a fonte primária.
+const EXPIRED_PROVIDER_CODES = new Set(["124", "130"]);
+
+// Confirmação de Pix por CONSULTA (a Braspag NÃO tem webhook de Pix: o status é
+// acompanhado pela API de Consulta — NotPaid/Paid/Expired). Idempotente.
+export async function confirmPixPaymentIfPaid(draftId: string): Promise<PixConfirmResult> {
   const draft = await getDraft(draftId);
   if (!draft) return { status: "expired" };
 
-  // Idempotência: já pago e com reserva criada (ou marcada p/ criação manual).
+  // Estados terminais: não reconsulta (idempotência + para de sondar).
   if (draft.status === "paid" && draft.hostawayReservationId !== undefined) {
     return { status: "paid", redirectTo: `/reservar/${draftId}/confirmacao` };
   }
+  if (draft.status === "failed") return { status: "failed" };
+  if (draft.status === "expired") return { status: "expired" };
   if (!draft.braspagPaymentId) return { status: "pending" };
 
   // Reconsulta server-side — única fonte de verdade do status.
   const consult = await consultBraspagPayment(draft.braspagPaymentId);
+  const payment = ((consult.raw ?? {}) as { Payment?: Record<string, unknown> }).Payment ?? {};
+  const provCode = String(payment.ProviderReturnCode ?? payment.ReasonCode ?? "");
   console.log(
-    "[BraspagPix:confirm] draft=%s paymentId=%s status=%s",
+    "[BraspagPix:confirm] draft=%s paymentId=%s status=%s provCode=%s",
     draftId,
     draft.braspagPaymentId,
     String(consult.statusCode ?? "-"),
+    provCode || "-",
   );
 
-  // 2 = PaymentConfirmed
+  // Paid — 2 = PaymentConfirmed.
   if (consult.statusCode === 2) {
     // Marca pago ANTES de criar a reserva (estreita corrida entre vias).
     if (draft.status !== "paid") {
@@ -61,7 +79,14 @@ export async function confirmBraspagPixIfPaid(draftId: string): Promise<PixConfi
     return { status: "paid", redirectTo: `/reservar/${draftId}/confirmacao` };
   }
 
-  // 3 = Denied, 13 = Aborted, 10 = Voided, 11 = Refunded → falha do Pix
+  // Expired — QR venceu sem pagamento. Marca "expired" e para de reconsultar
+  // (o reconcile só varre drafts "pending").
+  if (EXPIRED_PROVIDER_CODES.has(provCode)) {
+    await updateDraft(draftId, { status: "expired" });
+    return { status: "expired" };
+  }
+
+  // Failed — 3=Denied, 13=Aborted, 10=Voided, 11=Refunded.
   if (
     consult.statusCode === 3 ||
     consult.statusCode === 13 ||
@@ -72,6 +97,7 @@ export async function confirmBraspagPixIfPaid(draftId: string): Promise<PixConfi
     return { status: "failed" };
   }
 
+  // NotPaid (12=Pending ou indefinido) → segue pendente.
   return { status: "pending" };
 }
 

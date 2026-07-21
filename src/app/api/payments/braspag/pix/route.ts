@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // Cielo (/api/payments/pix): recebe draftId, valor SEMPRE recalculado
 // server-side (draft.finalTotal — nunca confiar em valor do cliente), CPF do
 // draft. NÃO cria reserva aqui: a reserva só nasce na CONFIRMAÇÃO do pagamento
-// (webhook / polling / reconcile → confirmBraspagPixIfPaid).
+// (webhook / polling / reconcile → confirmPixPaymentIfPaid).
 // VALIDAR EM PRODUÇÃO: em sandbox o Pix nunca muda de status.
 export async function POST(req: Request) {
   try {
