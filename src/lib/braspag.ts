@@ -17,6 +17,20 @@ function gatewayHeaders(): Record<string, string> {
   };
 }
 
+// SoftDescriptor que aparece na fatura do cliente. Env var opcional para ajuste
+// sem deploy; fallback "Solarium Mant". Bandeiras rejeitam acentos/caracteres
+// especiais → sanitizamos para ASCII (letras/números/espaço) e limitamos a 13.
+function getSoftDescriptor(): string {
+  const raw = process.env.BRASPAG_SOFT_DESCRIPTOR || "Solarium Mant";
+  const ascii = raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // remove marcas de acento (combining diacriticals)
+    .replace(/[^A-Za-z0-9 ]/g, "") // só ASCII alfanumérico + espaço
+    .trim()
+    .slice(0, 13);
+  return ascii || "Solarium Mant";
+}
+
 // Erro de autenticação do MPI 3DS, carregando status + corpo da resposta da
 // Braspag para que a rota possa propagá-los (sem expor segredos).
 export class Braspag3dsAuthError extends Error {
@@ -265,7 +279,7 @@ export async function createBraspagAuthorization(params: {
     Interest: "ByMerchant",
     Authenticate: true,
     Recurrent: false,
-    SoftDescriptor: "SolariumTest",
+    SoftDescriptor: getSoftDescriptor(), // fatura do cliente; env BRASPAG_SOFT_DESCRIPTOR
     CreditCard: {
       CardNumber: params.card.number,
       Holder: params.card.holder,
