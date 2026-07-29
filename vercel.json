@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/payments/braspag/pix-reconcile",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
