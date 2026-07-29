@@ -5,6 +5,7 @@ import {
   captureBraspagPayment,
   voidBraspagPayment,
   mensagemRecusaBraspag,
+  BRASPAG_URLS,
   type BraspagAddress,
 } from "@/lib/braspag";
 import { createHostawayReservation } from "@/lib/hostaway";
@@ -187,7 +188,42 @@ export async function POST(req: Request) {
       },
     });
 
-    const binLog = authCardNumber.replace(/\s/g, "").slice(0, 6);
+    const authDigits = authCardNumber.replace(/\D/g, "");
+    const binLog = authDigits.slice(0, 6);
+
+    // Resumo estruturado do response (identificadores do lado da Braspag +
+    // ambiente) para a Braspag localizar a transação nos logs deles. Vale para
+    // TODOS os desfechos (aprovado, recusado, AF-bloqueio). Sem dados de cartão
+    // além de BIN/últimos 4. auth.raw carrega Tid/ProofOfSale/AuthorizationCode.
+    {
+      const rawPayment = ((auth.raw ?? {}) as { Payment?: Record<string, unknown> }).Payment ?? {};
+      const rawFa = (rawPayment.FraudAnalysis ?? {}) as Record<string, unknown>;
+      console.log(
+        "[Braspag:authorize-result] " +
+          JSON.stringify({
+            baseUrl: BRASPAG_URLS.transactional,
+            merchantId: process.env.BRASPAG_MERCHANT_ID || "",
+            merchantOrderId: draftId,
+            httpStatus: auth.status,
+            cardBin: binLog,
+            cardLast4: authDigits.slice(-4),
+            testAuthCardOverride: useTestAuthCard,
+            PaymentId: rawPayment.PaymentId ?? auth.paymentId ?? null,
+            Tid: rawPayment.Tid ?? null,
+            ProofOfSale: rawPayment.ProofOfSale ?? null,
+            AuthorizationCode: rawPayment.AuthorizationCode ?? null,
+            Status: rawPayment.Status ?? auth.statusCode ?? null,
+            ReturnCode: rawPayment.ReturnCode ?? auth.returnCode ?? null,
+            ReturnMessage: rawPayment.ReturnMessage ?? auth.returnMessage ?? null,
+            ProviderReturnCode: rawPayment.ProviderReturnCode ?? null,
+            ProviderReturnMessage: rawPayment.ProviderReturnMessage ?? null,
+            FraudAnalysisId: rawFa.Id ?? null,
+            FraudAnalysisStatus: rawFa.Status ?? auth.fraudStatus ?? null,
+            FraudAnalysisReasonCode: rawFa.FraudAnalysisReasonCode ?? auth.fraudReasonCode ?? null,
+            FraudScore: auth.fraudScore ?? null,
+          }),
+      );
+    }
 
     // ============ DECISÃO ============
     // 1) Antifraude Reject(2) ou Review(3), ou análise ausente → NÃO capturar.

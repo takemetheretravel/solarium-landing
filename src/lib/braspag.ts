@@ -356,16 +356,35 @@ export async function createBraspagAuthorization(params: {
   const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
   const fa = (payment.FraudAnalysis ?? {}) as Record<string, unknown>;
   const replyData = (fa.ReplyData ?? {}) as Record<string, unknown>;
-  // Log sem dados sensíveis: nunca o número do cartão (nem mascarado aqui).
+
+  // Resumo estruturado numa linha, fácil de copiar p/ a Braspag localizar a
+  // transação nos logs deles. Inclui os identificadores do lado da Braspag +
+  // ambiente. NUNCA dados de cartão além de BIN/últimos 4.
+  const cardDigits = params.card.number.replace(/\D/g, "");
   console.log(
-    "[Braspag:authorize] http=%d order=%s payStatus=%s returnCode=%s paymentId=%s fraudStatus=%s score=%s",
-    res.status,
-    params.orderId,
-    String(payment.Status ?? "-"),
-    String(payment.ReturnCode ?? "-"),
-    String(payment.PaymentId ?? "-"),
-    String(fa.Status ?? "-"),
-    String(replyData.Score ?? "-"),
+    "[Braspag:authorize-result] " +
+      JSON.stringify({
+        env: ENV,
+        baseUrl: BRASPAG_URLS.transactional,
+        merchantId: process.env.BRASPAG_MERCHANT_ID || "",
+        httpStatus: res.status,
+        merchantOrderId: params.orderId,
+        cardBin: cardDigits.slice(0, 6),
+        cardLast4: cardDigits.slice(-4),
+        PaymentId: payment.PaymentId ?? null,
+        Tid: payment.Tid ?? null,
+        ProofOfSale: payment.ProofOfSale ?? null,
+        AuthorizationCode: payment.AuthorizationCode ?? null,
+        Status: payment.Status ?? null,
+        ReturnCode: payment.ReturnCode ?? null,
+        ReturnMessage: payment.ReturnMessage ?? null,
+        ProviderReturnCode: payment.ProviderReturnCode ?? null,
+        ProviderReturnMessage: payment.ProviderReturnMessage ?? null,
+        FraudAnalysisId: fa.Id ?? null,
+        FraudAnalysisStatus: fa.Status ?? null,
+        FraudAnalysisReasonCode: fa.FraudAnalysisReasonCode ?? null,
+        FraudScore: replyData.Score ?? null,
+      }),
   );
   return {
     status: res.status,
