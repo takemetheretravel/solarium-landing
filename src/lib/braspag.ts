@@ -170,6 +170,7 @@ export async function createBraspagSaleSimulado(params: {
 // Resultado normalizado das operações transacionais (autorização/captura).
 export type BraspagTransactionResult = {
   status: number; // HTTP status
+  providerUsed?: string; // provider de cartão efetivamente enviado
   paymentId?: string;
   returnCode?: string;
   returnMessage?: string;
@@ -207,6 +208,35 @@ export function checkBraspagConfig(): string[] {
 // exibimos só os 6 primeiros chars, para não vazar segredo.
 export function maskIfSecretLike(value: string): string {
   return MERCHANT_KEY_RE.test(value) ? `${value.slice(0, 6)}…(mascarado)` : value;
+}
+
+// Provider de CARTÃO. Configurável por BRASPAG_CARD_PROVIDER. Em sandbox, default
+// "Simulado" (o simulador). Em PRODUÇÃO, "Simulado" NÃO existe → se a env não
+// estiver setada, erro explícito (nunca enviar "Simulado" em produção). Foi
+// justamente o "Simulado" hardcoded que gerava HTTP 400 em produção.
+export function getCardProvider(): string {
+  const env = (process.env.BRASPAG_CARD_PROVIDER || "").trim();
+  if (env) return env;
+  if (ENV === "production") {
+    throw new Error(
+      "BRASPAG_CARD_PROVIDER não configurado — obrigatório em produção (confirmar valor com a Braspag)",
+    );
+  }
+  return "Simulado"; // só sandbox
+}
+
+// Provider de PIX — mesma regra do cartão (evita o mesmo bug do "Simulado" em
+// produção). Override por param > env BRASPAG_PIX_PROVIDER > (sandbox "Simulado"
+// | produção: erro se não configurado).
+export function getPixProvider(override?: string): string {
+  const chosen = (override || "").trim() || (process.env.BRASPAG_PIX_PROVIDER || "").trim();
+  if (chosen) return chosen;
+  if (ENV === "production") {
+    throw new Error(
+      "BRASPAG_PIX_PROVIDER não configurado — obrigatório em produção (confirmar valor com a Braspag)",
+    );
+  }
+  return "Simulado"; // só sandbox
 }
 
 export type BraspagAddress = {
@@ -297,8 +327,9 @@ export async function createBraspagAuthorization(params: {
     if (params.customer.deliveryAddress) Customer.DeliveryAddress = params.customer.deliveryAddress;
   }
 
+  const cardProvider = getCardProvider();
   const Payment: Record<string, unknown> = {
-    Provider: "Simulado",
+    Provider: cardProvider,
     Type: "CreditCard",
     Amount: params.amount,
     Currency: "BRL",
@@ -412,6 +443,7 @@ export async function createBraspagAuthorization(params: {
         env: ENV,
         baseUrl: BRASPAG_URLS.transactional,
         merchantId: maskIfSecretLike(process.env.BRASPAG_MERCHANT_ID || ""),
+        providerUsed: cardProvider,
         httpStatus: res.status,
         merchantOrderId: params.orderId,
         cardBin: cardDigits.slice(0, 6),
@@ -434,6 +466,7 @@ export async function createBraspagAuthorization(params: {
   );
   return {
     status: res.status,
+    providerUsed: cardProvider,
     paymentId: payment.PaymentId as string | undefined,
     returnCode: payment.ReturnCode as string | undefined,
     returnMessage: payment.ReturnMessage as string | undefined,
@@ -448,10 +481,9 @@ export async function createBraspagAuthorization(params: {
   };
 }
 
-// Default do provider de Pix em SANDBOX: "Simulado" — confirmado pela Braspag
-// após habilitarem a afiliação Pix na conta (o manual público usa "Cielo30",
-// mas o simulador de sandbox é o Simulado). Override por env/param.
-export const BRASPAG_PIX_PROVIDER_DEFAULT = "Simulado";
+// Provider de Pix: resolvido por getPixProvider() (param > env > sandbox
+// "Simulado" | produção: erro se não configurado). O "Simulado" NÃO é assumido
+// em produção — mesmo cuidado do cartão.
 
 // Resultado normalizado de uma cobrança Pix.
 export type BraspagPixResult = {
@@ -480,8 +512,7 @@ export async function createBraspagPixPayment(params: {
   customer: { name: string; identity: string };
   provider?: string; // override por chamada (teste de candidatos)
 }): Promise<BraspagPixResult> {
-  const providerUsed =
-    params.provider?.trim() || process.env.BRASPAG_PIX_PROVIDER || BRASPAG_PIX_PROVIDER_DEFAULT;
+  const providerUsed = getPixProvider(params.provider);
 
   const body = {
     MerchantOrderId: params.orderId,

@@ -205,6 +205,7 @@ export async function POST(req: Request) {
         env: process.env.BRASPAG_ENVIRONMENT === "production" ? "production" : "sandbox",
         baseUrl: BRASPAG_URLS.transactional,
         merchantId: maskIfSecretLike(process.env.BRASPAG_MERCHANT_ID || ""),
+        providerUsed: auth.providerUsed ?? null,
         merchantOrderId: draftId,
         httpStatus: auth.status,
         cardBin: binLog,
@@ -236,13 +237,36 @@ export async function POST(req: Request) {
     // (Status 1) mas NÃO capturou — para liberar o limite do cliente. Se o banco
     // negou (Status != 1), não há hold → NÃO chamamos void.
 
-    // 1) Banco NEGOU a autorização (Status != 1) → recusa mapeada, SEM void.
+    // 1) NÃO autorizado (Status != 1). Distingue dois casos:
+    //    - httpStatus não-2xx → ERRO DE REQUISIÇÃO (credencial/payload inválido),
+    //      não é recusa do emissor. Rótulo "[Braspag:ErroRequisicao]" + errorBody.
+    //    - httpStatus 2xx com Status de negativa → recusa real → "[Braspag:Recusa]".
     if (auth.statusCode !== 1) {
+      const httpOk = auth.status >= 200 && auth.status < 300;
       const mensagemCliente = mensagemRecusaBraspag(auth.returnCode);
-      const motivoInterno = auth.returnMessage
-        ? `${auth.returnMessage} (código ${auth.returnCode})`
-        : `código ${auth.returnCode}`;
-      console.error("[Braspag:Recusa]", JSON.stringify({ draftId, valor: valorACobrar, returnCode: auth.returnCode, returnMessage: auth.returnMessage, bin: binLog }));
+      if (!httpOk) {
+        console.error(
+          "[Braspag:ErroRequisicao]",
+          JSON.stringify({
+            draftId,
+            httpStatus: auth.status,
+            providerUsed: auth.providerUsed,
+            returnCode: auth.returnCode ?? null,
+            errorBody: auth.errorBody ?? null,
+            bin: binLog,
+          }),
+        );
+      } else {
+        console.error(
+          "[Braspag:Recusa]",
+          JSON.stringify({ draftId, valor: valorACobrar, returnCode: auth.returnCode, returnMessage: auth.returnMessage, bin: binLog }),
+        );
+      }
+      const motivoInterno = httpOk
+        ? auth.returnMessage
+          ? `${auth.returnMessage} (código ${auth.returnCode})`
+          : `código ${auth.returnCode}`
+        : `Erro de requisição (HTTP ${auth.status}): ${JSON.stringify(auth.errorBody ?? auth.returnMessage ?? "?")}`;
       await enviarAlertaRecusa({
         hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
         propriedade: draft.propertyName,
