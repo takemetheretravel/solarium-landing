@@ -222,8 +222,10 @@ export type BraspagFraudParams = {
 // O bloco `fraud` é OPCIONAL: quando presente, adiciona Payment.FraudAnalysis
 // (Cybersource) e os dados de Customer exigidos pela análise (endereço completo,
 // CPF, telefone, e-mail). Sem `fraud`, comporta-se como a 1C pura.
-// Fluxo: Sequence "AnalyseFirst" (análise ANTES da autorização) + captura
-// SEPARADA (CaptureOnLowRisk=false, VoidOnHighRisk=false → decisão manual).
+// Fluxo: Sequence "AuthorizeFirst" (autoriza PRIMEIRO, analisa depois se houve
+// sucesso) — garante PaymentId mesmo em AF Reject, para rastreio. Captura
+// SEPARADA (CaptureOnLowRisk=false, VoidOnHighRisk=false → decisão na rota:
+// autorizou+AF Accept = captura; autorizou mas AF Reject/Review = void).
 export async function createBraspagAuthorization(params: {
   orderId: string;
   amount: number; // centavos
@@ -300,10 +302,14 @@ export async function createBraspagAuthorization(params: {
   if (f) {
     Payment.FraudAnalysis = {
       Provider: "Cybersource",
-      Sequence: "AnalyseFirst", // análise ANTES da autorização
-      SequenceCriteria: "Always",
+      // AuthorizeFirst: autoriza PRIMEIRO, analisa DEPOIS (só se a autorização
+      // teve sucesso, via SequenceCriteria "OnSuccess"). Assim SEMPRE há um
+      // PaymentId — mesmo quando o antifraude rejeita —, o que a Braspag precisa
+      // para rastrear a transação. Configurável por env para reverter sem deploy.
+      Sequence: process.env.BRASPAG_AF_SEQUENCE || "AuthorizeFirst",
+      SequenceCriteria: process.env.BRASPAG_AF_SEQUENCE_CRITERIA || "OnSuccess",
       // Captura SEPARADA/manual: NÃO capturar nem cancelar automaticamente —
-      // a decisão fica no botão, considerando o resultado da análise.
+      // a decisão (capturar vs void) é da rota, considerando autorização + AF.
       CaptureOnLowRisk: false,
       VoidOnHighRisk: false,
       TotalOrderAmount: params.amount,

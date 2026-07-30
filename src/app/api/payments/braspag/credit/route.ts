@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDraft, updateDraft } from "@/lib/kv-store";
+import { getDraft, updateDraft, pushAuthLog } from "@/lib/kv-store";
 import {
   createBraspagAuthorization,
   captureBraspagPayment,
@@ -192,73 +192,48 @@ export async function POST(req: Request) {
     const binLog = authDigits.slice(0, 6);
 
     // Resumo estruturado do response (identificadores do lado da Braspag +
-    // ambiente) para a Braspag localizar a transação nos logs deles. Vale para
-    // TODOS os desfechos (aprovado, recusado, AF-bloqueio). Sem dados de cartão
-    // além de BIN/últimos 4. auth.raw carrega Tid/ProofOfSale/AuthorizationCode.
+    // ambiente) para a Braspag localizar a transação. Vale para TODOS os
+    // desfechos (aprovado, recusado, AF-bloqueio). Sem dados de cartão além de
+    // BIN/últimos 4. auth.raw carrega Tid/ProofOfSale/AuthorizationCode.
+    // Além do console.log, PERSISTE no KV (últimos 20, 7 dias) para leitura via
+    // /api/payments/braspag/authlog — não dependemos mais dos logs da Vercel.
     {
       const rawPayment = ((auth.raw ?? {}) as { Payment?: Record<string, unknown> }).Payment ?? {};
       const rawFa = (rawPayment.FraudAnalysis ?? {}) as Record<string, unknown>;
-      console.log(
-        "[Braspag:authorize-result] " +
-          JSON.stringify({
-            baseUrl: BRASPAG_URLS.transactional,
-            merchantId: process.env.BRASPAG_MERCHANT_ID || "",
-            merchantOrderId: draftId,
-            httpStatus: auth.status,
-            cardBin: binLog,
-            cardLast4: authDigits.slice(-4),
-            testAuthCardOverride: useTestAuthCard,
-            PaymentId: rawPayment.PaymentId ?? auth.paymentId ?? null,
-            Tid: rawPayment.Tid ?? null,
-            ProofOfSale: rawPayment.ProofOfSale ?? null,
-            AuthorizationCode: rawPayment.AuthorizationCode ?? null,
-            Status: rawPayment.Status ?? auth.statusCode ?? null,
-            ReturnCode: rawPayment.ReturnCode ?? auth.returnCode ?? null,
-            ReturnMessage: rawPayment.ReturnMessage ?? auth.returnMessage ?? null,
-            ProviderReturnCode: rawPayment.ProviderReturnCode ?? null,
-            ProviderReturnMessage: rawPayment.ProviderReturnMessage ?? null,
-            FraudAnalysisId: rawFa.Id ?? null,
-            FraudAnalysisStatus: rawFa.Status ?? auth.fraudStatus ?? null,
-            FraudAnalysisReasonCode: rawFa.FraudAnalysisReasonCode ?? auth.fraudReasonCode ?? null,
-            FraudScore: auth.fraudScore ?? null,
-          }),
-      );
+      const authResultLog = {
+        env: process.env.BRASPAG_ENVIRONMENT === "production" ? "production" : "sandbox",
+        baseUrl: BRASPAG_URLS.transactional,
+        merchantId: process.env.BRASPAG_MERCHANT_ID || "",
+        merchantOrderId: draftId,
+        httpStatus: auth.status,
+        cardBin: binLog,
+        cardLast4: authDigits.slice(-4),
+        testAuthCardOverride: useTestAuthCard,
+        PaymentId: rawPayment.PaymentId ?? auth.paymentId ?? null,
+        Tid: rawPayment.Tid ?? null,
+        ProofOfSale: rawPayment.ProofOfSale ?? null,
+        AuthorizationCode: rawPayment.AuthorizationCode ?? null,
+        Status: rawPayment.Status ?? auth.statusCode ?? null,
+        ReturnCode: rawPayment.ReturnCode ?? auth.returnCode ?? null,
+        ReturnMessage: rawPayment.ReturnMessage ?? auth.returnMessage ?? null,
+        ProviderReturnCode: rawPayment.ProviderReturnCode ?? null,
+        ProviderReturnMessage: rawPayment.ProviderReturnMessage ?? null,
+        FraudAnalysisId: rawFa.Id ?? null,
+        FraudAnalysisStatus: rawFa.Status ?? auth.fraudStatus ?? null,
+        FraudAnalysisReasonCode: rawFa.FraudAnalysisReasonCode ?? auth.fraudReasonCode ?? null,
+        FraudScore: auth.fraudScore ?? null,
+      };
+      console.log("[Braspag:authorize-result] " + JSON.stringify(authResultLog));
+      await pushAuthLog(authResultLog);
     }
 
-    // ============ DECISÃO ============
-    // 1) Antifraude Reject(2) ou Review(3), ou análise ausente → NÃO capturar.
-    //    Cancela a autorização (void) p/ não prender limite e alerta por e-mail.
-    const fraudBlocked = auth.fraudStatus === 2 || auth.fraudStatus === 3 || auth.fraudStatus === undefined;
-    if (fraudBlocked) {
-      if (auth.paymentId) {
-        try {
-          await voidBraspagPayment(auth.paymentId, amountCents);
-        } catch (e) {
-          console.error("[Braspag:credit] void falhou após bloqueio AF:", e);
-        }
-      }
-      const afLabel =
-        auth.fraudStatus === 2 ? "Reject" : auth.fraudStatus === 3 ? "Review" : "sem retorno (undefined)";
-      console.error("[Braspag:AF-bloqueio]", JSON.stringify({ draftId, paymentId: auth.paymentId, fraudStatus: auth.fraudStatus, score: auth.fraudScore, bin: binLog }));
-      await enviarAlertaRecusa({
-        hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
-        propriedade: draft.propertyName,
-        valor: valorACobrar,
-        motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorização cancelada (void). PaymentId ${auth.paymentId ?? "-"}`,
-        mensagemCliente: "Antifraude não aprovou; nenhum valor cobrado.",
-        draftId,
-      });
-      return NextResponse.json(
-        {
-          approved: false,
-          returnMessage:
-            "Não foi possível concluir o pagamento. Nenhum valor foi cobrado — tente novamente ou fale conosco no WhatsApp.",
-        },
-        { status: 402 },
-      );
-    }
+    // ============ DECISÃO (fluxo AuthorizeFirst) ============
+    // A autorização acontece PRIMEIRO; o antifraude analisa DEPOIS (só se
+    // autorizou). Regra do void: ele é chamado em TODO caminho onde AUTORIZOU
+    // (Status 1) mas NÃO capturou — para liberar o limite do cliente. Se o banco
+    // negou (Status != 1), não há hold → NÃO chamamos void.
 
-    // 2) Autorização negada (Status != 1) → mapeia código p/ mensagem amigável.
+    // 1) Banco NEGOU a autorização (Status != 1) → recusa mapeada, SEM void.
     if (auth.statusCode !== 1) {
       const mensagemCliente = mensagemRecusaBraspag(auth.returnCode);
       const motivoInterno = auth.returnMessage
@@ -274,6 +249,36 @@ export async function POST(req: Request) {
         draftId,
       });
       return NextResponse.json({ approved: false, returnMessage: mensagemCliente }, { status: 402 });
+    }
+
+    // Daqui em diante: AUTORIZADO (Status 1). Qualquer saída sem captura → VOID.
+
+    // 2) Antifraude NÃO aprovou (Reject 2 / Review 3 / ausente) → void + alerta.
+    if (auth.fraudStatus !== 1) {
+      try {
+        await voidBraspagPayment(auth.paymentId!, amountCents);
+      } catch (e) {
+        console.error("[Braspag:credit] void falhou após bloqueio AF:", e);
+      }
+      const afLabel =
+        auth.fraudStatus === 2 ? "Reject" : auth.fraudStatus === 3 ? "Review" : "sem retorno (undefined)";
+      console.error("[Braspag:AF-bloqueio]", JSON.stringify({ draftId, paymentId: auth.paymentId, fraudStatus: auth.fraudStatus, score: auth.fraudScore, bin: binLog }));
+      await enviarAlertaRecusa({
+        hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
+        propriedade: draft.propertyName,
+        valor: valorACobrar,
+        motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorizado mas cancelado (void). PaymentId ${auth.paymentId ?? "-"}`,
+        mensagemCliente: "Antifraude não aprovou; nenhum valor cobrado.",
+        draftId,
+      });
+      return NextResponse.json(
+        {
+          approved: false,
+          returnMessage:
+            "Não foi possível concluir o pagamento. Nenhum valor foi cobrado — tente novamente ou fale conosco no WhatsApp.",
+        },
+        { status: 402 },
+      );
     }
 
     // 3) Autorizado (Status 1) + Antifraude Accept(1) → CAPTURA separada.

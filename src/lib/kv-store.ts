@@ -109,6 +109,68 @@ export async function scanAllDrafts(): Promise<ReservationDraft[]> {
   }
 }
 
+// Varredura genérica de chaves por padrão (SCAN). Usada por reconcile e authlog.
+async function scanKeys(match: string): Promise<string[]> {
+  const redis = getRedis();
+  const keys: string[] = [];
+  let cursor = 0;
+  do {
+    const [next, batch] = await redis.scan(cursor, { match, count: 100 });
+    cursor = Number(next);
+    keys.push(...batch);
+  } while (cursor !== 0);
+  return keys;
+}
+
+// ---------------------------------------------------------------------------
+// Log de autorizações Braspag persistido no KV (diagnóstico sem depender dos
+// logs da Vercel). Chave braspag:authlog:<ts>-<rand>, TTL 7 dias, máx 20 (os
+// mais antigos são removidos). NUNCA gravar PAN/CVV/validade — só BIN/últimos 4.
+const AUTHLOG_PREFIX = "braspag:authlog:";
+const AUTHLOG_TTL = 60 * 60 * 24 * 7; // 7 dias
+const AUTHLOG_MAX = 20;
+
+export async function pushAuthLog(entry: Record<string, unknown>): Promise<void> {
+  try {
+    const redis = getRedis();
+    const ts = Date.now();
+    const key = `${AUTHLOG_PREFIX}${ts}-${Math.random().toString(36).slice(2, 8)}`;
+    await redis.set(key, JSON.stringify({ ...entry, _ts: ts }), { ex: AUTHLOG_TTL });
+    // Cap: mantém no máximo AUTHLOG_MAX (remove os mais antigos). O timestamp no
+    // prefixo tem largura fixa (13 dígitos) → sort de string = ordem cronológica.
+    const keys = await scanKeys(`${AUTHLOG_PREFIX}*`);
+    if (keys.length > AUTHLOG_MAX) {
+      const oldest = keys.sort().slice(0, keys.length - AUTHLOG_MAX);
+      if (oldest.length) await redis.del(...oldest);
+    }
+  } catch (err) {
+    console.error("[kv-store:pushAuthLog] Failed:", err);
+  }
+}
+
+export async function readAuthLog(): Promise<Record<string, unknown>[]> {
+  try {
+    const redis = getRedis();
+    const keys = await scanKeys(`${AUTHLOG_PREFIX}*`);
+    if (keys.length === 0) return [];
+    const values = await redis.mget<(string | Record<string, unknown> | null)[]>(...keys);
+    const entries: Record<string, unknown>[] = [];
+    for (const raw of values) {
+      if (!raw) continue;
+      try {
+        entries.push(typeof raw === "string" ? JSON.parse(raw) : (raw as Record<string, unknown>));
+      } catch {
+        // ignora entrada corrompida
+      }
+    }
+    // Mais recente primeiro.
+    return entries.sort((a, b) => Number(b._ts ?? 0) - Number(a._ts ?? 0));
+  } catch (err) {
+    console.error("[kv-store:readAuthLog] Failed:", err);
+    return [];
+  }
+}
+
 export async function updateDraft(id: string, updates: Partial<ReservationDraft>): Promise<void> {
   try {
     const existing = await getDraft(id);
