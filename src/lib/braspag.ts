@@ -180,8 +180,34 @@ export type BraspagTransactionResult = {
   fraudReasonCode?: number;
   fraudProviderReturnCode?: string;
   fraudProviderReturnMessage?: string;
+  // Corpo CRU do erro da Braspag quando a resposta NÃO foi 2xx (ex.: array
+  // [{Code, Message}] de credencial inválida). Sem truncar. undefined em sucesso.
+  errorBody?: unknown;
   raw: unknown;
 };
+
+// GUID no formato 8-4-4-4-12 hex (formato do MerchantId).
+const GUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+// MerchantKey costuma ter 40 chars alfanuméricos (sem hífens).
+const MERCHANT_KEY_RE = /^[A-Za-z0-9]{40}$/;
+
+// Avisos de configuração (não bloqueiam o fluxo). Usado no /test e na autorização.
+export function checkBraspagConfig(): string[] {
+  const warnings: string[] = [];
+  const merchantId = (process.env.BRASPAG_MERCHANT_ID || "").trim();
+  if (merchantId && !GUID_RE.test(merchantId)) {
+    warnings.push(
+      "[Braspag:config] BRASPAG_MERCHANT_ID não parece um GUID — verifique se a MerchantKey foi colada no campo errado",
+    );
+  }
+  return warnings;
+}
+
+// Mascara um valor que pareça uma MerchantKey (40 alfanuméricos) — em diagnóstico
+// exibimos só os 6 primeiros chars, para não vazar segredo.
+export function maskIfSecretLike(value: string): string {
+  return MERCHANT_KEY_RE.test(value) ? `${value.slice(0, 6)}…(mascarado)` : value;
+}
 
 export type BraspagAddress = {
   Street: string;
@@ -353,26 +379,39 @@ export async function createBraspagAuthorization(params: {
 
   const body = { MerchantOrderId: params.orderId, Customer, Payment };
 
+  // Avisa (sem bloquear) se as credenciais parecem mal configuradas — isso
+  // explica um 400 com corpo de credencial inválida.
+  for (const w of checkBraspagConfig()) console.warn(w);
+
   const res = await fetch(`${BRASPAG_URLS.transactional}/v2/sales/`, {
     method: "POST",
     headers: gatewayHeaders(),
     body: JSON.stringify(body),
   });
-  const raw = await res.json().catch(() => ({}));
+  // Captura o corpo CRU sempre (texto + parse). Em erro (não-2xx) o corpo é o
+  // array [{Code, Message}] da Braspag — preservado sem truncar em errorBody.
+  const rawText = await res.text();
+  let raw: unknown;
+  try {
+    raw = JSON.parse(rawText);
+  } catch {
+    raw = rawText;
+  }
+  const errorBody = res.ok ? undefined : (raw ?? rawText);
   const payment = (raw as { Payment?: Record<string, unknown> })?.Payment ?? {};
   const fa = (payment.FraudAnalysis ?? {}) as Record<string, unknown>;
   const replyData = (fa.ReplyData ?? {}) as Record<string, unknown>;
 
   // Resumo estruturado numa linha, fácil de copiar p/ a Braspag localizar a
   // transação nos logs deles. Inclui os identificadores do lado da Braspag +
-  // ambiente. NUNCA dados de cartão além de BIN/últimos 4.
+  // ambiente + errorBody quando houver. NUNCA dados de cartão além de BIN/últimos 4.
   const cardDigits = params.card.number.replace(/\D/g, "");
   console.log(
     "[Braspag:authorize-result] " +
       JSON.stringify({
         env: ENV,
         baseUrl: BRASPAG_URLS.transactional,
-        merchantId: process.env.BRASPAG_MERCHANT_ID || "",
+        merchantId: maskIfSecretLike(process.env.BRASPAG_MERCHANT_ID || ""),
         httpStatus: res.status,
         merchantOrderId: params.orderId,
         cardBin: cardDigits.slice(0, 6),
@@ -390,6 +429,7 @@ export async function createBraspagAuthorization(params: {
         FraudAnalysisStatus: fa.Status ?? null,
         FraudAnalysisReasonCode: fa.FraudAnalysisReasonCode ?? null,
         FraudScore: replyData.Score ?? null,
+        errorBody: errorBody ?? null,
       }),
   );
   return {
@@ -403,6 +443,7 @@ export async function createBraspagAuthorization(params: {
     fraudReasonCode: fa.FraudAnalysisReasonCode as number | undefined,
     fraudProviderReturnCode: (fa.ProviderReturnCode ?? replyData.ProviderTransactionId) as string | undefined,
     fraudProviderReturnMessage: fa.ProviderReturnMessage as string | undefined,
+    errorBody,
     raw,
   };
 }

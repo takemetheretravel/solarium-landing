@@ -5,6 +5,7 @@ import {
   captureBraspagPayment,
   voidBraspagPayment,
   mensagemRecusaBraspag,
+  maskIfSecretLike,
   BRASPAG_URLS,
   type BraspagAddress,
 } from "@/lib/braspag";
@@ -203,7 +204,7 @@ export async function POST(req: Request) {
       const authResultLog = {
         env: process.env.BRASPAG_ENVIRONMENT === "production" ? "production" : "sandbox",
         baseUrl: BRASPAG_URLS.transactional,
-        merchantId: process.env.BRASPAG_MERCHANT_ID || "",
+        merchantId: maskIfSecretLike(process.env.BRASPAG_MERCHANT_ID || ""),
         merchantOrderId: draftId,
         httpStatus: auth.status,
         cardBin: binLog,
@@ -222,6 +223,8 @@ export async function POST(req: Request) {
         FraudAnalysisStatus: rawFa.Status ?? auth.fraudStatus ?? null,
         FraudAnalysisReasonCode: rawFa.FraudAnalysisReasonCode ?? auth.fraudReasonCode ?? null,
         FraudScore: auth.fraudScore ?? null,
+        // Corpo cru do erro da Braspag quando não-2xx (ex.: [{Code,Message}]).
+        errorBody: auth.errorBody ?? null,
       };
       console.log("[Braspag:authorize-result] " + JSON.stringify(authResultLog));
       await pushAuthLog(authResultLog);

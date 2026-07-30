@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createBraspagSaleSimulado } from "@/lib/braspag";
+import { createBraspagSaleSimulado, checkBraspagConfig } from "@/lib/braspag";
 import { getPaymentProvider } from "@/config/payment-provider";
 
 export const runtime = "nodejs";
@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 
 // Health check público — usado pela equipe Braspag para confirmar que o
 // ambiente de staging está acessível. NÃO expõe nenhum segredo: apenas
-// booleanos de "configurado/não configurado".
+// booleanos de "configurado/não configurado" + avisos de config (sem valores).
 export async function GET() {
+  const configWarnings = checkBraspagConfig();
   return NextResponse.json({
     ok: true,
     service: "braspag-gateway",
@@ -16,6 +17,7 @@ export async function GET() {
     provider: getPaymentProvider(),
     merchantIdConfigured: Boolean(process.env.BRASPAG_MERCHANT_ID),
     merchantKeyConfigured: Boolean(process.env.BRASPAG_MERCHANT_KEY),
+    configWarnings, // [] quando ok; avisa se MerchantId não parece GUID
     timestamp: new Date().toISOString(),
   });
 }
