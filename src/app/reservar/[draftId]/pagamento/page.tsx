@@ -90,6 +90,9 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   const [braspagReady, setBraspagReady] = useState(false); // 3DS onReady
   // QR do Pix Braspag gerado localmente quando a API não retorna a imagem
   const [pixQrLocalSrc, setPixQrLocalSrc] = useState("");
+  // Após a janela de polling (15min) sem confirmação: mensagem tranquilizadora
+  // (a confirmação pode levar alguns minutos e a reserva nasce automaticamente).
+  const [pixWaitLong, setPixWaitLong] = useState(false);
   const providerIdRef = useRef<string>(""); // ProviderIdentifier do fingerprint
   const braspagInitRef = useRef(false);
   const threeDSResultRef = useRef<ThreeDSResult | null>(null);
@@ -219,7 +222,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
 
   useEffect(() => {
     if (pixStatus !== "pending") return;
-    let intervalId: ReturnType<typeof setInterval>;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let stopped = false;
 
     // braspag: polling reconsulta a Braspag e confirma (reserva nasce lá).
     // cielo: rota atual intacta. VALIDAR EM PRODUÇÃO (braspag).
@@ -228,30 +232,50 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         ? `/api/payments/braspag/pix/status?draftId=${params.draftId}`
         : `/api/payments/pix/status?draftId=${params.draftId}`;
 
+    // Cronograma: 5s nos primeiros 2min, depois 10s até 15min totais. Um hóspede
+    // real leva 2-5min para pagar — a janela curta anterior (60s) perdia isso.
+    const startedAt = Date.now();
+    const FAST_UNTIL = 2 * 60 * 1000; // 2 min a 5s
+    const TOTAL_WINDOW = 15 * 60 * 1000; // 15 min totais
+
     async function checkStatus() {
       try {
         const res = await fetch(statusUrl);
         const data = await res.json();
         if (data.status === "paid") {
-          clearInterval(intervalId);
+          stopped = true;
           router.push(`/reservar/${params.draftId}/confirmacao`);
-        } else if (data.status === "failed" || data.status === "expired") {
+          return;
+        }
+        if (data.status === "failed" || data.status === "expired") {
           if (data.status === "expired") setPixError("O prazo para pagamento deste Pix expirou. Gere uma nova reserva ou fale com o concierge.");
           setPixStatus("failed");
-          clearInterval(intervalId);
+          stopped = true;
+          return;
         }
       } catch {}
+      if (stopped) return;
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= TOTAL_WINDOW) {
+        // Encerra o polling ativo, mas SEM sugerir falha: a confirmação pode
+        // chegar depois (webhook/cron) e a reserva nasce automaticamente.
+        setPixWaitLong(true);
+        return;
+      }
+      const nextDelay = elapsed < FAST_UNTIL ? 5000 : 10000;
+      timeoutId = setTimeout(checkStatus, nextDelay);
     }
 
-    intervalId = setInterval(checkStatus, 5000);
+    timeoutId = setTimeout(checkStatus, 5000);
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") checkStatus();
+      if (document.visibilityState === "visible" && !stopped) checkStatus();
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearInterval(intervalId);
+      stopped = true;
+      clearTimeout(timeoutId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [pixStatus, params.draftId, router, provider]);
@@ -674,6 +698,16 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                     <div className="h-2 w-2 animate-pulse rounded-full bg-copper" />
                     <p className="font-sans text-xs">Aguardando confirmação do pagamento...</p>
                   </div>
+                  {pixWaitLong && (
+                    <div className="mt-4 border border-copper/30 bg-copper/5 p-4">
+                      <p className="font-sans text-xs text-charcoal/80">
+                        A confirmação do seu Pix pode levar alguns minutos. Você já pode fechar esta
+                        página — assim que o pagamento for confirmado, sua reserva é criada
+                        automaticamente e você recebe a confirmação por e-mail. Se preferir, use o
+                        botão abaixo para verificar agora.
+                      </p>
+                    </div>
+                  )}
                   {showManualCheck && (
                     <button
                       onClick={handleManualCheck}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDraft, updateDraft } from "@/lib/kv-store";
 import { createBraspagPixPayment } from "@/lib/braspag";
+import { pixChargeFromDraft } from "@/lib/pix-pricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,8 +25,20 @@ export async function POST(req: Request) {
       console.log("[Braspag:pix-checkout] draft já tem Pix pendente:", draftId, draft.braspagPaymentId);
     }
 
-    // Valor recalculado server-side. Pix = finalTotal (já inclui desconto Pix).
-    const amountCents = Math.round(draft.finalTotal * 100);
+    // Valor recalculado SERVER-SIDE aplicando o desconto de Pix (helper único,
+    // cent-precise e idempotente) — o QR reflete o valor com desconto que o
+    // cliente vê. Não confia em valor do cliente.
+    const { subtotalCents, discountCents, totalCents } = pixChargeFromDraft(draft);
+    const amountCents = totalCents;
+    console.log(
+      "[Braspag:pix-checkout] valores " +
+        JSON.stringify({
+          draftId,
+          subtotal: (subtotalCents / 100).toFixed(2),
+          pixDiscount: (discountCents / 100).toFixed(2),
+          finalCharged: (totalCents / 100).toFixed(2),
+        }),
+    );
 
     const result = await createBraspagPixPayment({
       orderId: draftId,

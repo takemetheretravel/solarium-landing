@@ -109,6 +109,16 @@ export async function scanAllDrafts(): Promise<ReservationDraft[]> {
   }
 }
 
+// Encontra um draft cujo braspagPaymentId == id (ignora vazio). Usado pelo
+// webhook Cielo para detectar notificações que são, na verdade, de Pix Braspag
+// (a URL cadastrada no portal Braspag de produção é o endpoint /webhooks/cielo).
+export async function findDraftByBraspagPaymentId(id: string): Promise<ReservationDraft | null> {
+  const needle = (id || "").trim();
+  if (!needle) return null;
+  const drafts = await scanAllDrafts();
+  return drafts.find((d) => d.braspagPaymentId === needle) ?? null;
+}
+
 // Varredura genérica de chaves por padrão (SCAN). Usada por reconcile e authlog.
 async function scanKeys(match: string): Promise<string[]> {
   const redis = getRedis();
