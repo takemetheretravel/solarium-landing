@@ -119,6 +119,51 @@ export async function findDraftByBraspagPaymentId(id: string): Promise<Reservati
   return drafts.find((d) => d.braspagPaymentId === needle) ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Órfãos: pagamento CONFIRMADO cuja reserva no Hostaway falhou. Persistidos p/
+// a reconciliação reprocessar (recriar a reserva). Chave braspag:pix-orfao:<id>.
+// TTL 30 dias (bem além do TTL do draft — o pagamento já existe e não pode
+// ficar sem reserva). O record carrega tudo p/ recriar sem depender do draft.
+const ORPHAN_PREFIX = "braspag:pix-orfao:";
+const ORPHAN_TTL = 60 * 60 * 24 * 30; // 30 dias
+
+export async function saveOrphanReservation(paymentId: string, record: unknown): Promise<void> {
+  try {
+    await getRedis().set(`${ORPHAN_PREFIX}${paymentId}`, JSON.stringify(record), { ex: ORPHAN_TTL });
+  } catch (err) {
+    console.error("[kv-store:saveOrphanReservation] Failed:", err);
+  }
+}
+
+export async function scanOrphanReservations<T = unknown>(): Promise<T[]> {
+  try {
+    const keys = await scanKeys(`${ORPHAN_PREFIX}*`);
+    if (keys.length === 0) return [];
+    const values = await getRedis().mget<(string | T | null)[]>(...keys);
+    const out: T[] = [];
+    for (const raw of values) {
+      if (!raw) continue;
+      try {
+        out.push(typeof raw === "string" ? (JSON.parse(raw) as T) : (raw as T));
+      } catch {
+        // ignora corrompido
+      }
+    }
+    return out;
+  } catch (err) {
+    console.error("[kv-store:scanOrphanReservations] Failed:", err);
+    return [];
+  }
+}
+
+export async function deleteOrphanReservation(paymentId: string): Promise<void> {
+  try {
+    await getRedis().del(`${ORPHAN_PREFIX}${paymentId}`);
+  } catch (err) {
+    console.error("[kv-store:deleteOrphanReservation] Failed:", err);
+  }
+}
+
 // Varredura genérica de chaves por padrão (SCAN). Usada por reconcile e authlog.
 async function scanKeys(match: string): Promise<string[]> {
   const redis = getRedis();

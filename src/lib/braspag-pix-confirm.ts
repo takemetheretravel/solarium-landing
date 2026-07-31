@@ -5,6 +5,7 @@ import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { enviarAlertaAprovacao } from "@/lib/email";
+import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
 
 // =============================================================================
 // Confirmação de Pix Braspag por CONSULTA — helper ÚNICO.
@@ -111,7 +112,7 @@ async function criarReservaSeNecessario(draftId: string, draftSnapshot: Reservat
   if (!property) return;
 
   const totalDiscount = (draft.couponDiscount || 0) + (draft.pixDiscount || 0);
-  const reservation = await createHostawayReservation({
+  const reservationParams = {
     listingMapId: property.id,
     arrivalDate: draft.checkin,
     departureDate: draft.checkout,
@@ -125,7 +126,7 @@ async function criarReservaSeNecessario(draftId: string, draftSnapshot: Reservat
     discountAmount: totalDiscount,
     couponCode: draft.couponCode,
     installments: 1,
-    paymentMethod: "pix",
+    paymentMethod: "pix" as const,
     currency: "BRL",
     guestNotes: draft.guestNotes || "",
     source: "solarium-direct",
@@ -134,7 +135,8 @@ async function criarReservaSeNecessario(draftId: string, draftSnapshot: Reservat
     shortNotice: draft.shortNotice,
     serviceExtras: enrichServiceExtras(draft.serviceExtras),
     opExtras: draft.opExtras,
-  });
+  };
+  const reservation = await createHostawayReservation(reservationParams);
 
   if (reservation) {
     await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
@@ -163,30 +165,16 @@ async function criarReservaSeNecessario(draftId: string, draftSnapshot: Reservat
       opExtras: opExtrasForEmail,
     });
   } else {
-    // Pago, Hostaway falhou → criação manual (mesmo fallback dos outros fluxos).
+    // SALVAGUARDA: pago, Hostaway falhou → alerta imediato + órfão p/ reprocesso.
     await updateDraft(draftId, { hostawayReservationId: -1 });
     console.error("🚨🚨🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY (Pix Braspag) 🚨🚨🚨");
-    console.error(
-      JSON.stringify(
-        {
-          ACAO_NECESSARIA: "Criar reserva manualmente no Hostaway",
-          propriedade: draft.propertyName,
-          listingId: property.id,
-          checkin: draft.checkin,
-          checkout: draft.checkout,
-          hospedes: draft.guests,
-          nome: `${draft.guestFirstName} ${draft.guestLastName}`,
-          email: draft.guestEmail,
-          telefone: draft.guestPhone,
-          cpf: draft.guestCpf,
-          valorTotal: draft.finalTotal,
-          pagamento: "Pix (Braspag)",
-          braspagPaymentId: draft.braspagPaymentId,
-          draftId,
-        },
-        null,
-        2,
-      ),
-    );
+    await registerOrphanAndAlert({
+      paymentId: draft.braspagPaymentId || draftId,
+      draftId,
+      method: "pix",
+      error: "createHostawayReservation retornou null (Pix pago)",
+      reservationParams,
+      noites: draft.nights,
+    });
   }
 }

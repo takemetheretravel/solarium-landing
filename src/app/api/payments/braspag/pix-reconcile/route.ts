@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { scanAllDrafts } from "@/lib/kv-store";
+import { scanAllDrafts, scanOrphanReservations } from "@/lib/kv-store";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
+import { reprocessOrphan, type OrphanRecord } from "@/lib/reservation-recovery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,16 +73,34 @@ export async function GET(req: Request) {
       }
     }
 
+    // ÓRFÃOS: pagamentos confirmados cuja reserva no Hostaway falhou (Pix e
+    // cartão). Reprocessa idempotentemente — cria a reserva de novo.
+    const orphans = await scanOrphanReservations<OrphanRecord>();
+    const orphanResults: Array<{ paymentId: string; result: string }> = [];
+    for (const o of orphans) {
+      try {
+        const r = await reprocessOrphan(o);
+        orphanResults.push({ paymentId: o.paymentId, result: r });
+      } catch (err) {
+        console.error("[Braspag:pix-reconcile] erro no órfão", o.paymentId, err);
+        orphanResults.push({ paymentId: o.paymentId, result: "error" });
+      }
+    }
+
     console.log(
-      "[Braspag:pix-reconcile] varridos=%d candidatos=%d pagos=%d",
+      "[Braspag:pix-reconcile] varridos=%d candidatos=%d pagos=%d orfaos=%d recriados=%d",
       drafts.length,
       candidates.length,
       results.filter((r) => r.result === "paid").length,
+      orphans.length,
+      orphanResults.filter((r) => r.result === "created" || r.result === "resolved").length,
     );
     return NextResponse.json({
       scanned: drafts.length,
       candidates: candidates.length,
       results,
+      orphans: orphans.length,
+      orphanResults,
     });
   } catch (err) {
     console.error("[Braspag:pix-reconcile] Exception:", err);

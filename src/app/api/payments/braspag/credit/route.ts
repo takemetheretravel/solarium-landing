@@ -14,6 +14,7 @@ import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
+import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -342,7 +343,7 @@ export async function POST(req: Request) {
     const property = getPropertyBySlug(draft.propertyId);
     if (property) {
       const totalDiscount = (draft.couponDiscount || 0) + (draft.pixDiscount || 0);
-      const reservation = await createHostawayReservation({
+      const reservationParams = {
         listingMapId: property.id,
         arrivalDate: draft.checkin,
         departureDate: draft.checkout,
@@ -356,7 +357,7 @@ export async function POST(req: Request) {
         discountAmount: totalDiscount,
         couponCode: draft.couponCode,
         installments: installments || 1,
-        paymentMethod: "card",
+        paymentMethod: "card" as const,
         currency: "BRL",
         guestNotes: draft.guestNotes || "",
         source: "solarium-direct",
@@ -365,7 +366,8 @@ export async function POST(req: Request) {
         shortNotice: draft.shortNotice,
         serviceExtras: enrichServiceExtras(draft.serviceExtras),
         opExtras: draft.opExtras,
-      });
+      };
+      const reservation = await createHostawayReservation(reservationParams);
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
         const opExtrasForEmail = await blockOpExtraNights(property.slug, draft.opExtras);
@@ -393,33 +395,18 @@ export async function POST(req: Request) {
           opExtras: opExtrasForEmail,
         });
       } else {
-        // Pago, Hostaway falhou → criação manual (mesmo fallback da Cielo).
+        // SALVAGUARDA: capturou (pago) mas Hostaway falhou → alerta imediato +
+        // órfão para reprocesso na reconciliação. Nenhum valor a estornar (pago).
         await updateDraft(draftId, { hostawayReservationId: -1 });
-        console.error("🚨🚨🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY (Braspag) 🚨🚨🚨");
-        console.error(
-          JSON.stringify(
-            {
-              ACAO_NECESSARIA: "Criar reserva manualmente no Hostaway",
-              propriedade: draft.propertyName,
-              listingId: property.id,
-              checkin: draft.checkin,
-              checkout: draft.checkout,
-              hospedes: draft.guests,
-              nome: `${draft.guestFirstName} ${draft.guestLastName}`,
-              email: draft.guestEmail,
-              telefone: draft.guestPhone,
-              cpf: draft.guestCpf,
-              valorTotal: draft.finalTotal,
-              valorCobrado: valorACobrar,
-              pagamento: "Cartão (Braspag)",
-              parcelas: installments || 1,
-              braspagPaymentId: auth.paymentId,
-              draftId,
-            },
-            null,
-            2,
-          ),
-        );
+        console.error("🚨🚨🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY (Braspag cartão) 🚨🚨🚨");
+        await registerOrphanAndAlert({
+          paymentId: auth.paymentId || draftId,
+          draftId,
+          method: "card",
+          error: "createHostawayReservation retornou null (cartão capturado)",
+          reservationParams,
+          noites: draft.nights,
+        });
       }
     }
 
