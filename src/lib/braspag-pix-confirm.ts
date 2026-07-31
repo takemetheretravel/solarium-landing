@@ -50,6 +50,18 @@ export async function confirmPixPaymentIfPaid(draftId: string): Promise<PixConfi
   const draft = await getDraft(draftId);
   if (!draft) return { status: "expired" };
 
+  // GUARD CRÍTICO: CARTÃO é resolvido SINCRONAMENTE no /api/payments/braspag/credit
+  // (autoriza → antifraude → captura → reserva, tudo na requisição). Uma
+  // notificação de webhook de cartão NÃO pode passar pela confirmação de Pix:
+  // numa corrida com a criação síncrona da reserva, geraria um ÓRFÃO FALSO
+  // (foi o bug observado em produção). Cobre TODOS os chamadores (ambos webhooks,
+  // reconcile, polling). Aqui só reportamos o estado; nunca criamos reserva.
+  if (draft.paymentMethod === "card") {
+    return draft.status === "paid"
+      ? { status: "paid", redirectTo: `/reservar/${draftId}/confirmacao` }
+      : { status: "pending" };
+  }
+
   // Estados terminais: não reconsulta (idempotência + para de sondar).
   if (draft.status === "paid" && draft.hostawayReservationId !== undefined) {
     return { status: "paid", redirectTo: `/reservar/${draftId}/confirmacao` };
@@ -165,7 +177,16 @@ async function criarReservaSeNecessario(draftId: string, draftSnapshot: Reservat
       opExtras: opExtrasForEmail,
     });
   } else {
-    // SALVAGUARDA: pago, Hostaway falhou → alerta imediato + órfão p/ reprocesso.
+    // DEFESA (item 4): antes de tratar como órfão, re-lê o draft. Se a reserva
+    // JÁ existe (outra via a criou entre o consult e aqui, ou o createHostaway
+    // falhou por DUPLICIDADE de uma reserva já existente), NÃO é órfão — é apenas
+    // notificação tardia da mesma transação concluída. Evita alerta falso.
+    const fresh = await getDraft(draftId);
+    if (fresh && typeof fresh.hostawayReservationId === "number" && fresh.hostawayReservationId > 0) {
+      console.log("[BraspagPix:confirm] reserva já existe — notificação tardia, sem órfão:", draftId);
+      return;
+    }
+    // SALVAGUARDA: pago, Hostaway falhou de fato → alerta imediato + órfão.
     await updateDraft(draftId, { hostawayReservationId: -1 });
     console.error("🚨🚨🚨 CRIAR RESERVA MANUALMENTE NO HOSTAWAY (Pix Braspag) 🚨🚨🚨");
     await registerOrphanAndAlert({

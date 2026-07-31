@@ -35,12 +35,23 @@ export async function POST(req: Request) {
         (await findDraftByBraspagPaymentId(paymentId || "")) ||
         (await findDraftByBraspagPaymentId(merchantOrderId || ""));
       if (braspagDraft) {
+        // CARTÃO Braspag é resolvido sincronamente no /credit — só loga e retorna
+        // (não passa pela confirmação de Pix, para não gerar órfão falso).
+        if (braspagDraft.paymentMethod === "card") {
+          console.log("[Webhook:Cielo] provider=BRASPAG método=card — resolvido sincronamente; sem ação. draftId:", braspagDraft.id);
+          return NextResponse.json({ ok: true, provider: "braspag", method: "card", ignored: true });
+        }
+        // Pix já reservado = notificação tardia → sem ação.
+        if (typeof braspagDraft.hostawayReservationId === "number" && braspagDraft.hostawayReservationId > 0) {
+          console.log("[Webhook:Cielo] provider=BRASPAG Pix já reservado — notificação tardia; sem ação. draftId:", braspagDraft.id);
+          return NextResponse.json({ ok: true, provider: "braspag", method: "pix", alreadyReserved: true });
+        }
         const result = await confirmPixPaymentIfPaid(braspagDraft.id);
         console.log(
-          "[Webhook:Cielo] provider=BRASPAG " +
+          "[Webhook:Cielo] provider=BRASPAG método=pix " +
             JSON.stringify({ draftId: braspagDraft.id, paymentId, merchantOrderId, result: result.status }),
         );
-        return NextResponse.json({ ok: true, provider: "braspag", result: result.status });
+        return NextResponse.json({ ok: true, provider: "braspag", method: "pix", result: result.status });
       }
     }
     console.log("[Webhook:Cielo] provider=CIELO (nenhum draft Braspag correspondeu)");
