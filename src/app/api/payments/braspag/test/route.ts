@@ -26,6 +26,12 @@ export async function GET() {
 // Protegida: só responde se o header x-braspag-test bater com o MerchantId configurado.
 // NÃO faz parte do fluxo de pagamento real — serve apenas para confirmar credenciais.
 export async function POST(req: Request) {
+  // Smoke test (venda Simulada) — diagnóstico de sandbox. 404 em produção
+  // (o GET de health check acima permanece público: só booleanos, sem segredo).
+  if (process.env.BRASPAG_ENVIRONMENT === "production") {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
   const merchantId = process.env.BRASPAG_MERCHANT_ID || "";
   const provided = req.headers.get("x-braspag-test") || "";
 

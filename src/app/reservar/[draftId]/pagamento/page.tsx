@@ -992,7 +992,11 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
                 </div>
               )}
 
-              {provider === "braspag" && sandbox && (
+              {/* Checkbox de teste: NÃO renderiza fora de sandbox (não aparece no
+                  DOM para o hóspede). `sandbox` só é true quando o servidor
+                  confirma BRASPAG_ENVIRONMENT != production via /api/payments/provider;
+                  default false garante que nada aparece antes/sem essa confirmação. */}
+              {provider === "braspag" && sandbox === true && (
                 <label className="flex items-start gap-2 text-charcoal/50">
                   <input
                     type="checkbox"
