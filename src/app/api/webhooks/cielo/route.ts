@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getDraft, updateDraft } from "@/lib/kv-store";
+import { getDraft, updateDraft, findDraftByBraspagPaymentId } from "@/lib/kv-store";
 import { getPaymentStatus } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
+import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,30 @@ export async function POST(req: Request) {
     console.log("[Webhook:Cielo]", JSON.stringify(body));
 
     const { PaymentId: paymentId, ChangeType: changeType, MerchantOrderId: merchantOrderId } = body;
+
+    // =========================================================================
+    // RAMIFICAÇÃO BRASPAG (ISOLADA) — a URL cadastrada no portal de PRODUÇÃO da
+    // Braspag é este endpoint (/webhooks/cielo). Se a notificação corresponder a
+    // um Pix Braspag (PaymentId OU MerchantOrderId == braspagPaymentId de um
+    // draft), delega para a confirmação central Braspag (reconsulta + idempotente)
+    // e RETORNA — o fluxo Cielo abaixo NÃO é tocado. Uma notificação Cielo real
+    // não casa aqui (drafts Cielo não têm braspagPaymentId), então cai direto no
+    // fluxo Cielo original.
+    // =========================================================================
+    if (changeType === 1 && (paymentId || merchantOrderId)) {
+      const braspagDraft =
+        (await findDraftByBraspagPaymentId(paymentId || "")) ||
+        (await findDraftByBraspagPaymentId(merchantOrderId || ""));
+      if (braspagDraft) {
+        const result = await confirmPixPaymentIfPaid(braspagDraft.id);
+        console.log(
+          "[Webhook:Cielo] provider=BRASPAG " +
+            JSON.stringify({ draftId: braspagDraft.id, paymentId, merchantOrderId, result: result.status }),
+        );
+        return NextResponse.json({ ok: true, provider: "braspag", result: result.status });
+      }
+    }
+    console.log("[Webhook:Cielo] provider=CIELO (nenhum draft Braspag correspondeu)");
 
     if (!paymentId || changeType !== 1) return NextResponse.json({ ok: true });
 

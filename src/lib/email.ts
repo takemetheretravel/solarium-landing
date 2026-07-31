@@ -42,6 +42,50 @@ export async function enviarAlertaRecusa(dados: {
   }
 }
 
+// Salvaguarda crítica: pagamento CONFIRMADO mas a reserva no Hostaway falhou.
+// Exige intervenção manual imediata (não há hold de datas — decisão de negócio).
+export async function enviarAlertaPagamentoSemReserva(dados: {
+  metodo: "pix" | "card";
+  hospede: string;
+  propriedade: string;
+  valor: number;
+  checkin: string;
+  checkout: string;
+  email: string;
+  telefone: string;
+  paymentId: string;
+  draftId: string;
+  erro: string;
+}) {
+  try {
+    const resend = getResend();
+    if (!resend) return;
+    const metodoLabel = dados.metodo === "pix" ? "PIX" : "CARTÃO";
+    await resend.emails.send({
+      from: ALERTA_DE,
+      to: ALERTA_PARA,
+      subject: `⚠️ ${metodoLabel} PAGO SEM RESERVA CRIADA — ${dados.propriedade}`,
+      html: `
+        <h2 style="color:#c00">⚠️ Pagamento recebido, reserva NÃO criada</h2>
+        <p>O pagamento foi <strong>confirmado</strong>, mas a criação da reserva no Hostaway
+        falhou. <strong>Criar a reserva manualmente AGORA</strong> (o dinheiro já entrou).</p>
+        <p><strong>Método:</strong> ${metodoLabel}</p>
+        <p><strong>Cliente:</strong> ${dados.hospede}</p>
+        <p><strong>Contato:</strong> ${dados.email} · ${dados.telefone}</p>
+        <p><strong>Casa:</strong> ${dados.propriedade}</p>
+        <p><strong>Período:</strong> ${dados.checkin} → ${dados.checkout}</p>
+        <p><strong>Valor:</strong> R$ ${dados.valor.toFixed(2)}</p>
+        <p><strong>PaymentId:</strong> ${dados.paymentId}</p>
+        <p><strong>Erro:</strong> ${dados.erro}</p>
+        <p style="color:#888;font-size:12px">Draft: ${dados.draftId} — a reconciliação também
+        tentará recriar automaticamente (chave braspag:pix-orfao).</p>
+      `,
+    });
+  } catch (e) {
+    console.error("[Email] Falha ao enviar alerta de pagamento-sem-reserva:", e);
+  }
+}
+
 export async function enviarAlertaAprovacao(dados: {
   hospede: string; propriedade: string; valor: number;
   checkin: string; checkout: string; noites: number;
