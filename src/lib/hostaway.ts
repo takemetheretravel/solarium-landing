@@ -401,6 +401,97 @@ export async function getChannels(): Promise<unknown[]> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// CUSTOM FIELDS
+// ---------------------------------------------------------------------------
+
+const CUSTOM_FIELDS_CACHE_KEY = "hostaway:customFields";
+
+/**
+ * Nomes que procuramos na conta. Se o campo não existir, o valor cai no hostNote
+ * estruturado — o registro nunca se perde por falta de configuração na Hostaway.
+ */
+const CAMPOS_DESEJADOS = {
+  pacote: ["Pacote", "Package"],
+  extras: ["Extras", "Extras a providenciar"],
+  cancelamento: ["Cancelamento de extras", "Data limite cancelamento extras"],
+};
+
+type CustomField = { id: number; name: string };
+
+async function getCustomFields(): Promise<CustomField[]> {
+  const cached = cacheGet<CustomField[]>(CUSTOM_FIELDS_CACHE_KEY);
+  if (cached) return cached;
+
+  try {
+    const token = await getAccessToken();
+    if (!token) return [];
+    const res = await fetch(`${BASE_URL}/customFields`, {
+      headers: { Authorization: `Bearer ${token}`, "Cache-Control": "no-cache" },
+    });
+    if (!res.ok) {
+      console.warn("[Hostaway:customFields] HTTP", res.status, "— usando hostNote como registro");
+      cacheSet(CUSTOM_FIELDS_CACHE_KEY, [], 600);
+      return [];
+    }
+    const data = await res.json();
+    const campos: CustomField[] = (data?.result ?? [])
+      .map((c: Record<string, unknown>) => ({ id: Number(c.id), name: String(c.name ?? "") }))
+      .filter((c: CustomField) => Number.isFinite(c.id) && c.name);
+
+    console.log("[Hostaway:customFields] encontrados:", campos.map((c) => `${c.id}:${c.name}`).join(", ") || "nenhum");
+    cacheSet(CUSTOM_FIELDS_CACHE_KEY, campos, 3600);
+    return campos;
+  } catch (err) {
+    console.error("[Hostaway:customFields]", err);
+    return [];
+  }
+}
+
+function acharCampo(campos: CustomField[], nomes: string[]): number | null {
+  const alvo = nomes.map((n) => n.toLowerCase());
+  const achado = campos.find((c) => alvo.includes(c.name.trim().toLowerCase()));
+  return achado ? achado.id : null;
+}
+
+async function montarCustomFieldValues(dados: {
+  pacote?: string;
+  extras?: { nome: string; qtd: number; total: number; incluso: boolean }[];
+  dataLimiteCancelamentoExtras?: string;
+}): Promise<{ customFieldId: number; value: string }[]> {
+  if (!dados.pacote && !dados.extras?.length && !dados.dataLimiteCancelamentoExtras) return [];
+
+  const campos = await getCustomFields();
+  if (campos.length === 0) return [];
+
+  const valores: { customFieldId: number; value: string }[] = [];
+
+  const idPacote = acharCampo(campos, CAMPOS_DESEJADOS.pacote);
+  if (idPacote && dados.pacote) valores.push({ customFieldId: idPacote, value: dados.pacote });
+
+  const idExtras = acharCampo(campos, CAMPOS_DESEJADOS.extras);
+  if (idExtras && dados.extras?.length) {
+    valores.push({
+      customFieldId: idExtras,
+      value: dados.extras
+        .map((e) => `${e.qtd}× ${e.nome} — R$ ${e.total.toFixed(2)}${e.incluso ? " (incluso)" : ""}`)
+        .join("\n"),
+    });
+  }
+
+  const idCancel = acharCampo(campos, CAMPOS_DESEJADOS.cancelamento);
+  if (idCancel && dados.dataLimiteCancelamentoExtras) {
+    valores.push({ customFieldId: idCancel, value: dados.dataLimiteCancelamentoExtras });
+  }
+
+  if (valores.length === 0) {
+    console.warn(
+      "[Hostaway:customFields] nenhum campo compatível na conta — registro segue apenas no hostNote",
+    );
+  }
+  return valores;
+}
+
 export async function createHostawayReservation(params: {
   listingMapId: number;
   arrivalDate: string;
@@ -424,6 +515,14 @@ export async function createHostawayReservation(params: {
   shortNotice?: boolean;     // check-in < 3 dias: parceiros precisam ser acionados já
   serviceExtras?: { id: string; label: string; qty: number; price: number; note?: string }[]; // massagem/cestas a acionar
   opExtras?: { type: string; label: string; price: number; blockedNight: string }[]; // early/late: noite adjacente bloqueada
+  // --- Pacotes V2 ---
+  pacoteNome?: string;
+  /** Linhas de extras do pacote, já revalidadas. Vão ao campo estruturado. */
+  pacoteItens?: { extraId: string; nome: string; qtd: number; total: number; incluso: boolean }[];
+  /** Data-limite de cancelamento dos extras com reembolso integral (ISO). */
+  dataLimiteCancelamentoExtras?: string;
+  /** Reserva vinda do preview de teste — marcação explícita para a equipe. */
+  reservaTeste?: boolean;
 }): Promise<{ reservationId: number } | null> {
   try {
     const token = await getAccessToken();
@@ -473,10 +572,42 @@ export async function createHostawayReservation(params: {
           .join("; ")}`,
       );
     }
+    // --- Pacotes V2 ---
+    if (params.reservaTeste) {
+      hostNoteParts.unshift("🧪 RESERVA DE TESTE — não operar, estornar depois");
+    }
+    if (params.pacoteNome) {
+      hostNoteParts.push(`PACOTE: ${params.pacoteNome}`);
+    }
+    if (params.pacoteItens?.length) {
+      // Uma entrada por item, não concatenado num blocão: a equipe precisa ler.
+      hostNoteParts.push(
+        `EXTRAS A PROVIDENCIAR: ${params.pacoteItens
+          .map(
+            (e) =>
+              `${e.qtd}× ${e.nome} (R$ ${e.total.toFixed(2)}${e.incluso ? ", incluso no pacote" : ""})`,
+          )
+          .join("; ")}`,
+      );
+    }
+    if (params.dataLimiteCancelamentoExtras) {
+      hostNoteParts.push(
+        `Extras canceláveis com reembolso até ${params.dataLimiteCancelamentoExtras}`,
+      );
+    }
+
     const hostNote = hostNoteParts.join(" | ");
 
     // guestNote (público): apenas observação do hóspede se houver
     const guestNote = params.guestNotes || "";
+
+    // Campo estruturado, quando a conta tiver os custom fields criados. Se não
+    // tiver, o hostNote acima já carrega tudo — nunca ficamos sem registro.
+    const customFieldValues = await montarCustomFieldValues({
+      pacote: params.pacoteNome,
+      extras: params.pacoteItens,
+      dataLimiteCancelamentoExtras: params.dataLimiteCancelamentoExtras,
+    });
 
     const body: Record<string, unknown> = {
       channelId: null,
@@ -505,6 +636,10 @@ export async function createHostawayReservation(params: {
       guestNote,
       status: "confirmed",
     };
+
+    if (customFieldValues.length > 0) {
+      body.customFieldValues = customFieldValues;
+    }
 
     console.log("[Hostaway:createReservation] Body:", JSON.stringify(body));
 

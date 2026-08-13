@@ -6,7 +6,10 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import PackageBooking from "@/components/booking/PackageBooking";
+import PacoteV2Layout from "@/components/pacotes/PacoteV2Layout";
 import { PACKAGES, getPackageBySlug } from "@/config/packages";
+import { getPacoteV2 } from "@/config/precos-e-extras";
+import { pacotesV2Ativo } from "@/config/flags";
 
 export const revalidate = 300;
 
@@ -19,6 +22,10 @@ export async function generateMetadata({
 }: {
   params: { slug: string };
 }): Promise<Metadata> {
+  const v2 = pacotesV2Ativo() ? getPacoteV2(params.slug) : undefined;
+  if (v2) {
+    return { title: `${v2.nome} — Solarium Mantiqueira`, description: v2.descricao };
+  }
   const pkg = getPackageBySlug(params.slug);
   if (!pkg) return { title: "Não encontrado" };
   return {
@@ -33,6 +40,11 @@ export async function generateMetadata({
 }
 
 export default function PackagePage({ params }: { params: { slug: string } }) {
+  // Pacotes V2 convivem com os antigos no mesmo caminho. Com a flag desligada,
+  // só os antigos existem e a página se comporta exatamente como hoje.
+  const v2 = pacotesV2Ativo() ? getPacoteV2(params.slug) : undefined;
+  if (v2) return <PacoteV2Layout pacote={v2} />;
+
   const pkg = getPackageBySlug(params.slug);
   if (!pkg) notFound();
 

@@ -73,3 +73,84 @@ export function trackAddPaymentInfo(params: {
     currency: params.currency,
   });
 }
+
+// ---------------------------------------------------------------------------
+// PACOTES V2 — instrumentação da §10
+//
+// Sem estes eventos não há leitura possível do experimento em 60 dias. Os
+// scripts de analytics só carregam em produção, então no preview estas chamadas
+// são no-op silenciosos.
+// ---------------------------------------------------------------------------
+
+export type OrigemPacote = "home" | "pacotes" | "direto";
+export type ContextoExtra = "pacote" | "casa" | "checkout";
+
+export function trackPacoteVisualizado(params: { pacoteId: string; origem: OrigemPacote }) {
+  trackEvent("pacote_visualizado", {
+    pacote_id: params.pacoteId,
+    origem: params.origem,
+  });
+}
+
+export function trackPacoteDatasSelecionadas(params: {
+  pacoteId: string;
+  checkin: string;
+  checkout: string;
+  compativel: boolean;
+}) {
+  trackEvent("pacote_datas_selecionadas", {
+    pacote_id: params.pacoteId,
+    checkin: params.checkin,
+    checkout: params.checkout,
+    compativel: params.compativel,
+  });
+}
+
+export function trackExtraSelecionado(params: {
+  extraId: string;
+  contexto: ContextoExtra;
+  qtd: number;
+}) {
+  trackEvent("extra_selecionado", {
+    extra_id: params.extraId,
+    contexto: params.contexto,
+    qtd: params.qtd,
+  });
+}
+
+export function trackExtraRemovido(params: { extraId: string; contexto: ContextoExtra }) {
+  trackEvent("extra_removido", {
+    extra_id: params.extraId,
+    contexto: params.contexto,
+  });
+}
+
+export function trackPacoteCtaReserva(params: {
+  pacoteId: string;
+  total: number;
+  bonusAplicado: boolean;
+}) {
+  trackEvent("pacote_cta_reserva", {
+    pacote_id: params.pacoteId,
+    total: params.total,
+    bonus_aplicado: params.bonusAplicado,
+  });
+}
+
+export function trackReservaConcluida(params: {
+  tipo: "pacote" | "avulso";
+  pacoteId?: string;
+  total: number;
+  noites: number;
+  valorExtras: number;
+  listing: string;
+}) {
+  trackEvent("reserva_concluida", {
+    tipo: params.tipo,
+    pacote_id: params.pacoteId ?? null,
+    total: params.total,
+    noites: params.noites,
+    valor_extras: params.valorExtras,
+    listing: params.listing,
+  });
+}

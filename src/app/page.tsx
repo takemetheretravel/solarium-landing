@@ -21,6 +21,7 @@ import ReviewsMarquee from "@/components/ui/ReviewsMarquee";
 import FAQ from "@/components/ui/FAQ";
 import { PROPERTIES } from "@/config/properties";
 import { PACKAGES } from "@/config/packages";
+import { pacotesV2Ativo } from "@/config/flags";
 import {
   REVIEWS,
   PARTNERS,
@@ -43,6 +44,7 @@ export default async function Home() {
     .filter((r): r is (typeof REVIEWS)[number] => Boolean(r));
   const featuredPartners = PARTNERS.slice(1);
   const flagshipPartner = PARTNERS[0];
+  const V2 = pacotesV2Ativo();
 
   return (
     <main>
@@ -89,8 +91,12 @@ export default async function Home() {
           </div>
           <div className="grid grid-cols-2 gap-10 lg:grid-cols-4 lg:gap-8">
             {[
-              { icon: Tag, title: "Até 17% de desconto", text: "Estadias mais longas têm preços melhores — desconto progressivo por noite." },
-              { icon: Sparkles, title: "Cupons exclusivos", text: "Códigos de desconto disponíveis para reservas diretas." },
+              V2
+                ? { icon: Tag, title: "Melhor condição garantida no site", text: "Estadias mais longas e pacotes já saem com o melhor valor, sem procurar código." }
+                : { icon: Tag, title: "Até 17% de desconto", text: "Estadias mais longas têm preços melhores — desconto progressivo por noite." },
+              V2
+                ? { icon: Sparkles, title: "Reserva direta com o anfitrião", text: "Você fala com quem cuida da casa, do primeiro contato à chegada." }
+                : { icon: Sparkles, title: "Cupons exclusivos", text: "Códigos de desconto disponíveis para reservas diretas." },
               { icon: MessageCircle, title: "Atendimento direto com o anfitrião", text: "Sem intermediários, sem fila — falamos com você." },
               { icon: Sparkles, title: "Concierge proativo", text: "Da chegada à partida, cuidamos dos detalhes." },
             ].map((item) => (
@@ -108,22 +114,27 @@ export default async function Home() {
         </Container>
       </Section>
 
-      {/* BANNER CUPONS */}
+      {/* BANNER CUPONS — D-5: com Pacotes V2 o site não comunica percentual nem
+          manda o hóspede caçar cupom. /ofertas segue existindo por link direto. */}
       <div className="border-b border-charcoal/10 bg-charcoal/5 py-4">
         <Container>
           <div className="mx-auto flex max-w-xl flex-col items-center justify-between gap-3 sm:flex-row">
             <div className="flex items-center gap-3">
               <Tag className="h-4 w-4 flex-shrink-0 text-copper" strokeWidth={1.5} />
               <p className="font-sans text-xs text-charcoal/70">
-                Cupons exclusivos: até 17% de desconto para reservas diretas.
+                {V2
+                  ? "Melhor condição garantida no site."
+                  : "Cupons exclusivos: até 17% de desconto para reservas diretas."}
               </p>
             </div>
-            <Link
-              href="/ofertas"
-              className="flex-shrink-0 inline-flex items-center gap-1 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
-            >
-              Ver cupons <ArrowRight className="h-3 w-3" />
-            </Link>
+            {!V2 && (
+              <Link
+                href="/ofertas"
+                className="flex-shrink-0 inline-flex items-center gap-1 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
+              >
+                Ver cupons <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
           </div>
         </Container>
       </div>
