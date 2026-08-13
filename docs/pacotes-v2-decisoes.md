@@ -37,15 +37,18 @@ Fim de Semana Completo, baixa temporada:
 | | Avulso | Pacote |
 |---|---|---|
 | Diárias | 3.400 | 3.400 |
-| Late check-out | 850 | 850 |
+| Late check-out | 550 | 550 |
 | Cesta | 180 | 180 |
-| Base do desconto | 3.400 | 4.250 |
-| Progressivo (8%) | −272 | −340 |
+| Base do desconto | 3.400 | 3.950 |
+| Progressivo (8%) | −272 | −316 |
 | Bônus de saída | — | −350 |
-| **Total** | **4.158** | **3.740** |
+| **Total** | **3.858** | **3.460** |
 
-Economia: **R$ 418**. Calculada em runtime pela mesma função nos dois lados, nunca escrita à
+Economia: **R$ 398**. Calculada em runtime pela mesma função nos dois lados, nunca escrita à
 mão. Exibida em reais, nunca em percentual.
+
+Os dois lados usam o mesmo preço de menu do late check-out, e há teste que trava essa
+igualdade — foi exatamente aí que a versão anterior superestimava a economia.
 
 ## 3. Bônus de saída — alteração frente à especificação
 
@@ -82,32 +85,32 @@ valor real da Hostaway.
 
 Para mudar o valor, muda-se na Hostaway. Alterar tarifa lá está fora do escopo desta fase.
 
-## 6. Preço do late check-out dentro do pacote — RISCO ABERTO
+## 6. Preço do late check-out dentro do pacote — RESOLVIDO
 
-Os pacotes contam o late check-out incluso a **R$ 850** (fim de semana), como manda a
-especificação e como confirmam os golden tests.
+**O pacote usa o mesmo preço do fluxo avulso.** Decisão do dono, definitiva: fim de semana só
+quando a noite bloqueada cai em sexta ou sábado.
 
-**O fluxo avulso cobra R$ 550 nesses mesmos casos.** A regra viva em
-`operational-extras.ts` aplica corte de fim de semana para semana quando a noite bloqueada
-cai no domingo — e o late check-out de todo pacote bloqueia domingo (FDS e Feriado qui–dom)
-ou segunda (Feriado sex–seg). Nos três, o preço real à parte é 550, não 850.
+Nos três pacotes afetados o late check-out incluso vale **R$ 550**, não 850:
 
-Consequências:
+| Pacote | Noite bloqueada | Preço de menu |
+|---|---|---|
+| Fim de Semana Completo | domingo | 550 |
+| Feriado na Serra qui–dom | domingo | 550 |
+| Feriado na Serra sex–seg | segunda | 550 |
+| Dois Casais (saída sábado) | sábado | 1.600 |
+| Dois Casais (saída domingo) | domingo | 1.000 |
 
-- O total do pacote fica R$ 300 mais alto do que ficaria com o preço real do item.
-- A economia exibida usa 850 nos dois lados, então é internamente consistente — mas
-  **superestima em R$ 300** a economia frente ao que o hóspede pagaria de fato hoje. Com o
-  preço real, a economia do FDS Completo baixa cairia de R$ 418 para R$ 118.
+Dois Casais não mudou: já resolvia fds/semana corretamente.
 
-Isso conflita com a regra de ouro de âncora honesta. Como os números foram confirmados duas
-vezes pelo dono, foram implementados como pedido, com um interruptor:
+O toggle `USAR_PRECO_OPERACIONAL_REAL` foi **removido** — virou comportamento fixo. A tabela
+de valores segue centralizada em `precoMenuOperacional()`, então 550/850/1000/1600 não
+aparecem repetidos em lugar nenhum.
 
-`USAR_PRECO_OPERACIONAL_REAL` em `config/precos-e-extras.ts`. Ligado, pacote e economia
-passam a usar o preço realmente cobrado à parte. Uma linha, sem outra mudança.
-
-**Decisão pendente do dono.** As saídas coerentes são duas: alinhar o pacote ao preço real
-(ligar a flag), ou remover o corte de domingo do fluxo avulso para que 850 seja verdade nos
-dois lugares.
+**Como isso passou despercebido antes.** Os golden tests originais montavam as linhas de
+preço à mão, com 850 escrito no teste, em vez de chamar `montarItens()`. O código de produção
+já calculava 550; o teste é que não olhava para ele. Os golden tests agora passam pelo mesmo
+caminho do servidor, e há um teste explícito travando que os dois lados da economia usem o
+mesmo preço de menu.
 
 ## 7. Cupom não combina com pacote
 

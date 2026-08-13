@@ -14,7 +14,6 @@ import {
   JANELA_CANCELAMENTO_EXTRAS_DIAS,
   MAX_QTD_POR_EXTRA,
   PacoteV2,
-  USAR_PRECO_OPERACIONAL_REAL,
 } from "@/config/precos-e-extras";
 import { ItemPreco, diasAte, extraNaoReembolsavel } from "./pacotes";
 
@@ -36,11 +35,11 @@ function ehFimDeSemana(dataISO: string): boolean {
 }
 
 /**
- * Preço de um item operacional dentro de um pacote.
+ * Preço de um item operacional dentro de um pacote — idêntico ao do fluxo avulso.
  *
- * Default: tabela fds/semana pelo dia da semana da noite bloqueada, sem o corte de
- * domingo do fluxo avulso. Com USAR_PRECO_OPERACIONAL_REAL ligado, aplica também o
- * corte de domingo — alinha ao valor cobrado à parte hoje e reduz a economia exibida.
+ * Só a noite bloqueada decide, e só sexta e sábado valem fim de semana. Check-out
+ * no domingo (Fim de Semana Completo, Feriado qui–dom) e na segunda (Feriado
+ * sex–seg) contam o late check-out por tabela de semana.
  */
 export function precoOperacionalNoPacote(
   propertySlug: string,
@@ -49,10 +48,6 @@ export function precoOperacionalNoPacote(
   checkout: string,
 ): number {
   const noite = noiteBloqueada(extraId, checkin, checkout);
-  const dow = new Date(noite + "T12:00:00").getDay();
-  if (USAR_PRECO_OPERACIONAL_REAL && dow === 0) {
-    return precoMenuOperacional(propertySlug, extraId, false);
-  }
   return precoMenuOperacional(propertySlug, extraId, ehFimDeSemana(noite));
 }
 

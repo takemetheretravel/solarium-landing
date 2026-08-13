@@ -435,20 +435,19 @@ export function pacoteVisivelHoje(
 // ---------------------------------------------------------------------------
 
 /**
- * Preço de menu usado para os itens operacionais INCLUSOS num pacote.
+ * Preço de menu dos itens operacionais dentro de um pacote.
  *
- * Com `false` (default), o pacote usa a tabela fds/semana pelo dia da semana da
- * própria noite bloqueada — os mesmos R$ 850 do fim de semana que a definição do
- * pacote anuncia, e a mesma base usada para calcular a economia exibida.
+ * É o MESMO preço cobrado no fluxo avulso: fim de semana só quando a noite
+ * bloqueada cai em sexta ou sábado. Domingo e segunda valem tabela de semana,
+ * igual ao que o hóspede pagaria contratando o item à parte.
  *
- * Com `true`, o valor passa a vir de `opExtraPricing` (fluxo avulso), que aplica
- * corte de fds para semana quando a noite bloqueada cai no domingo. Isso alinha o
- * pacote ao preço realmente cobrado à parte hoje, e reduz tanto o total do pacote
- * quanto a economia exibida. Ver docs/pacotes-v2-decisoes.md.
+ * Isso mantém a âncora honesta: os dois lados da economia exibida usam o mesmo
+ * número. Um pacote com check-out no domingo conta o late check-out por 550, não
+ * por 850 — a comparação com o avulso é real.
+ *
+ * A tabela abaixo é a única fonte desses valores. Não repetir 550/850/1000/1600
+ * em nenhum outro lugar.
  */
-export const USAR_PRECO_OPERACIONAL_REAL = false;
-
-/** Preço de menu do item operacional dentro do pacote, por casa e período. */
 export function precoMenuOperacional(
   propertySlug: string,
   extraId: "early_checkin" | "late_checkout",
