@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment, type ReactNode } from "react";
 import {
   ArrowRight,
   Sparkles,
@@ -22,6 +23,7 @@ import FAQ from "@/components/ui/FAQ";
 import { PROPERTIES } from "@/config/properties";
 import { PACKAGES } from "@/config/packages";
 import { pacotesV2Ativo } from "@/config/flags";
+import PacotesHome from "@/components/pacotes/PacotesHome";
 import {
   REVIEWS,
   PARTNERS,
@@ -46,8 +48,9 @@ export default async function Home() {
   const flagshipPartner = PARTNERS[0];
   const V2 = pacotesV2Ativo();
 
-  return (
-    <main>
+  const S: Record<string, ReactNode> = {
+    hero: (
+      <>
       {/* HERO */}
       <section className="relative h-screen min-h-[640px] w-full overflow-hidden">
         <SmartImage
@@ -81,7 +84,11 @@ export default async function Home() {
           <span className="h-12 w-px bg-cream/40" />
         </div>
       </section>
+      </>
+    ),
 
+    reservasDiretas: (
+      <>
       {/* POR QUE RESERVAR DIRETO */}
       <Section spacing="default" className="border-b border-charcoal/10 bg-cream">
         <Container>
@@ -113,7 +120,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    bannerCondicao: (
+      <>
       {/* BANNER CUPONS — D-5: com Pacotes V2 o site não comunica percentual nem
           manda o hóspede caçar cupom. /ofertas segue existindo por link direto. */}
       <div className="border-b border-charcoal/10 bg-charcoal/5 py-4">
@@ -138,7 +149,11 @@ export default async function Home() {
           </div>
         </Container>
       </div>
+      </>
+    ),
 
+    nossasCasas: (
+      <>
       {/* NOSSAS CASAS */}
       <Section id="nossas-casas">
         <Container>
@@ -205,7 +220,13 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    pacotes: V2 ? (
+      <PacotesHome />
+    ) : (
+      <>
       {/* PACOTES */}
       <Section id="pacotes" className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -258,7 +279,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    busca: (
+      <>
       {/* BOOKING BAR */}
       <Section id="busca" spacing="tight" className="bg-cream">
         <Container>
@@ -271,7 +296,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    detalhes: (
+      <>
       {/* POR QUE SOLARIUM */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -299,7 +328,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    reviews: (
+      <>
       {/* REVIEWS — MARQUEE */}
       <Section className="bg-serra/5">
         <Container>
@@ -334,7 +367,11 @@ export default async function Home() {
           </div>
         </div>
       </Section>
+      </>
+    ),
 
+    experiencias: (
+      <>
       {/* EXPERIÊNCIAS */}
       <Section className="border-t border-charcoal/10">
         <Container>
@@ -374,7 +411,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    parceiros: (
+      <>
       {/* PARCEIROS */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -412,7 +453,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    faq: (
+      <>
       {/* FAQ */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container size="narrow">
@@ -423,7 +468,11 @@ export default async function Home() {
           <FAQ />
         </Container>
       </Section>
+      </>
+    ),
 
+    ondeEstamos: (
+      <>
       {/* ONDE ESTAMOS */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -481,7 +530,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    concierge: (
+      <>
       {/* CTA WHATSAPP */}
       <Section className="border-t border-charcoal/10 bg-serra text-cream" spacing="tight">
         <Container size="narrow">
@@ -504,6 +557,51 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
+  };
+
+  // Ordem de hoje. É esta que roda com a flag desligada.
+  const ORDEM_ATUAL = [
+    "hero",
+    "reservasDiretas",
+    "bannerCondicao",
+    "nossasCasas",
+    "pacotes",
+    "busca",
+    "detalhes",
+    "reviews",
+    "experiencias",
+    "parceiros",
+    "faq",
+    "ondeEstamos",
+    "concierge",
+  ];
+
+  // Ordem da §7.1. Parceiros e Dúvidas frequentes não constam da lista do
+  // documento, mas existem hoje e foram preservados sem alterar a posição
+  // relativa das dez seções nomeadas.
+  const ORDEM_V2 = [
+    "hero",
+    "pacotes",
+    "detalhes",
+    "nossasCasas",
+    "busca",
+    "ondeEstamos",
+    "reviews",
+    "experiencias",
+    "parceiros",
+    "reservasDiretas",
+    "bannerCondicao",
+    "faq",
+    "concierge",
+  ];
+
+  return (
+    <main>
+      {(V2 ? ORDEM_V2 : ORDEM_ATUAL).map((chave) => (
+        <Fragment key={chave}>{S[chave]}</Fragment>
+      ))}
     </main>
   );
 }

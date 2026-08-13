@@ -598,8 +598,18 @@ export async function createHostawayReservation(params: {
 
     const hostNote = hostNoteParts.join(" | ");
 
-    // guestNote (público): apenas observação do hóspede se houver
-    const guestNote = params.guestNotes || "";
+    // guestNote (público, o hóspede lê): observação dele + a data-limite de
+    // cancelamento dos extras escrita por extenso. Não existe e-mail de
+    // confirmação próprio no site — a comunicação ao hóspede sai da Hostaway,
+    // então a data precisa viajar por aqui.
+    const guestNoteParts: string[] = [];
+    if (params.guestNotes) guestNoteParts.push(params.guestNotes);
+    if (params.dataLimiteCancelamentoExtras) {
+      guestNoteParts.push(
+        `Extras podem ser cancelados com reembolso integral até ${dataPorExtenso(params.dataLimiteCancelamentoExtras)}.`,
+      );
+    }
+    const guestNote = guestNoteParts.join("\n\n");
 
     // Campo estruturado, quando a conta tiver os custom fields criados. Se não
     // tiver, o hostNote acima já carrega tudo — nunca ficamos sem registro.
@@ -740,4 +750,16 @@ export async function getMinNightlyFromCalendar(
     .map((d) => d.price);
   if (prices.length === 0) return null;
   return Math.min(...prices);
+}
+
+const MESES_PT = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+/** A data escrita, não a regra: "2026-09-14" → "14 de setembro". */
+function dataPorExtenso(iso: string): string {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  if (!ano || !mes || !dia) return iso;
+  return `${dia} de ${MESES_PT[mes - 1]}`;
 }
