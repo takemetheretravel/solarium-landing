@@ -10,6 +10,8 @@ import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
 import { getPackageBySlug, validatePackageDates, round10down, isExtraActive } from "@/config/packages";
 import { SERVICE_EXTRAS, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
 import { OP_EXTRA_TYPES } from "@/config/operational-extras";
+import { pacotesV2Ativo } from "@/config/flags";
+import { extrasServicoV2 } from "@/lib/pricing/extras";
 import { calculatePrice } from "@/lib/hostaway";
 import { formatBRLPrecise } from "@/lib/cn";
 
@@ -132,15 +134,20 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
       const clamped = Math.min(Math.max(0, qty), MAX_QTY_PER_EXTRA);
       if (clamped > 0) preselectedQty[id] = clamped;
     });
-  const serviceExtras = SERVICE_EXTRAS.filter(
-    (e) => !(packageHasCafe && CAFE_EXTRA_IDS.includes(e.id)),
-  ).map((e) => ({
-    id: e.id,
-    label: e.label,
-    unitPrice: e.price,
-    restriction: e.restriction,
-    qty: preselectedQty[e.id] ?? 0,
-  }));
+  // Com Pacotes V2 o catálogo do checkout é o mesmo da página da casa — os 12
+  // itens, menos informativos e operacionais. Sem a flag, nada muda.
+  const catalogo = pacotesV2Ativo()
+    ? extrasServicoV2()
+    : SERVICE_EXTRAS.map((e) => ({
+        id: e.id,
+        label: e.label,
+        unitPrice: e.price,
+        restriction: e.restriction,
+      }));
+
+  const serviceExtras = catalogo
+    .filter((e) => !(packageHasCafe && CAFE_EXTRA_IDS.includes(e.id)))
+    .map((e) => ({ ...e, qty: preselectedQty[e.id] ?? 0 }));
 
   return (
     <main className="bg-cream pt-32 pb-20">

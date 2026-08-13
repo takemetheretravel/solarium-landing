@@ -10,6 +10,7 @@ import { OpExtraType, OP_EXTRA_TYPES, OP_EXTRA_LABELS, blockedNightFor, opExtraP
 import { getPacoteV2, PacoteV2 } from "@/config/precos-e-extras";
 import { pacotesV2Ativo, reservaTeste } from "@/config/flags";
 import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
+import { resolverExtraServicoV2 } from "@/lib/pricing/extras";
 import { aplicarPix } from "@/lib/pricing/pacotes";
 import type { PropertyConfig } from "@/config/properties";
 
@@ -212,12 +213,21 @@ export async function POST(req: NextRequest) {
     );
     const resolved = serviceItemsRequested
       .map((item) => {
-        const cfg = getServiceExtra(item?.id);
+        // Com a flag ligada, o catálogo V2 também resolve. O preço sai sempre do
+        // config, nunca do corpo da requisição.
+        const v2 = pacotesV2Ativo() ? resolverExtraServicoV2(item?.id) : null;
+        const cfg = v2
+          ? { id: v2.id, label: v2.label, price: v2.preco }
+          : (() => {
+              const legado = getServiceExtra(item?.id);
+              return legado ? { id: legado.id, label: legado.label, price: legado.price } : null;
+            })();
         if (!cfg) return null;
         if (packageHasCafe && CAFE_EXTRA_IDS.includes(cfg.id)) return null;
         const qty = Math.min(Math.max(0, Math.floor(Number(item?.qty) || 0)), MAX_QTY_PER_EXTRA);
         if (qty <= 0) return null;
-        return { id: cfg.id, label: cfg.label, qty, price: serviceExtraTotal(cfg.id, qty) };
+        const price = v2 ? v2.preco * qty : serviceExtraTotal(cfg.id, qty);
+        return { id: cfg.id, label: cfg.label, qty, price };
       })
       .filter((e): e is { id: string; label: string; qty: number; price: number } => e !== null && e.price > 0);
     if (resolved.length > 0) serviceExtras = resolved;

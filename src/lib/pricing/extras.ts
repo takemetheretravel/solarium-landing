@@ -250,3 +250,47 @@ export function validarDatasPacote(
 
   return { valido: true };
 }
+
+// ---------------------------------------------------------------------------
+// PONTE COM O CHECKOUT
+// ---------------------------------------------------------------------------
+
+/**
+ * Extras de serviço do catálogo V2, no formato que o checkout já consome.
+ *
+ * Exclui os informativos (a cobrança acontece em outro lugar) e os operacionais
+ * — early e late têm UI própria no checkout, com checagem de noite adjacente, e
+ * usam os mesmos ids nos dois catálogos.
+ */
+export function extrasServicoV2(): {
+  id: string;
+  label: string;
+  unitPrice: number;
+  restriction?: string;
+}[] {
+  return EXTRAS.filter((e) => !e.informativo && !e.entraNaBase).map((e) => ({
+    id: e.id,
+    label: e.nome,
+    unitPrice: precoExtra(e),
+    restriction: e.observacao,
+  }));
+}
+
+/**
+ * Resolve um id de extra de serviço para o recálculo server-side.
+ *
+ * Aceita os ids do catálogo V2. O preço NUNCA vem do cliente — sai daqui.
+ */
+export function resolverExtraServicoV2(
+  id: string,
+): { id: string; label: string; preco: number; nota?: string; prazoFornecedorDias?: number } | null {
+  const extra = getExtra(id);
+  if (!extra || extra.informativo || extra.entraNaBase) return null;
+  return {
+    id: extra.id,
+    label: extra.nome,
+    preco: precoExtra(extra),
+    nota: extra.notaInterna,
+    prazoFornecedorDias: extra.prazoFornecedorDias,
+  };
+}
