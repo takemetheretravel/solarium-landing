@@ -113,9 +113,11 @@ marcar como paga continua manual, por reserva.
 mas qualquer pessoa que leia o repo lê calendário e preços de produção e força
 rotação do token Hostaway.
 
-**5 · Filtro contextual da home não ligado.** A home renderiza no servidor e a
-`BookingBar` guarda as datas no cliente. Os cards mostram sempre os três padrão com
-"a partir de"; o recálculo com datas concretas acontece na página do pacote.
+**5 · Filtro contextual da home não ligado.** Em `/pacotes` o seletor de datas
+recalcula todos os cards contra a tarifa real. Na **home** os cards seguem mostrando
+os três padrão com "a partir de": ela renderiza estaticamente com `revalidate = 300`
+e ler `searchParams` ali tornaria a página inteira dinâmica, trocando o desempenho
+da landing principal por um filtro que `/pacotes` já entrega. Decisão consciente.
 
 ---
 
