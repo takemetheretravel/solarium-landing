@@ -16,7 +16,9 @@ import {
   getExtra,
   pacoteVisivelHoje,
 } from "@/config/precos-e-extras";
-import { diariaMinima } from "@/lib/pricing/pacote-server";
+import { calcularPacoteServer, diariaMinima } from "@/lib/pricing/pacote-server";
+import { getPropertyBySlug } from "@/config/properties";
+import SeletorDatasPacotes from "@/components/pacotes/SeletorDatasPacotes";
 
 export const dynamic = "force-dynamic";
 
@@ -25,20 +27,58 @@ export const metadata: Metadata = {
   description: "Estadias com itens já organizados, em uma reserva só.",
 };
 
-export default async function PaginaPacotes() {
+type Busca = { checkin?: string; checkout?: string; guests?: string };
+
+export default async function PaginaPacotes({ searchParams }: { searchParams: Busca }) {
   if (!pacotesV2Ativo()) notFound();
 
   const hoje = new Date().toISOString().slice(0, 10);
-  const visiveis = PACOTES_V2.filter((p) => p.ativo && pacoteVisivelHoje(p, hoje));
+  const checkin = (searchParams.checkin || "").trim();
+  const checkout = (searchParams.checkout || "").trim();
+  const guests = Math.max(1, Number(searchParams.guests) || 2);
+  const temDatas = Boolean(checkin && checkout && checkin < checkout);
+
+  // Com datas escolhidas, o Feriado na Serra aparece se as datas contiverem
+  // feriado — mesmo fora da janela dos 45 dias.
+  const visiveis = PACOTES_V2.filter(
+    (p) => p.ativo && (pacoteVisivelHoje(p, hoje) || (temDatas && p.exigeFeriado)),
+  );
 
   const cards = await Promise.all(
     visiveis
       .sort((a, b) => a.prioridadeHome - b.prioridadeHome)
-      .map(async (p) => ({
-        pacote: p,
-        minima: await diariaMinima(p.properties[0]),
-      })),
+      .map(async (p) => {
+        const property = getPropertyBySlug(p.properties[0]);
+
+        // Sem datas, só a âncora "a partir de". Com datas, o total real, contra a
+        // tarifa Hostaway — e o motivo, quando as datas não fecham o pacote.
+        const calculo =
+          temDatas && property
+            ? await calcularPacoteServer({
+                pacote: p,
+                propertySlug: property.slug,
+                propertyId: property.id,
+                checkin,
+                checkout,
+                guests,
+                removidos: [],
+                selecao: {},
+              })
+            : null;
+
+        return {
+          pacote: p,
+          minima: await diariaMinima(p.properties[0]),
+          calculo,
+        };
+      }),
   );
+
+  const compativeis = cards.filter((c) => c.calculo?.ok);
+  const incompativeis = cards.filter((c) => c.calculo && !c.calculo.ok);
+  // Nunca deixar a grade vazia: sem nenhum pacote compatível, mostra todos com a
+  // âncora e o motivo de cada um, em vez de uma tela em branco.
+  const grade = temDatas && compativeis.length > 0 ? [...compativeis, ...incompativeis] : cards;
 
   return (
     <main>
@@ -51,9 +91,21 @@ export default async function PaginaPacotes() {
             condição melhor do que contratar cada coisa à parte.
           </p>
 
+          <SeletorDatasPacotes />
+
+          {temDatas && compativeis.length === 0 && (
+            <p className="mt-6 border-l-2 border-copper/40 pl-4 font-sans text-sm leading-relaxed text-charcoal/70">
+              Nenhum pacote fecha com estas datas.{" "}
+              <Link href="/#busca" className="text-copper underline underline-offset-4">
+                Ver as casas livres no período
+              </Link>
+              .
+            </p>
+          )}
+
           {/* Grade */}
           <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {cards.map(({ pacote, minima }) => {
+            {grade.map(({ pacote, minima, calculo }) => {
               const itens = pacote.inclusos
                 .map((i) => getExtra(i.extraId))
                 .filter((e): e is NonNullable<typeof e> => Boolean(e));
@@ -83,14 +135,42 @@ export default async function PaginaPacotes() {
                     ))}
                   </ul>
 
-                  {minima !== null && (
-                    <p className="mt-5 font-serif text-lg text-charcoal">
-                      A partir de {formatBRL(minima * pacote.noitesMin)}
-                    </p>
+                  {calculo?.ok ? (
+                    <div className="mt-5">
+                      <p className="font-serif text-2xl text-charcoal">
+                        {formatBRL(calculo.resultado.total)}
+                      </p>
+                      {calculo.economia > 0 && (
+                        <p className="mt-1 font-sans text-xs text-serra">
+                          {formatBRL(calculo.economia)} a menos que contratando cada item à parte
+                        </p>
+                      )}
+                    </div>
+                  ) : calculo ? (
+                    <div className="mt-5">
+                      <p className="font-sans text-xs leading-relaxed text-charcoal/60">
+                        {calculo.erro}
+                      </p>
+                      {minima !== null && (
+                        <p className="mt-2 font-serif text-lg text-charcoal/70">
+                          A partir de {formatBRL(minima * pacote.noitesMin)}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    minima !== null && (
+                      <p className="mt-5 font-serif text-lg text-charcoal">
+                        A partir de {formatBRL(minima * pacote.noitesMin)}
+                      </p>
+                    )
                   )}
 
                   <Link
-                    href={`/pacotes/${pacote.slug}`}
+                    href={
+                      calculo?.ok
+                        ? `/pacotes/${pacote.slug}?checkin=${checkin}&checkout=${checkout}&guests=${guests}`
+                        : `/pacotes/${pacote.slug}`
+                    }
                     className="mt-5 inline-block font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
                   >
                     Ver pacote
