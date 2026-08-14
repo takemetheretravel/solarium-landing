@@ -14,6 +14,10 @@ type Props = {
   onPaymentMethodChange: (pm: "card" | "pix") => void;
   couponCode?: string;
   packageSlug?: string;
+  /** Pacotes V2 — presente, o draft usa o motor novo e rejeita cupom. */
+  pacoteId?: string;
+  removidos?: string[];
+  selecaoExtras?: Record<string, number>;
   packageChoices?: string;
   packageExtrasActive?: string;
   serviceExtras?: { id: string; qty: number }[];
@@ -91,6 +95,9 @@ export default function GuestForm(props: Props) {
           paymentMethod,
           couponCode: props.packageSlug ? undefined : props.couponCode,
           packageSlug: props.packageSlug,
+          pacoteId: props.pacoteId,
+          removidos: props.removidos,
+          selecaoExtras: props.selecaoExtras,
           packageChoices: props.packageChoices,
           extrasActive: props.packageExtrasActive,
           serviceExtras: props.serviceExtras?.length ? props.serviceExtras : undefined,

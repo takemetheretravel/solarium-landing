@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     compativel: true,
     total: calc.resultado.total,
+    hostawayTotal: calc.resultado.hostawayTotal,
     subtotal: calc.resultado.subtotal,
     baseDesconto: calc.resultado.baseDesconto,
     descontoTotal: calc.resultado.descontoTotal,

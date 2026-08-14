@@ -6,14 +6,15 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import PackageBooking from "@/components/booking/PackageBooking";
-import PacoteV2Layout from "@/components/pacotes/PacoteV2Layout";
-import { PACKAGES, getPackageBySlug } from "@/config/packages";
-import { getPacoteV2 } from "@/config/precos-e-extras";
+import { PACKAGES } from "@/config/packages";
 import { pacotesV2Ativo } from "@/config/flags";
+import { vistaPacote, slugsDePacote } from "@/lib/pricing/vista-pacote";
+import { JANELA_CANCELAMENTO_EXTRAS_DIAS } from "@/config/precos-e-extras";
 
 export const revalidate = 300;
 
 export function generateStaticParams() {
+  // Sem a flag, só os antigos existem — o roteamento não muda.
   return PACKAGES.map((p) => ({ slug: p.slug }));
 }
 
@@ -22,47 +23,40 @@ export async function generateMetadata({
 }: {
   params: { slug: string };
 }): Promise<Metadata> {
-  const v2 = pacotesV2Ativo() ? getPacoteV2(params.slug) : undefined;
-  if (v2) {
-    return { title: `${v2.nome} — Solarium Mantiqueira`, description: v2.descricao };
-  }
-  const pkg = getPackageBySlug(params.slug);
-  if (!pkg) return { title: "Não encontrado" };
+  const vista = vistaPacote(params.slug, pacotesV2Ativo());
+  if (!vista) return { title: "Não encontrado" };
   return {
-    title: `${pkg.name} — Solarium Mantiqueira`,
-    description: pkg.description.slice(0, 160),
+    title: `${vista.nome} — Solarium Mantiqueira`,
+    description: vista.descricao.slice(0, 160),
     openGraph: {
-      title: `${pkg.name} — Solarium Mantiqueira`,
-      description: pkg.description.slice(0, 160),
-      images: [{ url: pkg.image, width: 1200, height: 900, alt: pkg.name }],
+      title: `${vista.nome} — Solarium Mantiqueira`,
+      description: vista.descricao.slice(0, 160),
+      images: [{ url: vista.imagem, width: 1200, height: 900, alt: vista.nome }],
     },
   };
 }
 
 export default function PackagePage({ params }: { params: { slug: string } }) {
-  // Pacotes V2 convivem com os antigos no mesmo caminho. Com a flag desligada,
-  // só os antigos existem e a página se comporta exatamente como hoje.
-  const v2 = pacotesV2Ativo() ? getPacoteV2(params.slug) : undefined;
-  if (v2) return <PacoteV2Layout pacote={v2} />;
-
-  const pkg = getPackageBySlug(params.slug);
-  if (!pkg) notFound();
+  const v2Ativo = pacotesV2Ativo();
+  const vista = vistaPacote(params.slug, v2Ativo);
+  if (!vista) notFound();
+  if (!slugsDePacote(v2Ativo).includes(vista.slug)) notFound();
 
   return (
     <main>
       {/* HERO */}
       <section className="relative h-[70vh] min-h-[480px] w-full overflow-hidden">
-        <SmartImage src={pkg.image} alt={pkg.name} priority sizes="100vw" />
+        <SmartImage src={vista.imagem} alt={vista.nome} priority sizes="100vw" />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-transparent to-charcoal/70" />
         <div className="relative z-10 flex h-full flex-col items-start justify-end px-6 pb-20 text-cream sm:px-16 sm:pb-24">
           <Kicker tone="cream" className="mb-4 opacity-90">
-            Pacote · {pkg.nights} noites
+            Pacote · {vista.noites} noites
           </Kicker>
           <Heading level={1} className="text-cream">
-            {pkg.name}
+            {vista.nome}
           </Heading>
           <p className="mt-6 max-w-xl font-sans text-base leading-relaxed text-cream/85 sm:text-lg">
-            {pkg.tagline}
+            {vista.tagline}
           </p>
         </div>
       </section>
@@ -73,17 +67,17 @@ export default function PackagePage({ params }: { params: { slug: string } }) {
             {/* DESCRIÇÃO */}
             <Kicker className="mb-4">A experiência</Kicker>
             <Heading level={2} className="text-3xl md:text-4xl">
-              {pkg.name}.
+              {vista.nome}.
             </Heading>
             <p className="mt-6 font-sans text-base leading-[1.8] text-charcoal/80">
-              {pkg.description}
+              {vista.descricao}
             </p>
 
             {/* O QUE ESTÁ INCLUÍDO */}
             <div className="mt-12 border-t border-charcoal/10 pt-10">
               <Kicker className="mb-5">O que está incluído</Kicker>
               <ul className="space-y-4">
-                {pkg.included.map((item) => (
+                {vista.inclusos.map((item) => (
                   <li key={item} className="flex items-start gap-3">
                     <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-serra" />
                     <span className="font-sans text-base leading-relaxed text-charcoal/80">{item}</span>
@@ -92,18 +86,40 @@ export default function PackagePage({ params }: { params: { slug: string } }) {
               </ul>
             </div>
 
-            {pkg.weekdaysOnly && (
+            {vista.aviso && (
               <p className="mt-10 border-l-2 border-copper/40 pl-4 font-sans text-sm leading-relaxed text-charcoal/60">
-                Este pacote é válido para noites de segunda a quinta, fora de feriados.
-                Para finais de semana e datas de feriado, fale com nosso concierge.
+                {vista.aviso}
               </p>
+            )}
+
+            {/* CONDIÇÕES — só no motor novo, onde a política de extras existe */}
+            {vista.pacoteV2 && (
+              <div className="mt-12 border-t border-charcoal/10 pt-10">
+                <Kicker className="mb-5">Condições</Kicker>
+                <ul className="space-y-3 font-sans text-sm leading-relaxed text-charcoal/70">
+                  <li>
+                    Cancelamento da estadia: sem custo em até 7 dias após a confirmação, desde que
+                    reste ao menos 24h antes do check-in.
+                  </li>
+                  <li>
+                    Extras: reembolso integral quando cancelados com{" "}
+                    {JANELA_CANCELAMENTO_EXTRAS_DIAS} dias ou mais de antecedência da sua chegada. A
+                    data-limite vai escrita na confirmação.
+                  </li>
+                  <li>A decoração especial precisa de 5 dias de antecedência.</li>
+                  <li>
+                    O preço do pacote já é a melhor condição para estas datas, e não se soma a
+                    cupons.
+                  </li>
+                </ul>
+              </div>
             )}
           </div>
 
           {/* BOOKING — sticky no desktop */}
           <aside>
             <div className="lg:sticky lg:top-24">
-              <PackageBooking pkg={pkg} />
+              <PackageBooking pkg={vista.legado} pacoteV2={vista.pacoteV2} />
             </div>
           </aside>
         </div>

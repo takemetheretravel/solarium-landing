@@ -1,241 +1,113 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
-import { formatBRL, formatExtraPrice } from "@/lib/cn";
+import SmartImage from "@/components/ui/SmartImage";
+import { formatBRL } from "@/lib/cn";
 import { pacotesV2Ativo } from "@/config/flags";
-import {
-  PACOTES_V2,
-  EXTRAS,
-  ROTULO_UNIDADE,
-  JANELA_CANCELAMENTO_EXTRAS_DIAS,
-  precoExtra,
-  getExtra,
-  pacoteVisivelHoje,
-} from "@/config/precos-e-extras";
-import { calcularPacoteServer, diariaMinima } from "@/lib/pricing/pacote-server";
+import { pacoteVisivelHoje, getPacoteV2 } from "@/config/precos-e-extras";
+import { vistaPacote, slugsDePacote } from "@/lib/pricing/vista-pacote";
+import { diariaMinima } from "@/lib/pricing/pacote-server";
 import { getPropertyBySlug } from "@/config/properties";
-import SeletorDatasPacotes from "@/components/pacotes/SeletorDatasPacotes";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Pacotes — Solarium Mantiqueira",
   description: "Estadias com itens já organizados, em uma reserva só.",
 };
 
-type Busca = { checkin?: string; checkout?: string; guests?: string };
-
-export default async function PaginaPacotes({ searchParams }: { searchParams: Busca }) {
-  if (!pacotesV2Ativo()) notFound();
+export default async function PaginaPacotes() {
+  const v2Ativo = pacotesV2Ativo();
+  if (!v2Ativo) notFound();
 
   const hoje = new Date().toISOString().slice(0, 10);
-  const checkin = (searchParams.checkin || "").trim();
-  const checkout = (searchParams.checkout || "").trim();
-  const guests = Math.max(1, Number(searchParams.guests) || 2);
-  const temDatas = Boolean(checkin && checkout && checkin < checkout);
 
-  // Com datas escolhidas, o Feriado na Serra aparece se as datas contiverem
-  // feriado — mesmo fora da janela dos 45 dias.
-  const visiveis = PACOTES_V2.filter(
-    (p) => p.ativo && (pacoteVisivelHoje(p, hoje) || (temDatas && p.exigeFeriado)),
-  );
+  const cards = (
+    await Promise.all(
+      slugsDePacote(v2Ativo).map(async (slug) => {
+        const vista = vistaPacote(slug, v2Ativo);
+        if (!vista) return null;
 
-  const cards = await Promise.all(
-    visiveis
-      .sort((a, b) => a.prioridadeHome - b.prioridadeHome)
-      .map(async (p) => {
-        const property = getPropertyBySlug(p.properties[0]);
+        // Sazonal fora da janela não aparece na grade.
+        const v2 = getPacoteV2(slug);
+        if (v2 && !pacoteVisivelHoje(v2, hoje)) return null;
 
-        // Sem datas, só a âncora "a partir de". Com datas, o total real, contra a
-        // tarifa Hostaway — e o motivo, quando as datas não fecham o pacote.
-        const calculo =
-          temDatas && property
-            ? await calcularPacoteServer({
-                pacote: p,
-                propertySlug: property.slug,
-                propertyId: property.id,
-                checkin,
-                checkout,
-                guests,
-                removidos: [],
-                selecao: {},
-              })
-            : null;
+        const casa = vista.pacoteV2?.properties[0] ?? vista.legado?.properties[0];
+        const property = casa ? getPropertyBySlug(casa) : undefined;
+        const minima = property ? await diariaMinima(property.slug) : null;
 
-        return {
-          pacote: p,
-          minima: await diariaMinima(p.properties[0]),
-          calculo,
-        };
+        return { vista, minima };
       }),
-  );
-
-  const compativeis = cards.filter((c) => c.calculo?.ok);
-  const incompativeis = cards.filter((c) => c.calculo && !c.calculo.ok);
-  // Nunca deixar a grade vazia: sem nenhum pacote compatível, mostra todos com a
-  // âncora e o motivo de cada um, em vez de uma tela em branco.
-  const grade = temDatas && compativeis.length > 0 ? [...compativeis, ...incompativeis] : cards;
+    )
+  ).filter((c): c is NonNullable<typeof c> => c !== null);
 
   return (
     <main>
-      <Section>
+      <Section className="pt-32">
         <Container>
-          <Kicker className="mb-4">Pacotes</Kicker>
-          <Heading level={1}>Estadias com tudo já organizado.</Heading>
-          <p className="mt-6 max-w-2xl font-sans text-base leading-relaxed text-charcoal/70">
-            Cada pacote reúne as noites e os itens que a maioria dos hóspedes acaba pedindo, com uma
-            condição melhor do que contratar cada coisa à parte.
-          </p>
-
-          <SeletorDatasPacotes />
-
-          {temDatas && compativeis.length === 0 && (
-            <p className="mt-6 border-l-2 border-copper/40 pl-4 font-sans text-sm leading-relaxed text-charcoal/70">
-              Nenhum pacote fecha com estas datas.{" "}
-              <Link href="/#busca" className="text-copper underline underline-offset-4">
-                Ver as casas livres no período
-              </Link>
-              .
+          <div className="mb-16 max-w-2xl">
+            <Kicker className="mb-4">Pacotes</Kicker>
+            <Heading level={1}>Estadias com tudo já organizado.</Heading>
+            <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
+              Cada pacote reúne as noites e os itens que a maioria dos hóspedes acaba pedindo, com
+              uma condição melhor do que contratar cada coisa à parte.
             </p>
-          )}
+          </div>
 
-          {/* Grade */}
-          <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {grade.map(({ pacote, minima, calculo }) => {
-              const itens = pacote.inclusos
-                .map((i) => getExtra(i.extraId))
-                .filter((e): e is NonNullable<typeof e> => Boolean(e));
+          {/* Grade no mesmo tratamento dos cards de casa. O retângulo inteiro é o link. */}
+          <div className="grid gap-6 lg:grid-cols-3 lg:gap-6">
+            {cards.map(({ vista, minima }) => (
+              <Link
+                key={vista.slug}
+                href={`/pacotes/${vista.slug}`}
+                className="group mb-12 flex flex-col rounded-sm bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 last:mb-0 md:mb-0 md:rounded-none md:bg-cream md:p-0 md:shadow-none"
+              >
+                <div className="relative aspect-[4/5] overflow-hidden bg-charcoal/5">
+                  <SmartImage
+                    src={vista.imagem}
+                    alt={vista.nome}
+                    sizes="(min-width: 1024px) 33vw, 100vw"
+                    className="transition-transform duration-700 group-hover:scale-105"
+                  />
+                </div>
 
-              return (
-                <article
-                  key={pacote.id}
-                  className="flex flex-col border border-charcoal/10 bg-cream p-6"
-                >
-                  <Kicker className="mb-3">
-                    {pacote.noitesMax === pacote.noitesMin
-                      ? `${pacote.noitesMin} noites`
-                      : `A partir de ${pacote.noitesMin} noites`}
-                  </Kicker>
-                  <Heading level={3} className="text-2xl text-charcoal">
-                    {pacote.nome}
+                <div className="flex flex-1 flex-col pt-6">
+                  <Kicker className="mb-3">{vista.noites} noites</Kicker>
+                  <Heading level={3} className="text-2xl text-charcoal sm:text-3xl">
+                    {vista.nome}
                   </Heading>
-                  <p className="mt-3 flex-1 font-sans text-sm leading-relaxed text-charcoal/70">
-                    {pacote.descricao}
+                  <p className="mt-3 font-sans text-sm leading-relaxed text-charcoal/70">
+                    {vista.tagline}
                   </p>
 
-                  <ul className="mt-5 space-y-1">
-                    {itens.map((e) => (
-                      <li key={e.id} className="font-sans text-xs text-charcoal/60">
-                        {e.nome}
+                  <ul className="mt-5 flex-1 space-y-1">
+                    {vista.inclusos.slice(1, 4).map((i) => (
+                      <li key={i} className="font-sans text-xs text-charcoal/60">
+                        {i}
                       </li>
                     ))}
                   </ul>
 
-                  {calculo?.ok ? (
-                    <div className="mt-5">
-                      <p className="font-serif text-2xl text-charcoal">
-                        {formatBRL(calculo.resultado.total)}
-                      </p>
-                      {calculo.economia > 0 && (
-                        <p className="mt-1 font-sans text-xs text-serra">
-                          {formatBRL(calculo.economia)} a menos que contratando cada item à parte
-                        </p>
-                      )}
-                    </div>
-                  ) : calculo ? (
-                    <div className="mt-5">
-                      <p className="font-sans text-xs leading-relaxed text-charcoal/60">
-                        {calculo.erro}
-                      </p>
-                      {minima !== null && (
-                        <p className="mt-2 font-serif text-lg text-charcoal/70">
-                          A partir de {formatBRL(minima * pacote.noitesMin)}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    minima !== null && (
-                      <p className="mt-5 font-serif text-lg text-charcoal">
-                        A partir de {formatBRL(minima * pacote.noitesMin)}
-                      </p>
-                    )
+                  {minima !== null && (
+                    <p className="mt-6 font-serif text-lg text-charcoal">
+                      A partir de {formatBRL(minima * vista.noites)}
+                    </p>
                   )}
 
-                  <Link
-                    href={
-                      calculo?.ok
-                        ? `/pacotes/${pacote.slug}?checkin=${checkin}&checkout=${checkout}&guests=${guests}`
-                        : `/pacotes/${pacote.slug}`
-                    }
-                    className="mt-5 inline-block font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
-                  >
-                    Ver pacote
-                  </Link>
-                </article>
-              );
-            })}
+                  <span className="mt-4 inline-flex items-center gap-1.5 font-sans text-xs uppercase tracking-[0.25em] text-copper transition-colors group-hover:text-charcoal">
+                    Ver pacote <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+              </Link>
+            ))}
           </div>
-        </Container>
-      </Section>
-
-      {/* Extras disponíveis — informativo, sem seleção */}
-      <Section className="border-t border-charcoal/10 bg-cream">
-        <Container size="narrow">
-          <Kicker className="mb-4">Extras disponíveis</Kicker>
-          <Heading level={2}>O que dá para acrescentar.</Heading>
-          <ul className="mt-8 divide-y divide-charcoal/5">
-            {EXTRAS.filter((e) => !e.informativo).map((e) => (
-              <li key={e.id} className="flex items-baseline justify-between gap-4 py-3">
-                <span className="font-sans text-sm text-charcoal">{e.nome}</span>
-                <span className="shrink-0 font-sans text-xs text-charcoal/50">
-                  {typeof e.preco === "number"
-                    ? `${formatExtraPrice(precoExtra(e))} · ${ROTULO_UNIDADE[e.unidade]}`
-                    : ROTULO_UNIDADE[e.unidade]}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Container>
-      </Section>
-
-      {/* FAQ */}
-      <Section className="border-t border-charcoal/10">
-        <Container size="narrow">
-          <Kicker className="mb-4">Dúvidas frequentes</Kicker>
-          <Heading level={2}>Antes de reservar um pacote.</Heading>
-          <dl className="mt-8 space-y-8">
-            {FAQ_PACOTES.map(({ p, r }) => (
-              <div key={p}>
-                <dt className="font-serif text-lg text-charcoal">{p}</dt>
-                <dd className="mt-2 font-sans text-sm leading-relaxed text-charcoal/70">{r}</dd>
-              </div>
-            ))}
-          </dl>
         </Container>
       </Section>
     </main>
   );
 }
-
-const FAQ_PACOTES = [
-  {
-    p: "Posso usar cupom em um pacote?",
-    r: "Não. O preço do pacote já é a melhor condição disponível para aquelas datas, e não se soma a cupons.",
-  },
-  {
-    p: "Dá para tirar algum item do pacote?",
-    r: "O café da manhã pode sair, e o valor cai junto. O check-out estendido é o que define o pacote e sustenta a condição, então fica — a única saída é no Dois Casais, Uma Vista, onde ele pode ser removido.",
-  },
-  {
-    p: "Com quanto tempo preciso pedir os extras?",
-    r: "A decoração precisa de 5 dias. Cestas e massagem são combinadas com o concierge assim que a reserva é confirmada.",
-  },
-  {
-    p: "Consigo cancelar um extra?",
-    r: `Sim, com reembolso integral, desde que o pedido chegue com ${JANELA_CANCELAMENTO_EXTRAS_DIAS} dias ou mais de antecedência da sua chegada. A data-limite vai escrita no e-mail de confirmação. Dentro desse prazo, o extra não é reembolsado. O cancelamento da estadia tem regra própria.`,
-  },
-];

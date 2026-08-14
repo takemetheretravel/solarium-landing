@@ -8,16 +8,23 @@ import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { LOGO } from "@/config/site";
 
-// `/pacotes` entra entre Nossas Casas e Experiências, só com a flag ligada.
-const NAV = [
-  { href: "/#nossas-casas", label: "Nossas Casas" },
-  ...(process.env.NEXT_PUBLIC_PACOTES_V2 === "true"
-    ? [{ href: "/pacotes", label: "Pacotes" }]
-    : []),
-  { href: "/experiencias", label: "Experiências" },
-  { href: "/parceiros", label: "Parceiros" },
-  { href: "/#contato", label: "Contato" },
-];
+// Com a flag ligada, Pacotes abre o menu — mesma ordem da home. Com ela
+// desligada, o menu volta exatamente à ordem de hoje.
+const NAV =
+  process.env.NEXT_PUBLIC_PACOTES_V2 === "true"
+    ? [
+        { href: "/pacotes", label: "Pacotes" },
+        { href: "/#nossas-casas", label: "Nossas Casas" },
+        { href: "/experiencias", label: "Experiências" },
+        { href: "/parceiros", label: "Parceiros" },
+        { href: "/#contato", label: "Contato" },
+      ]
+    : [
+        { href: "/#nossas-casas", label: "Nossas Casas" },
+        { href: "/experiencias", label: "Experiências" },
+        { href: "/parceiros", label: "Parceiros" },
+        { href: "/#contato", label: "Contato" },
+      ];
 
 const HERO_ROUTES = ["/", "/solarium-1", "/solarium-2", "/solarium-completo", "/experiencias", "/parceiros"];
 

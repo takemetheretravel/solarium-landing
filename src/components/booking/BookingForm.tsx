@@ -388,8 +388,9 @@ export default function BookingForm({
         </div>
       )}
 
-      {/* Extras logo abaixo do resumo de preço, recolhidos. Seguem editáveis no
-          checkout — quem pula aqui tem a última chance lá. */}
+      {/* Extras entre o resumo e o CTA. O bloco só existe quando já há datas, e
+          nesse caso nasce ABERTO — nada de acordeão escondendo a existência dos
+          itens. Seguem editáveis no checkout: quem pula aqui tem a última chance lá. */}
       {V2 && okQuote && okQuote.nights > 0 && (
         <div className="mt-6">
           <ExtrasNaCasa
@@ -399,6 +400,7 @@ export default function BookingForm({
             contexto="casa"
             selecao={selecaoExtras}
             onChange={setSelecaoExtras}
+            recolhivel={false}
           />
         </div>
       )}

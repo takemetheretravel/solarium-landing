@@ -59,6 +59,9 @@ type Props = {
   initialCouponCode?: string;
   quote: Quote;
   packageInfo?: PackageInfo | null;
+  pacoteId?: string;
+  removidos?: string[];
+  selecaoExtrasPacote?: Record<string, number>;
   packageChoices?: string;
   packageExtrasActive?: string;
   serviceExtras?: ServiceExtraOption[];
@@ -74,6 +77,9 @@ export default function BookingPageClient({
   initialCouponCode,
   quote,
   packageInfo,
+  pacoteId,
+  removidos,
+  selecaoExtrasPacote,
   packageChoices,
   packageExtrasActive,
   serviceExtras = [],
@@ -193,7 +199,10 @@ export default function BookingPageClient({
           paymentMethod={paymentMethod}
           onPaymentMethodChange={setPaymentMethod}
           couponCode={packageInfo ? undefined : appliedCoupon || undefined}
-          packageSlug={packageInfo?.slug}
+          packageSlug={pacoteId ? undefined : packageInfo?.slug}
+          pacoteId={pacoteId}
+          removidos={removidos}
+          selecaoExtras={selecaoExtrasPacote}
           packageChoices={packageInfo ? packageChoices : undefined}
           packageExtrasActive={packageInfo ? packageExtrasActive : undefined}
           serviceExtras={activeServiceItems}

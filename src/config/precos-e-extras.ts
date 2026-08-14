@@ -340,7 +340,7 @@ export const PACOTES_V2: PacoteV2[] = [
     nome: "Fim de Semana Completo",
     descricao:
       "Sexta a domingo, com a tarde de domingo inteira ainda pela frente. O café de sábado chega no horário que vocês pedirem.",
-    imagem: null,
+    imagem: "/images/solarium-1/09-deck-por-do-sol.jpg",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 2,
     noitesMax: 2,
@@ -361,7 +361,7 @@ export const PACOTES_V2: PacoteV2[] = [
     nome: "Dois Casais, Uma Vista",
     descricao:
       "As duas casas, cada casal com a sua. Cozinha, spa e varanda independentes, e a mesma vista das duas varandas.",
-    imagem: null,
+    imagem: "/images/solarium-1/04-vista-traseira.jpg",
     imagemPlaceholder: {
       criadoEm: "2026-08-13",
       nota: "PLACEHOLDER — substituir por foto de dois casais",
@@ -385,7 +385,7 @@ export const PACOTES_V2: PacoteV2[] = [
     slug: "feriado-na-serra",
     nome: "Feriado na Serra",
     descricao: "Três noites de feriado, e o último dia sem correria até as 18h.",
-    imagem: null,
+    imagem: "/images/solarium-1/07-nevoeiro-plantas.jpg",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 3,
     noitesMax: 3,

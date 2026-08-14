@@ -12,6 +12,8 @@ import { SERVICE_EXTRAS, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/serv
 import { OP_EXTRA_TYPES } from "@/config/operational-extras";
 import { pacotesV2Ativo } from "@/config/flags";
 import { extrasServicoV2 } from "@/lib/pricing/extras";
+import { getPacoteV2 } from "@/config/precos-e-extras";
+import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
 import { calculatePrice } from "@/lib/hostaway";
 import { formatBRLPrecise } from "@/lib/cn";
 
@@ -31,8 +33,10 @@ type Search = {
   payment?: string;
   coupon?: string;
   package?: string;
+  pacote?: string;  // Pacotes V2: id do pacote no catálogo novo
   choices?: string;
   pkgExtras?: string; // extras ativos do pacote (labels "|") — removíveis omitidos saem
+  removidos?: string; // Pacotes V2: ids de inclusos removidos, separados por ","
   extras?: string;    // extras de serviço (ids "," com qty opcional "id:qty") + tipos operacionais (early_checkin, late_checkout)
 };
 
@@ -73,7 +77,14 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
 
   // Pacote: recalcula o total com desconto de estadia + extras (validado de novo no draft)
   const pkg = searchParams.package ? getPackageBySlug(searchParams.package) : undefined;
-  let packageInfo = null;
+  let packageInfo: {
+    slug: string;
+    name: string;
+    stayTotal: number;
+    extras: { label: string; amount: number }[];
+    total: number;
+    aLaCarte: number;
+  } | null = null;
   if (
     pkg &&
     quote &&
@@ -149,6 +160,39 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
     .filter((e) => !(packageHasCafe && CAFE_EXTRA_IDS.includes(e.id)))
     .map((e) => ({ ...e, qty: preselectedQty[e.id] ?? 0 }));
 
+  // PACOTES V2 — motor novo, autoritativo. O total exibido aqui é exatamente o
+  // que o draft recalcula; nada de preço vindo da URL.
+  const pacoteV2 =
+    pacotesV2Ativo() && searchParams.pacote ? getPacoteV2(searchParams.pacote) : undefined;
+  const removidosV2 = (searchParams.removidos || "").split(",").filter(Boolean);
+  let pacoteV2Info: typeof packageInfo = null;
+
+  if (pacoteV2) {
+    const calc = await calcularPacoteServer({
+      pacote: pacoteV2,
+      propertySlug: property.slug,
+      propertyId: property.id,
+      checkin,
+      checkout,
+      guests,
+      removidos: removidosV2,
+      selecao: preselectedQty,
+    });
+    if (calc.ok) {
+      pacoteV2Info = {
+        slug: pacoteV2.slug,
+        name: pacoteV2.nome,
+        stayTotal: calc.resultado.hostawayTotal,
+        extras: calc.resultado.itens.map((i) => ({
+          label: i.qtd > 1 ? `${i.nome} ×${i.qtd}` : i.nome,
+          amount: i.total,
+        })),
+        total: calc.resultado.total,
+        aLaCarte: calc.resultado.total + calc.economia,
+      };
+    }
+  }
+
   return (
     <main className="bg-cream pt-32 pb-20">
       <Container size="wide">
@@ -183,13 +227,18 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
           initialPaymentMethod={paymentMethod}
           initialCouponCode={packageInfo ? undefined : couponCode || undefined}
           quote={
-            packageInfo
+            pacoteV2Info
+              ? { totalPrice: pacoteV2Info.total, nights: quote!.nights }
+              : packageInfo
               ? { totalPrice: packageInfo.total, nights: quote!.nights }
               : quote
                 ? { totalPrice: quote.totalPrice, nights: quote.nights }
                 : null
           }
-          packageInfo={packageInfo}
+          packageInfo={pacoteV2Info ?? packageInfo}
+          pacoteId={pacoteV2Info && pacoteV2 ? pacoteV2.id : undefined}
+          removidos={pacoteV2Info ? removidosV2 : undefined}
+          selecaoExtrasPacote={pacoteV2Info ? preselectedQty : undefined}
           packageChoices={packageInfo ? searchParams.choices : undefined}
           packageExtrasActive={packageInfo ? searchParams.pkgExtras : undefined}
           serviceExtras={serviceExtras}
