@@ -10,7 +10,13 @@ import {
   EntradaMotor,
   ItemPreco,
 } from "./pacotes";
-import { montarItens, extrasExibiveis, lateCheckoutAtivo } from "./extras";
+import {
+  montarItens,
+  extrasExibiveis,
+  lateCheckoutAtivo,
+  extrasDuplicados,
+  estadiaDeFimDeSemana,
+} from "./extras";
 import {
   taxaProgressiva,
   estadiaContemFeriado,
@@ -358,6 +364,101 @@ describe("golden: Dois Casais, Uma Vista", () => {
     ]);
     expect(lateCheckoutAtivo(comLate)).toBe(true);
     expect(lateCheckoutAtivo(semLate)).toBe(false);
+  });
+});
+
+
+describe("§1 — item incluso nunca é cobrado duas vezes", () => {
+  // Cada pacote V2 com uma data válida e a casa elegível
+  const CENARIOS: { slug: string; casa: string; checkin: string; checkout: string; noites: number }[] = [
+    { slug: "fim-de-semana-completo", casa: "solarium-1", ...FDS, noites: 2 },
+    { slug: "feriado-na-serra", casa: "solarium-1", ...FERIADO_QUI_DOM, noites: 3 },
+    { slug: "dois-casais", casa: "solarium-completo", ...FDS, noites: 2 },
+  ];
+
+  it("adicionar um incluso como extra não muda o total, em nenhum pacote", () => {
+    for (const c of CENARIOS) {
+      const pacote = getPacoteV2(c.slug);
+      expect(pacote).toBeTruthy();
+
+      for (const incluso of pacote!.inclusos) {
+        const limpo = calcularPacote(
+          entrada(c.noites, 4000, itensReais(c.slug, c.casa, c.checkin, c.checkout), 0),
+        );
+        // O cliente tenta comprar de novo o que já vem no pacote
+        const comDuplicata = calcularPacote(
+          entrada(
+            c.noites,
+            4000,
+            itensReais(c.slug, c.casa, c.checkin, c.checkout, [], { [incluso.extraId]: 1 }),
+            0,
+          ),
+        );
+
+        expect(comDuplicata.total).toBe(limpo.total);
+        expect(comDuplicata.subtotal).toBe(limpo.subtotal);
+      }
+    }
+  });
+
+  it("a linha do item incluso aparece uma única vez", () => {
+    for (const c of CENARIOS) {
+      const pacote = getPacoteV2(c.slug)!;
+      for (const incluso of pacote.inclusos) {
+        const itens = itensReais(c.slug, c.casa, c.checkin, c.checkout, [], {
+          [incluso.extraId]: 1,
+        });
+        const ocorrencias = itens.filter((i) => i.extraId === incluso.extraId).length;
+        expect(ocorrencias).toBe(1);
+      }
+    }
+  });
+
+  it("`extrasDuplicados` detecta a colisão para o servidor rejeitar", () => {
+    const fds = getPacoteV2("fim-de-semana-completo")!;
+    expect(extrasDuplicados(fds, [], ["late_checkout"])).toEqual(["late_checkout"]);
+    expect(extrasDuplicados(fds, [], ["cesta_cafecafe"])).toEqual(["cesta_cafecafe"]);
+    expect(extrasDuplicados(fds, [], ["lenha", "massagem"])).toEqual([]);
+  });
+
+  it("incluso REMOVIDO deixa de colidir — pode ser recomprado como extra", () => {
+    const fds = getPacoteV2("fim-de-semana-completo")!;
+    expect(extrasDuplicados(fds, ["cesta_cafecafe"], ["cesta_cafecafe"])).toEqual([]);
+    // O late do FDS não é removível: segue protegido mesmo se pedirem a remoção
+    expect(extrasDuplicados(fds, ["late_checkout"], ["late_checkout"])).toEqual([
+      "late_checkout",
+    ]);
+  });
+
+  it("os dois pacotes antigos não têm inclusos no catálogo V2 — nada a duplicar", () => {
+    expect(getPacoteV2("meio-de-semana")).toBeUndefined();
+    expect(getPacoteV2("imersao-na-serra")).toBeUndefined();
+  });
+});
+
+describe("§3 — preço de menu acompanha o tipo de estadia", () => {
+  it("Dois Casais de segunda a quarta exibe 1.000, não 1.600", () => {
+    // seg 14/09 → qua 16/09: nenhuma noite de sexta ou sábado
+    const itens = itensReais("dois-casais", "solarium-completo", "2026-09-14", "2026-09-16");
+    const late = itens.find((i) => i.extraId === "late_checkout");
+    expect(late?.total).toBe(1000);
+    expect(late?.valorNaBase).toBe(1000);
+
+    const r = calcularPacote(entrada(2, 3900, itens, 0));
+    expect(r.descontoFixo).toBe(0); // menu e real coincidem
+  });
+
+  it("Dois Casais de sexta a domingo exibe 1.600 com 1.000 na base", () => {
+    const itens = itensReais("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout);
+    const late = itens.find((i) => i.extraId === "late_checkout");
+    expect(late?.total).toBe(1600);
+    expect(late?.valorNaBase).toBe(1000);
+  });
+
+  it("estadiaDeFimDeSemana olha as noites, não o dia do check-out", () => {
+    expect(estadiaDeFimDeSemana("2026-09-14", "2026-09-16")).toBe(false); // seg→qua
+    expect(estadiaDeFimDeSemana("2026-09-11", "2026-09-13")).toBe(true); // sex→dom
+    expect(estadiaDeFimDeSemana("2026-06-04", "2026-06-07")).toBe(true); // qui→dom
   });
 });
 

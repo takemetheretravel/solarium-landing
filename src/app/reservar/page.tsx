@@ -11,7 +11,7 @@ import { getPackageBySlug, validatePackageDates, round10down, isExtraActive } fr
 import { SERVICE_EXTRAS, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
 import { OP_EXTRA_TYPES } from "@/config/operational-extras";
 import { pacotesV2Ativo } from "@/config/flags";
-import { extrasServicoV2 } from "@/lib/pricing/extras";
+import { extrasServicoV2, inclusosAtivos } from "@/lib/pricing/extras";
 import { getPacoteV2 } from "@/config/precos-e-extras";
 import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
 import { calculatePrice } from "@/lib/hostaway";
@@ -156,15 +156,22 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
         restriction: e.restriction,
       }));
 
+  // O que o pacote já entrega não pode ser oferecido de novo — seria cobrar duas
+  // vezes pelo mesmo serviço. Vale para TODOS os inclusos, não só o late.
+  const pacoteV2Cru =
+    pacotesV2Ativo() && searchParams.pacote ? getPacoteV2(searchParams.pacote) : undefined;
+  const removidosCru = (searchParams.removidos || "").split(",").filter(Boolean);
+  const jaInclusos = new Set(inclusosAtivos(pacoteV2Cru, removidosCru));
+
   const serviceExtras = catalogo
     .filter((e) => !(packageHasCafe && CAFE_EXTRA_IDS.includes(e.id)))
+    .filter((e) => !jaInclusos.has(e.id))
     .map((e) => ({ ...e, qty: preselectedQty[e.id] ?? 0 }));
 
   // PACOTES V2 — motor novo, autoritativo. O total exibido aqui é exatamente o
   // que o draft recalcula; nada de preço vindo da URL.
-  const pacoteV2 =
-    pacotesV2Ativo() && searchParams.pacote ? getPacoteV2(searchParams.pacote) : undefined;
-  const removidosV2 = (searchParams.removidos || "").split(",").filter(Boolean);
+  const pacoteV2 = pacoteV2Cru;
+  const removidosV2 = removidosCru;
   let pacoteV2Info: typeof packageInfo = null;
 
   if (pacoteV2) {
@@ -242,7 +249,8 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
           packageChoices={packageInfo ? searchParams.choices : undefined}
           packageExtrasActive={packageInfo ? searchParams.pkgExtras : undefined}
           serviceExtras={serviceExtras}
-          opExtrasPreselected={preselectedOp}
+          opExtrasPreselected={preselectedOp.filter((t) => !jaInclusos.has(t))}
+          inclusosPacote={Array.from(jaInclusos)}
         />
       </Container>
     </main>

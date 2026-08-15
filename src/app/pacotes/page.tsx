@@ -11,7 +11,7 @@ import { formatBRL } from "@/lib/cn";
 import { pacotesV2Ativo } from "@/config/flags";
 import { pacoteVisivelHoje, getPacoteV2 } from "@/config/precos-e-extras";
 import { vistaPacote, slugsDePacote } from "@/lib/pricing/vista-pacote";
-import { diariaMinima } from "@/lib/pricing/pacote-server";
+import { totalMinimoDoPacote } from "@/lib/pricing/pacote-server";
 import { getPropertyBySlug } from "@/config/properties";
 
 export const revalidate = 300;
@@ -38,10 +38,14 @@ export default async function PaginaPacotes() {
         if (v2 && !pacoteVisivelHoje(v2, hoje)) return null;
 
         const casa = vista.pacoteV2?.properties[0] ?? vista.legado?.properties[0];
-        const property = casa ? getPropertyBySlug(casa) : undefined;
-        const minima = property ? await diariaMinima(property.slug) : null;
+        // Total real mínimo do pacote, não a diária solta. O card não pode
+        // prometer um número que a página do pacote não entrega.
+        const minimo =
+          vista.pacoteV2 && casa
+            ? await totalMinimoDoPacote(vista.pacoteV2, casa)
+            : { total: null as number | null };
 
-        return { vista, minima };
+        return { vista, minimo };
       }),
     )
   ).filter((c): c is NonNullable<typeof c> => c !== null);
@@ -61,7 +65,7 @@ export default async function PaginaPacotes() {
 
           {/* Grade no mesmo tratamento dos cards de casa. O retângulo inteiro é o link. */}
           <div className="grid gap-6 lg:grid-cols-3 lg:gap-6">
-            {cards.map(({ vista, minima }) => (
+            {cards.map(({ vista, minimo }) => (
               <Link
                 key={vista.slug}
                 href={`/pacotes/${vista.slug}`}
@@ -85,19 +89,20 @@ export default async function PaginaPacotes() {
                     {vista.tagline}
                   </p>
 
+                  {/* Inclusos com nome e quantidade, sem valores. */}
                   <ul className="mt-5 flex-1 space-y-1">
-                    {vista.inclusos.slice(1, 4).map((i) => (
+                    {vista.inclusos.slice(1).map((i) => (
                       <li key={i} className="font-sans text-xs text-charcoal/60">
                         {i}
                       </li>
                     ))}
                   </ul>
 
-                  {minima !== null && (
-                    <p className="mt-6 font-serif text-lg text-charcoal">
-                      A partir de {formatBRL(minima * vista.noites)}
-                    </p>
-                  )}
+                  <p className="mt-6 font-serif text-lg text-charcoal">
+                    {minimo.total !== null
+                      ? `A partir de ${formatBRL(minimo.total)}`
+                      : "Consultar datas"}
+                  </p>
 
                   <span className="mt-4 inline-flex items-center gap-1.5 font-sans text-xs uppercase tracking-[0.25em] text-copper transition-colors group-hover:text-charcoal">
                     Ver pacote <ArrowRight className="h-3.5 w-3.5" />

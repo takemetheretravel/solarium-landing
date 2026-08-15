@@ -7,10 +7,10 @@ import { validateCoupon } from "@/config/site";
 import { getPackageBySlug, validatePackageDates, packageTotalActive, extrasTotalActive, isExtraActive } from "@/config/packages";
 import { getServiceExtra, serviceExtraTotal, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
 import { OpExtraType, OP_EXTRA_TYPES, OP_EXTRA_LABELS, blockedNightFor, opExtraPrice, listingsForProperty } from "@/config/operational-extras";
-import { getPacoteV2, PacoteV2 } from "@/config/precos-e-extras";
+import { getPacoteV2, getExtra, PacoteV2 } from "@/config/precos-e-extras";
 import { pacotesV2Ativo, reservaTeste } from "@/config/flags";
 import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
-import { resolverExtraServicoV2 } from "@/lib/pricing/extras";
+import { resolverExtraServicoV2, extrasDuplicados, inclusosAtivos } from "@/lib/pricing/extras";
 import { aplicarPix } from "@/lib/pricing/pacotes";
 import type { PropertyConfig } from "@/config/properties";
 
@@ -129,6 +129,25 @@ export async function POST(req: NextRequest) {
     if (body.couponCode && body.couponCode.trim()) {
       return NextResponse.json(
         { error: "Este pacote já inclui a melhor condição disponível para estas datas." },
+        { status: 400 },
+      );
+    }
+
+    // Item que o pacote já entrega NUNCA pode ser comprado de novo. A interface
+    // não oferece, mas preço vindo do cliente nunca é confiável: aqui rejeita.
+    const removidos = Array.isArray(body.removidos) ? body.removidos : [];
+    const idsPedidos = [
+      ...Object.keys(sanearSelecao(body.selecaoExtras)),
+      ...(Array.isArray(body.serviceExtras) ? body.serviceExtras.map((e) => e?.id) : []),
+      ...(Array.isArray(body.opExtras) ? body.opExtras : []),
+    ].filter((id): id is string => Boolean(id));
+
+    const duplicados = extrasDuplicados(pacote, removidos, idsPedidos);
+    if (duplicados.length > 0) {
+      const nomes = duplicados.map((id) => getExtra(id)?.nome ?? id).join(", ");
+      console.warn("[Draft] extra duplicado rejeitado:", pacote.id, duplicados);
+      return NextResponse.json(
+        { error: `Este pacote já inclui: ${nomes}. Não é preciso adicionar de novo.` },
         { status: 400 },
       );
     }

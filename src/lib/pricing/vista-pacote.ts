@@ -34,14 +34,16 @@ function rotuloNoites(p: PacoteV2): number {
 
 /** Bullets do V2: as noites, cada item incluso com o valor cheio de menu, e o concierge. */
 function inclusosV2(p: PacoteV2): string[] {
+  // A preposição vem junto do complemento: contrair "em as" na montagem é o tipo
+  // de erro que só aparece depois de publicado.
   const casa =
     p.properties[0] === "solarium-completo"
-      ? "as duas casas, só de vocês"
-      : "uma casa completa, só de vocês";
+      ? "nas duas casas, só de vocês"
+      : "em uma casa completa, só de vocês";
   const linhas = [
     p.noitesMax === p.noitesMin
-      ? `${p.noitesMin} noites em ${casa}`
-      : `A partir de ${p.noitesMin} noites em ${casa}`,
+      ? `${p.noitesMin} noites ${casa}`
+      : `A partir de ${p.noitesMin} noites ${casa}`,
   ];
 
   for (const item of p.inclusos) {

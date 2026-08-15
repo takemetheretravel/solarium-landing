@@ -66,6 +66,8 @@ type Props = {
   packageExtrasActive?: string;
   serviceExtras?: ServiceExtraOption[];
   opExtrasPreselected?: string[];
+  /** Ids que o pacote já entrega: nunca oferecer para comprar de novo. */
+  inclusosPacote?: string[];
 };
 
 export default function BookingPageClient({
@@ -84,6 +86,7 @@ export default function BookingPageClient({
   packageExtrasActive,
   serviceExtras = [],
   opExtrasPreselected = [],
+  inclusosPacote = [],
 }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">(initialPaymentMethod);
 
@@ -160,7 +163,9 @@ export default function BookingPageClient({
       .then((data) => {
         if (cancelled || !Array.isArray(data?.results)) return;
         const results = data.results as OpExtraOption[];
-        setOpOptions(results);
+        // Nunca oferecer o que o pacote já entrega: comprar de novo seria pagar
+        // duas vezes pelo mesmo serviço.
+        setOpOptions(results.filter((o) => !inclusosPacote.includes(o.type)));
         // Pré-marcar os que vieram no link — só se realmente disponíveis.
         const pre = results
           .filter((o) => o.available && opExtrasPreselected.includes(o.type))
@@ -175,6 +180,19 @@ export default function BookingPageClient({
   function toggleOp(type: string) {
     setActiveOps((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]));
   }
+  // O riscado inclui os extras adicionados aqui: a linha tem que continuar sendo
+  // a soma do que está exibido acima dela.
+  const valorTotalRiscado =
+    packageInfo != null
+      ? packageInfo.aLaCarte + servicesTotal + opExtrasNoCheckout()
+      : null;
+
+  function opExtrasNoCheckout(): number {
+    return opOptions
+      .filter((o) => o.available && activeOps.includes(o.type))
+      .reduce((s, o) => s + o.price, 0);
+  }
+
   const opActiveTotal = opOptions
     .filter((o) => o.available && activeOps.includes(o.type))
     .reduce((s, o) => s + o.price, 0);
@@ -425,12 +443,6 @@ export default function BookingPageClient({
                         <span className="flex-shrink-0">{formatBRLPrecise(e.amount)}</span>
                       </div>
                     ))}
-                    {packageInfo.aLaCarte > packageInfo.total && (
-                      <div className="flex justify-between text-charcoal/50">
-                        <span>Valor à la carte</span>
-                        <span className="line-through">{formatBRLPrecise(packageInfo.aLaCarte)}</span>
-                      </div>
-                    )}
                   </>
                 ) : (
                 <div className="flex justify-between text-charcoal/80">
@@ -472,10 +484,25 @@ export default function BookingPageClient({
                       <span className="flex-shrink-0">{formatBRLPrecise(o.price)}</span>
                     </div>
                   ))}
+                {/* Valor total: soma de TODAS as linhas de item acima, a preço
+                    cheio. Sempre a última linha antes do TOTAL — mesma regra do
+                    cartão da página do pacote. */}
+                {valorTotalRiscado !== null && valorTotalRiscado > runningTotal && (
+                  <div className="flex justify-between border-t border-charcoal/10 pt-3 text-charcoal/50">
+                    <span>Valor total</span>
+                    <span className="line-through">{formatBRLPrecise(valorTotalRiscado)}</span>
+                  </div>
+                )}
                 <div className="mt-3 flex items-baseline justify-between border-t border-charcoal/10 pt-3 font-serif">
                   <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
                   <span className="text-3xl text-charcoal">{formatBRLPrecise(runningTotal)}</span>
                 </div>
+                {valorTotalRiscado !== null && valorTotalRiscado > runningTotal && (
+                  <p className="text-right font-sans text-xs text-serra">
+                    {formatBRLPrecise(valorTotalRiscado - runningTotal)} a menos que contratando
+                    cada item à parte
+                  </p>
+                )}
               </div>
             ) : (
               <div className="mt-5 border border-charcoal/10 p-4 font-sans text-xs text-charcoal/60">

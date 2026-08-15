@@ -227,3 +227,144 @@ function valorAbsorvido(
   const absorvidos = Math.max(0, Math.min(guests, ate) - inclusos);
   return absorvidos * porPessoa * quote.nights;
 }
+
+
+// ---------------------------------------------------------------------------
+// "A PARTIR DE" — total real mínimo do pacote
+// ---------------------------------------------------------------------------
+
+export type MinimoPacote = { total: number } | { total: null; motivo: "sem-data-elegivel" };
+
+/**
+ * Menor total efetivamente reservável do pacote nos próximos 90 dias.
+ *
+ * Varre as datas de check-in candidatas, descarta as que não fecham o pacote ou
+ * têm alguma noite ocupada, e roda o MESMO motor da página. Nunca a diária solta:
+ * o número precisa ser alcançável, senão o card promete o que a página não entrega.
+ *
+ * Nenhuma tarifa entra no código — tudo vem do calendário da Hostaway.
+ */
+export async function totalMinimoDoPacote(
+  pacote: PacoteV2,
+  propertySlug: string,
+): Promise<MinimoPacote> {
+  const chave = `pacotes:minimo:${pacote.id}:${propertySlug}`;
+  const redis = redisOpcional();
+
+  if (redis) {
+    try {
+      const cache = await redis.get<number>(chave);
+      if (typeof cache === "number" && cache > 0) return { total: cache };
+    } catch (err) {
+      console.warn("[totalMinimoDoPacote] cache indisponível:", err);
+    }
+  }
+
+  const listings = listingsForProperty(propertySlug);
+  if (listings.length === 0) return { total: null, motivo: "sem-data-elegivel" };
+
+  const hoje = new Date();
+  // Uma noite a mais no fim: o bônus de saída depende da noite seguinte ao check-out.
+  const fim = new Date(hoje.getTime() + (JANELA_A_PARTIR_DE_DIAS + 8) * 86400000);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+  let noites: Map<string, { livre: boolean; preco: number }>;
+  try {
+    const calendarios = await Promise.all(
+      listings.map((id) => getCalendar(id, iso(hoje), iso(fim))),
+    );
+    if (calendarios.some((c) => c.length === 0)) {
+      return { total: null, motivo: "sem-data-elegivel" };
+    }
+    noites = combinarCalendarios(calendarios);
+  } catch (err) {
+    console.error("[totalMinimoDoPacote] calendário indisponível:", err);
+    return { total: null, motivo: "sem-data-elegivel" };
+  }
+
+  const bonusValor = bonusSaidaPara(propertySlug);
+  let melhor: number | null = null;
+
+  for (let offset = 0; offset < JANELA_A_PARTIR_DE_DIAS; offset++) {
+    const checkin = iso(new Date(hoje.getTime() + offset * 86400000));
+    const checkout = somarDias(checkin, pacote.noitesMin);
+
+    const contemFeriado = estadiaContemFeriado(checkin, checkout);
+    if (!validarDatasPacote(pacote, checkin, checkout, contemFeriado).valido) continue;
+
+    // Todas as noites da estadia precisam estar livres, nas duas casas quando Completo.
+    const noitesDaEstadia: { livre: boolean; preco: number }[] = [];
+    let completa = true;
+    for (let n = 0; n < pacote.noitesMin; n++) {
+      const noite = noites.get(somarDias(checkin, n));
+      if (!noite || !noite.livre) {
+        completa = false;
+        break;
+      }
+      noitesDaEstadia.push(noite);
+    }
+    if (!completa) continue;
+
+    const hostawayTotal = noitesDaEstadia.reduce((soma, n) => soma + n.preco, 0);
+    const itens = montarItens({ pacote, propertySlug, checkin, checkout, removidos: [], selecao: {} });
+
+    const bonus = avaliarBonusSaida({
+      lateAtivo: lateCheckoutAtivo(itens),
+      noiteSeguinteLivre: noites.get(checkout)?.livre ?? false,
+      checkout,
+      contemFeriado,
+      valorBonus: bonusValor,
+    });
+
+    const { total } = calcularPacote({
+      noites: pacote.noitesMin,
+      hostawayTotal,
+      itens,
+      bonusSaida: bonus.valor,
+    });
+
+    if (melhor === null || total < melhor) melhor = total;
+  }
+
+  if (melhor === null) return { total: null, motivo: "sem-data-elegivel" };
+
+  if (redis) {
+    try {
+      await redis.set(chave, melhor, { ex: TTL_A_PARTIR_DE });
+    } catch (err) {
+      console.warn("[totalMinimoDoPacote] falha ao gravar cache:", err);
+    }
+  }
+  return { total: melhor };
+}
+
+/**
+ * Funde os calendários das listings numa linha do tempo só.
+ *
+ * O Solarium Completo ocupa as duas casas: a noite só está livre se estiver livre
+ * nas duas, e o preço é a soma. Casa individual passa direto.
+ */
+function combinarCalendarios(
+  calendarios: { date: string; isAvailable: number; price: number }[][],
+): Map<string, { livre: boolean; preco: number }> {
+  const mapa = new Map<string, { livre: boolean; preco: number }>();
+
+  for (const dia of calendarios[0]) {
+    const outras = calendarios.slice(1).map((c) => c.find((d) => d.date === dia.date));
+    if (outras.some((o) => !o)) continue;
+
+    const livre = dia.isAvailable === 1 && outras.every((o) => o!.isAvailable === 1);
+    const preco =
+      (Number.isFinite(dia.price) ? dia.price : 0) +
+      outras.reduce((soma, o) => soma + (Number.isFinite(o!.price) ? o!.price : 0), 0);
+
+    mapa.set(dia.date, { livre, preco });
+  }
+  return mapa;
+}
+
+function somarDias(iso: string, dias: number): string {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + dias);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

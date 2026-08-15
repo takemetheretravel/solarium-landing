@@ -34,6 +34,50 @@ function ehFimDeSemana(dataISO: string): boolean {
   return dow === 5 || dow === 6;
 }
 
+/** Estadia de fim de semana: alguma das noites cai em sexta ou sábado. */
+export function estadiaDeFimDeSemana(checkin: string, checkout: string): boolean {
+  const d = new Date(checkin + "T12:00:00");
+  const fim = new Date(checkout + "T12:00:00");
+  while (d < fim) {
+    const dow = d.getDay();
+    if (dow === 5 || dow === 6) return true;
+    d.setDate(d.getDate() + 1);
+  }
+  return false;
+}
+
+/**
+ * Preço de MENU de um item operacional: o que o produto anuncia.
+ *
+ * Acompanha o tipo de estadia, não a noite bloqueada. Um Dois Casais de segunda a
+ * quarta anuncia o late por tabela de semana; o mesmo pacote na sexta anuncia por
+ * fim de semana.
+ */
+export function precoMenuDoItem(
+  propertySlug: string,
+  extraId: "early_checkin" | "late_checkout",
+  checkin: string,
+  checkout: string,
+): number {
+  return precoMenuOperacional(propertySlug, extraId, estadiaDeFimDeSemana(checkin, checkout));
+}
+
+/**
+ * Preço REAL: o que o fluxo avulso cobraria, com o corte das noites de baixa
+ * demanda. Só a noite efetivamente bloqueada decide.
+ *
+ * A diferença para o de menu vira desconto fixo, fora da base progressiva.
+ */
+export function precoRealDoItem(
+  propertySlug: string,
+  extraId: "early_checkin" | "late_checkout",
+  checkin: string,
+  checkout: string,
+): number {
+  const noite = noiteBloqueada(extraId, checkin, checkout);
+  return precoMenuOperacional(propertySlug, extraId, ehFimDeSemana(noite));
+}
+
 /**
  * Preço de um item operacional dentro de um pacote — idêntico ao do fluxo avulso.
  *
@@ -47,8 +91,7 @@ export function precoOperacionalNoPacote(
   checkin: string,
   checkout: string,
 ): number {
-  const noite = noiteBloqueada(extraId, checkin, checkout);
-  return precoMenuOperacional(propertySlug, extraId, ehFimDeSemana(noite));
+  return precoRealDoItem(propertySlug, extraId, checkin, checkout);
 }
 
 export type ContextoExibicao = {
@@ -81,6 +124,9 @@ export function extrasExibiveis(
 
   return catalogo
     .filter((extra) => {
+      // Informativo não tem controle nem valor: o custo já aparece no resumo de
+      // preço, e repetir aqui só confunde.
+      if (extra.informativo) return false;
       if (extra.exigeNoiteLivre && ctx.noitesLivres[extra.id] !== true) return false;
       if (
         extra.antecedenciaMinimaDias !== undefined &&
@@ -175,7 +221,7 @@ function precoDoItem(
   checkout: string,
 ): number {
   if (extra.id === "early_checkin" || extra.id === "late_checkout") {
-    return precoMenuOperacional(propertySlug, extra.id, true);
+    return precoMenuDoItem(propertySlug, extra.id, checkin, checkout);
   }
   return precoExtra(extra);
 }
@@ -214,7 +260,7 @@ function valorNaBaseDoItem(
   checkout: string,
 ): number | undefined {
   if (extra.id !== "early_checkin" && extra.id !== "late_checkout") return undefined;
-  return precoOperacionalNoPacote(propertySlug, extra.id, checkin, checkout);
+  return precoRealDoItem(propertySlug, extra.id, checkin, checkout);
 }
 
 /** Late check-out ativo na reserva — incluso e não removido, ou contratado à parte. */
@@ -332,4 +378,36 @@ export function resolverExtraServicoV2(
     nota: extra.notaInterna,
     prazoFornecedorDias: extra.prazoFornecedorDias,
   };
+}
+
+
+// ---------------------------------------------------------------------------
+// INCLUSOS ATIVOS — defesa contra cobrança dupla
+// ---------------------------------------------------------------------------
+
+/**
+ * Ids que o pacote já entrega e que o cliente NÃO removeu.
+ *
+ * Fonte única para as três defesas: a interface não oferece, o checkout não
+ * lista, e o draft rejeita. Um item incluso comprado de novo é dinheiro cobrado
+ * a maior por um serviço que o hóspede já tinha.
+ */
+export function inclusosAtivos(
+  pacote: PacoteV2 | null | undefined,
+  removidos: string[] = [],
+): string[] {
+  if (!pacote) return [];
+  return pacote.inclusos
+    .filter((i) => !(i.removivel && removidos.includes(i.extraId)))
+    .map((i) => i.extraId);
+}
+
+/** Ids duplicados entre a seleção do cliente e o que o pacote já inclui. */
+export function extrasDuplicados(
+  pacote: PacoteV2 | null | undefined,
+  removidos: string[],
+  idsSelecionados: string[],
+): string[] {
+  const jaIncluso = new Set(inclusosAtivos(pacote, removidos));
+  return idsSelecionados.filter((id) => jaIncluso.has(id));
 }
