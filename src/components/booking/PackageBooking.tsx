@@ -10,6 +10,9 @@ import {
   round10down,
 } from "@/config/packages";
 import { PROPERTIES } from "@/config/properties";
+import { pacotesV2Ativo } from "@/config/flags";
+import ExtrasNaCasa, { serializarSelecao } from "@/components/extras/ExtrasNaCasa";
+import type { ExtraExibivel } from "@/lib/pricing/extras";
 import PackageBookingV2 from "@/components/booking/PackageBookingV2";
 import type { PacoteV2 } from "@/config/precos-e-extras";
 
@@ -49,6 +52,10 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
 
   const [propertySlug, setPropertySlug] = useState(eligibleProperties[0]?.slug ?? "");
   const [checkin, setCheckin] = useState("");
+  const [guests, setGuests] = useState(2);
+  const [selecaoExtras, setSelecaoExtras] = useState<Record<string, number>>({});
+  // Preço vem do servidor, junto da lista de extras. Nunca recalculado aqui.
+  const [disponiveis, setDisponiveis] = useState<ExtraExibivel[]>([]);
   // Extras com opções (mesmo preço): inicia na primeira opção de cada um
   const [selectedChoices, setSelectedChoices] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -62,6 +69,24 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
   const [priceError, setPriceError] = useState<string | null>(null);
   const [hostawayTotal, setHostawayTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const V2 = pacotesV2Ativo();
+  const capacidadeMax =
+    eligibleProperties.find((p) => p.slug === propertySlug)?.capacity.max ?? 4;
+  // O pacote já traz café: esconder as cestas evita oferecer duplicata.
+  const idsDeCafe = useMemo(
+    () => (pkg.extras.some((e) => /café da manhã|cesta de café/i.test(e.label))
+      ? ["cesta_cafecafe", "cesta_diluia", "cesta_dani"]
+      : []),
+    [pkg.extras],
+  );
+
+  function precoUnitarioExtra(id: string): number | undefined {
+    return disponiveis.find((d) => d.extra.id === id)?.precoUnitario;
+  }
+  function nomeExtra(id: string): string {
+    return disponiveis.find((d) => d.extra.id === id)?.extra.nome ?? id;
+  }
 
   const todayISO = useMemo(() => isoToday(), []);
   const maxDateISO = useMemo(() => isoPlus(540), []);
@@ -104,11 +129,11 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
           fetch("/api/availability/check", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ propertyId: propertySlug, checkin, checkout: co, guests: 2 }),
+            body: JSON.stringify({ propertyId: propertySlug, checkin, checkout: co, guests }),
             signal: ctrl.signal,
           }),
           fetch(
-            `/api/price?${new URLSearchParams({ property: propertySlug, checkin, checkout: co, guests: "2", payment: "card" }).toString()}`,
+            `/api/price?${new URLSearchParams({ property: propertySlug, checkin, checkout: co, guests: String(guests), payment: "card" }).toString()}`,
             { signal: ctrl.signal },
           ),
         ]);
@@ -140,7 +165,7 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
       ctrl.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkin, propertySlug, pkg.slug]);
+  }, [checkin, propertySlug, pkg.slug, guests]);
 
   const isShortNotice = Boolean(
     checkin && checkin < new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
@@ -155,8 +180,17 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
     eligibleProperties.find((p) => p.slug === propertySlug) ?? eligibleProperties[0];
   const proxyStay = (selectedProperty?.fromPriceNightly ?? 0) * pkg.nights;
   const estadiaCheia = hostawayTotal ?? proxyStay;
-  const valorALaCarte = estadiaCheia + extrasAtivosTotal;
-  const totalPacote = round10down(estadiaCheia * (1 - pkg.stayDiscountPct / 100)) + extrasAtivosTotal;
+  const extrasOpcionaisTotal = Object.entries(selecaoExtras).reduce(
+    (soma, [id, qtd]) => soma + (precoUnitarioExtra(id) ?? 0) * qtd,
+    0,
+  );
+  const valorALaCarte = estadiaCheia + extrasAtivosTotal + extrasOpcionaisTotal;
+  // Extras opcionais entram DEPOIS do desconto de estadia, igual ao draft:
+  // `finalTotal = total do pacote + extras de serviço`. Fórmula do pacote intacta.
+  const totalPacote =
+    round10down(estadiaCheia * (1 - pkg.stayDiscountPct / 100)) +
+    extrasAtivosTotal +
+    extrasOpcionaisTotal;
   const pixValue = Math.floor((totalPacote * 0.97) / 10) * 10;
 
   function handleReserve() {
@@ -165,7 +199,7 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
       propertyId: propertySlug,
       checkin,
       checkout,
-      guests: "2",
+      guests: String(guests),
       package: pkg.slug,
     });
     const chosen = Object.values(selectedChoices);
@@ -175,6 +209,8 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
     if (removedExtras.length > 0) {
       params.set("pkgExtras", extrasAtivos.map((e) => e.label).join("|"));
     }
+    const extras = serializarSelecao(selecaoExtras);
+    if (extras) params.set("extras", extras);
     router.push(`/reservar?${params.toString()}`);
   }
 
@@ -240,6 +276,31 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
         </div>
       </div>
 
+      {/* HÓSPEDES — o valor do hóspede adicional vem da Hostaway, dentro da estadia.
+          Faz parte da paridade V2: com a flag desligada o cartão segue fixo em 2. */}
+      {V2 && (
+      <div className="mt-4 border-b border-charcoal/10 pb-4">
+        <label
+          htmlFor={`pkg-guests-${pkg.slug}`}
+          className="block font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60"
+        >
+          Hóspedes
+        </label>
+        <select
+          id={`pkg-guests-${pkg.slug}`}
+          value={guests}
+          onChange={(e) => setGuests(Number(e.target.value))}
+          className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper"
+        >
+          {Array.from({ length: capacidadeMax }, (_, i) => i + 1).map((n) => (
+            <option key={n} value={n}>
+              {n} {n === 1 ? "hóspede" : "hóspedes"}
+            </option>
+          ))}
+        </select>
+      </div>
+      )}
+
       {isShortNotice && (
         <p className="mt-2 font-sans text-xs leading-relaxed text-copper">
           Para datas tão próximas, recomendamos reservar com pelo menos 3 dias de
@@ -285,6 +346,23 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
       {priceError && <p className="mt-3 font-sans text-xs text-copper">{priceError}</p>}
       {loading && <p className="mt-3 font-sans text-xs text-charcoal/50">Verificando datas e calculando…</p>}
 
+      {/* PERSONALIZE SUA ESTADIA — mesmo componente e mesma posição dos demais */}
+      {V2 && hasDates && (
+        <div className="mt-5 border-b border-charcoal/10 pb-5">
+          <ExtrasNaCasa
+            propertySlug={propertySlug}
+            checkin={checkin}
+            checkout={checkout}
+            contexto="pacote"
+            selecao={selecaoExtras}
+            onChange={setSelecaoExtras}
+            recolhivel={false}
+            ocultarIds={idsDeCafe}
+            onDisponiveis={setDisponiveis}
+          />
+        </div>
+      )}
+
       {/* TRANSPARÊNCIA DE VALOR */}
       <div className="mt-6 space-y-3 font-sans text-sm">
         {/* Componentes pelo valor CHEIO (sem desconto) */}
@@ -319,6 +397,20 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
             </button>
           </div>
         ))}
+
+        {Object.entries(selecaoExtras)
+          .filter(([, qtd]) => qtd > 0)
+          .map(([id, qtd]) => (
+            <div key={id} className="flex items-center justify-between gap-2 text-charcoal/70">
+              <span>
+                {nomeExtra(id)}
+                {qtd > 1 ? ` ×${qtd}` : ""}
+              </span>
+              <span className="flex-shrink-0">
+                {formatBRLPrecise((precoUnitarioExtra(id) ?? 0) * qtd)}
+              </span>
+            </div>
+          ))}
 
         <div className="flex justify-between border-t border-charcoal/10 pt-3 text-charcoal/50">
           <span>Valor total</span>
