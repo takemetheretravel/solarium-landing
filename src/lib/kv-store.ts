@@ -43,6 +43,30 @@ export type ReservationDraft = {
   shortNotice?: boolean; // pacote com check-in < 3 dias: acionar parceiros com urgência
   serviceExtras?: { id: string; label: string; qty: number; price: number }[];
   opExtras?: { type: string; label: string; price: number; blockedNight: string }[];
+  // --- Pacotes V2 ---
+  /** Id do pacote V2. Sua presença bloqueia cupom no recálculo server-side. */
+  pacoteId?: string;
+  pacoteNome?: string;
+  /** Linhas de preço do pacote, já revalidadas server-side. */
+  pacoteItens?: {
+    extraId: string;
+    nome: string;
+    qtd: number;
+    precoUnitario: number;
+    total: number;
+    entraNaBase: boolean;
+    incluso: boolean;
+  }[];
+  /** Base sobre a qual o progressivo incidiu (Hostaway + operacionais). */
+  baseDesconto?: number;
+  descontoProgressivo?: number;
+  bonusSaida?: number;
+  /** Economia frente à contratação avulsa dos mesmos itens, em reais. */
+  economiaVsAvulso?: number;
+  /** Data-limite de cancelamento dos extras com reembolso integral (ISO). */
+  dataLimiteCancelamentoExtras?: string;
+  /** Reserva criada a partir do preview de teste. */
+  reservaTeste?: boolean;
   guestFirstName: string;
   guestLastName: string;
   guestEmail: string;

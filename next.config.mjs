@@ -12,6 +12,12 @@ const nextConfig = {
     ],
   },
   async headers() {
+    // Preview nunca é indexado: os preços de teste não podem aparecer em busca.
+    const naoIndexar =
+      process.env.VERCEL_ENV !== "production"
+        ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }]
+        : [];
+
     return [
       {
         source: "/(.*)",
@@ -20,6 +26,7 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          ...naoIndexar,
         ],
       },
     ];

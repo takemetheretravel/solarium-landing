@@ -12,13 +12,13 @@ const PRICING: Record<string, { fds: number; semana: number }> = {
 
 export const OP_EXTRA_LABELS: Record<OpExtraType, string> = {
   early_checkin: "Check-in antecipado (a partir das 9h)",
-  late_checkout: "Check-out estendido (até as 18h)",
+  late_checkout: "Check-out estendido (até às 18h)",
 };
 
 // Instrução interna p/ concierge (hostNote)
 export const OP_EXTRA_NOTES: Record<OpExtraType, string> = {
   early_checkin: "Liberar entrada a partir das 9h — noite anterior bloqueada para preparo",
-  late_checkout: "Permitir saída até as 18h — noite do checkout bloqueada para preparo",
+  late_checkout: "Permitir saída até às 18h — noite do checkout bloqueada para preparo",
 };
 
 // Noite que precisa ser bloqueada (ISO)

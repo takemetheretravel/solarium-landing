@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment, type ReactNode } from "react";
 import {
   ArrowRight,
   Sparkles,
@@ -21,6 +22,8 @@ import ReviewsMarquee from "@/components/ui/ReviewsMarquee";
 import FAQ from "@/components/ui/FAQ";
 import { PROPERTIES } from "@/config/properties";
 import { PACKAGES } from "@/config/packages";
+import { pacotesV2Ativo } from "@/config/flags";
+import PacotesHome from "@/components/pacotes/PacotesHome";
 import {
   REVIEWS,
   PARTNERS,
@@ -43,9 +46,11 @@ export default async function Home() {
     .filter((r): r is (typeof REVIEWS)[number] => Boolean(r));
   const featuredPartners = PARTNERS.slice(1);
   const flagshipPartner = PARTNERS[0];
+  const V2 = pacotesV2Ativo();
 
-  return (
-    <main>
+  const S: Record<string, ReactNode> = {
+    hero: (
+      <>
       {/* HERO */}
       <section className="relative h-screen min-h-[640px] w-full overflow-hidden">
         <SmartImage
@@ -79,7 +84,11 @@ export default async function Home() {
           <span className="h-12 w-px bg-cream/40" />
         </div>
       </section>
+      </>
+    ),
 
+    reservasDiretas: (
+      <>
       {/* POR QUE RESERVAR DIRETO */}
       <Section spacing="default" className="border-b border-charcoal/10 bg-cream">
         <Container>
@@ -89,8 +98,12 @@ export default async function Home() {
           </div>
           <div className="grid grid-cols-2 gap-10 lg:grid-cols-4 lg:gap-8">
             {[
-              { icon: Tag, title: "Até 17% de desconto", text: "Estadias mais longas têm preços melhores — desconto progressivo por noite." },
-              { icon: Sparkles, title: "Cupons exclusivos", text: "Códigos de desconto disponíveis para reservas diretas." },
+              V2
+                ? { icon: Tag, title: "Melhor condição garantida no site", text: "Estadias mais longas e pacotes já saem com o melhor valor, sem procurar código." }
+                : { icon: Tag, title: "Até 17% de desconto", text: "Estadias mais longas têm preços melhores — desconto progressivo por noite." },
+              V2
+                ? { icon: Sparkles, title: "Reserva direta com o anfitrião", text: "Você fala com quem cuida da casa, do primeiro contato à chegada." }
+                : { icon: Sparkles, title: "Cupons exclusivos", text: "Códigos de desconto disponíveis para reservas diretas." },
               { icon: MessageCircle, title: "Atendimento direto com o anfitrião", text: "Sem intermediários, sem fila — falamos com você." },
               { icon: Sparkles, title: "Concierge proativo", text: "Da chegada à partida, cuidamos dos detalhes." },
             ].map((item) => (
@@ -107,27 +120,40 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
-      {/* BANNER CUPONS */}
+    bannerCondicao: (
+      <>
+      {/* BANNER CUPONS — D-5: com Pacotes V2 o site não comunica percentual nem
+          manda o hóspede caçar cupom. /ofertas segue existindo por link direto. */}
       <div className="border-b border-charcoal/10 bg-charcoal/5 py-4">
         <Container>
           <div className="mx-auto flex max-w-xl flex-col items-center justify-between gap-3 sm:flex-row">
             <div className="flex items-center gap-3">
               <Tag className="h-4 w-4 flex-shrink-0 text-copper" strokeWidth={1.5} />
               <p className="font-sans text-xs text-charcoal/70">
-                Cupons exclusivos: até 17% de desconto para reservas diretas.
+                {V2
+                  ? "Melhor condição garantida no site."
+                  : "Cupons exclusivos: até 17% de desconto para reservas diretas."}
               </p>
             </div>
-            <Link
-              href="/ofertas"
-              className="flex-shrink-0 inline-flex items-center gap-1 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
-            >
-              Ver cupons <ArrowRight className="h-3 w-3" />
-            </Link>
+            {!V2 && (
+              <Link
+                href="/ofertas"
+                className="flex-shrink-0 inline-flex items-center gap-1 font-sans text-xs uppercase tracking-[0.25em] text-copper hover:text-charcoal"
+              >
+                Ver cupons <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
           </div>
         </Container>
       </div>
+      </>
+    ),
 
+    nossasCasas: (
+      <>
       {/* NOSSAS CASAS */}
       <Section id="nossas-casas">
         <Container>
@@ -194,7 +220,13 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    pacotes: V2 ? (
+      <PacotesHome />
+    ) : (
+      <>
       {/* PACOTES */}
       <Section id="pacotes" className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -247,7 +279,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    busca: (
+      <>
       {/* BOOKING BAR */}
       <Section id="busca" spacing="tight" className="bg-cream">
         <Container>
@@ -260,7 +296,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    detalhes: (
+      <>
       {/* POR QUE SOLARIUM */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -288,7 +328,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    reviews: (
+      <>
       {/* REVIEWS — MARQUEE */}
       <Section className="bg-serra/5">
         <Container>
@@ -323,7 +367,11 @@ export default async function Home() {
           </div>
         </div>
       </Section>
+      </>
+    ),
 
+    experiencias: (
+      <>
       {/* EXPERIÊNCIAS */}
       <Section className="border-t border-charcoal/10">
         <Container>
@@ -363,7 +411,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    parceiros: (
+      <>
       {/* PARCEIROS */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -401,7 +453,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    faq: (
+      <>
       {/* FAQ */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container size="narrow">
@@ -412,7 +468,11 @@ export default async function Home() {
           <FAQ />
         </Container>
       </Section>
+      </>
+    ),
 
+    ondeEstamos: (
+      <>
       {/* ONDE ESTAMOS */}
       <Section className="border-t border-charcoal/10 bg-cream">
         <Container>
@@ -470,7 +530,11 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
 
+    concierge: (
+      <>
       {/* CTA WHATSAPP */}
       <Section className="border-t border-charcoal/10 bg-serra text-cream" spacing="tight">
         <Container size="narrow">
@@ -493,6 +557,51 @@ export default async function Home() {
           </div>
         </Container>
       </Section>
+      </>
+    ),
+  };
+
+  // Ordem de hoje. É esta que roda com a flag desligada.
+  const ORDEM_ATUAL = [
+    "hero",
+    "reservasDiretas",
+    "bannerCondicao",
+    "nossasCasas",
+    "pacotes",
+    "busca",
+    "detalhes",
+    "reviews",
+    "experiencias",
+    "parceiros",
+    "faq",
+    "ondeEstamos",
+    "concierge",
+  ];
+
+  // Ordem da §7.1. Parceiros e Dúvidas frequentes não constam da lista do
+  // documento, mas existem hoje e foram preservados sem alterar a posição
+  // relativa das dez seções nomeadas.
+  const ORDEM_V2 = [
+    "hero",
+    "pacotes",
+    "detalhes",
+    "nossasCasas",
+    "busca",
+    "ondeEstamos",
+    "reviews",
+    "experiencias",
+    "parceiros",
+    "reservasDiretas",
+    "bannerCondicao",
+    "faq",
+    "concierge",
+  ];
+
+  return (
+    <main>
+      {(V2 ? ORDEM_V2 : ORDEM_ATUAL).map((chave) => (
+        <Fragment key={chave}>{S[chave]}</Fragment>
+      ))}
     </main>
   );
 }

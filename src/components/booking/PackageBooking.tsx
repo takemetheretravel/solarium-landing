@@ -10,8 +10,10 @@ import {
   round10down,
 } from "@/config/packages";
 import { PROPERTIES } from "@/config/properties";
+import PackageBookingV2 from "@/components/booking/PackageBookingV2";
+import type { PacoteV2 } from "@/config/precos-e-extras";
 
-type Props = { pkg: PackageConfig };
+type Props = { pkg: PackageConfig | null; pacoteV2?: PacoteV2 | null };
 
 function isoToday(): string {
   const d = new Date();
@@ -30,7 +32,14 @@ function isoAddDays(iso: string, days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function PackageBooking({ pkg }: Props) {
+export default function PackageBooking({ pkg, pacoteV2 }: Props) {
+  // Motor novo tem cartão próprio, com hóspedes e extras. Mesma estrutura visual.
+  if (pacoteV2) return <PackageBookingV2 pacote={pacoteV2} />;
+  if (!pkg) return null;
+  return <PackageBookingLegado pkg={pkg} />;
+}
+
+function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
   const router = useRouter();
 
   const eligibleProperties = useMemo(

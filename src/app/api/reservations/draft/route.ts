@@ -7,6 +7,12 @@ import { validateCoupon } from "@/config/site";
 import { getPackageBySlug, validatePackageDates, packageTotalActive, extrasTotalActive, isExtraActive } from "@/config/packages";
 import { getServiceExtra, serviceExtraTotal, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
 import { OpExtraType, OP_EXTRA_TYPES, OP_EXTRA_LABELS, blockedNightFor, opExtraPrice, listingsForProperty } from "@/config/operational-extras";
+import { getPacoteV2, getExtra, PacoteV2 } from "@/config/precos-e-extras";
+import { pacotesV2Ativo, reservaTeste } from "@/config/flags";
+import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
+import { resolverExtraServicoV2, extrasDuplicados, inclusosAtivos } from "@/lib/pricing/extras";
+import { aplicarPix } from "@/lib/pricing/pacotes";
+import type { PropertyConfig } from "@/config/properties";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +24,12 @@ type Body = {
   guests: number;
   paymentMethod?: "card" | "pix";
   couponCode?: string;
+  /** Pacotes V2. Presente = cupom rejeitado, motor novo assume o cálculo. */
+  pacoteId?: string;
+  /** Ids de itens inclusos removíveis que o cliente removeu. */
+  removidos?: string[];
+  /** Extras opcionais escolhidos: { extraId: quantidade }. */
+  selecaoExtras?: Record<string, number>;
   packageSlug?: string;
   packageChoices?: string; // labels das opções escolhidas, separados por "|"
   extrasActive?: string;   // labels dos extras ativos (removíveis omitidos saem), separados por "|"
@@ -100,6 +112,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Número de hóspedes inválido" }, { status: 400 });
   }
 
+  // ---------------------------------------------------------------------
+  // PACOTES V2 — caminho próprio, motor novo, cupom bloqueado
+  // ---------------------------------------------------------------------
+  if (body.pacoteId) {
+    if (!pacotesV2Ativo()) {
+      return NextResponse.json({ error: "Pacote indisponível." }, { status: 404 });
+    }
+    const pacote = getPacoteV2(body.pacoteId);
+    if (!pacote) {
+      return NextResponse.json({ error: "Pacote não encontrado." }, { status: 404 });
+    }
+
+    // Cupom não combina com pacote. Sem exceção, sem código de operador, sem
+    // override: qualquer código enviado junto de um pacote derruba a requisição.
+    if (body.couponCode && body.couponCode.trim()) {
+      return NextResponse.json(
+        { error: "Este pacote já inclui a melhor condição disponível para estas datas." },
+        { status: 400 },
+      );
+    }
+
+    // Item que o pacote já entrega NUNCA pode ser comprado de novo. A interface
+    // não oferece, mas preço vindo do cliente nunca é confiável: aqui rejeita.
+    const removidos = Array.isArray(body.removidos) ? body.removidos : [];
+    const idsPedidos = [
+      ...Object.keys(sanearSelecao(body.selecaoExtras)),
+      ...(Array.isArray(body.serviceExtras) ? body.serviceExtras.map((e) => e?.id) : []),
+      ...(Array.isArray(body.opExtras) ? body.opExtras : []),
+    ].filter((id): id is string => Boolean(id));
+
+    const duplicados = extrasDuplicados(pacote, removidos, idsPedidos);
+    if (duplicados.length > 0) {
+      const nomes = duplicados.map((id) => getExtra(id)?.nome ?? id).join(", ");
+      console.warn("[Draft] extra duplicado rejeitado:", pacote.id, duplicados);
+      return NextResponse.json(
+        { error: `Este pacote já inclui: ${nomes}. Não é preciso adicionar de novo.` },
+        { status: 400 },
+      );
+    }
+
+    return criarDraftPacote({ body, property, pacote, guest, guests });
+  }
+
   // Pacote: revalida tudo server-side — nunca confia no total vindo do client
   const pkg = body.packageSlug ? getPackageBySlug(body.packageSlug) : undefined;
   if (body.packageSlug && !pkg) {
@@ -177,12 +232,21 @@ export async function POST(req: NextRequest) {
     );
     const resolved = serviceItemsRequested
       .map((item) => {
-        const cfg = getServiceExtra(item?.id);
+        // Com a flag ligada, o catálogo V2 também resolve. O preço sai sempre do
+        // config, nunca do corpo da requisição.
+        const v2 = pacotesV2Ativo() ? resolverExtraServicoV2(item?.id) : null;
+        const cfg = v2
+          ? { id: v2.id, label: v2.label, price: v2.preco }
+          : (() => {
+              const legado = getServiceExtra(item?.id);
+              return legado ? { id: legado.id, label: legado.label, price: legado.price } : null;
+            })();
         if (!cfg) return null;
         if (packageHasCafe && CAFE_EXTRA_IDS.includes(cfg.id)) return null;
         const qty = Math.min(Math.max(0, Math.floor(Number(item?.qty) || 0)), MAX_QTY_PER_EXTRA);
         if (qty <= 0) return null;
-        return { id: cfg.id, label: cfg.label, qty, price: serviceExtraTotal(cfg.id, qty) };
+        const price = v2 ? v2.preco * qty : serviceExtraTotal(cfg.id, qty);
+        return { id: cfg.id, label: cfg.label, qty, price };
       })
       .filter((e): e is { id: string; label: string; qty: number; price: number } => e !== null && e.price > 0);
     if (resolved.length > 0) serviceExtras = resolved;
@@ -291,6 +355,119 @@ export async function POST(req: NextRequest) {
     draftId: draft.id,
     expiresAt: draft.expiresAt,
   });
+}
+
+/**
+ * Draft de um pacote V2. Todo o preço é recalculado aqui — o corpo da requisição
+ * não carrega nenhum valor, só datas, hóspedes, remoções e extras escolhidos.
+ */
+async function criarDraftPacote(args: {
+  body: Body;
+  property: PropertyConfig;
+  pacote: PacoteV2;
+  guest: Body["guest"];
+  guests: number;
+}): Promise<NextResponse> {
+  const { body, property, pacote, guest, guests } = args;
+
+  const calc = await calcularPacoteServer({
+    pacote,
+    propertySlug: property.slug,
+    propertyId: property.id,
+    checkin: body.checkin,
+    checkout: body.checkout,
+    guests,
+    removidos: Array.isArray(body.removidos) ? body.removidos : [],
+    selecao: sanearSelecao(body.selecaoExtras),
+  });
+
+  if (!calc.ok) {
+    return NextResponse.json({ error: calc.erro }, { status: calc.status });
+  }
+
+  const { resultado } = calc;
+  const paymentMethod: "card" | "pix" = body.paymentMethod === "pix" ? "pix" : "card";
+
+  // Segunda e última aplicação do piso de dezena.
+  const pix = paymentMethod === "pix" ? aplicarPix(resultado.total) : { desconto: 0, total: resultado.total };
+
+  const nameParts = guest.name.trim().split(/\s+/);
+  const prefixo = reservaTeste() ? "[TESTE] " : "";
+
+  const now = new Date();
+  const draft = {
+    id: randomUUID(),
+    propertyId: property.slug,
+    propertyName: property.name,
+    checkin: body.checkin,
+    checkout: body.checkout,
+    guests,
+    nights: resultado.noites,
+    totalPrice: resultado.hostawayTotal,
+    subtotal: resultado.subtotal,
+    pixDiscount: pix.desconto,
+    couponCode: undefined,
+    couponDiscount: 0,
+    discountAmount: resultado.descontoTotal + pix.desconto,
+    finalTotal: pix.total,
+    paymentMethod,
+    pacoteId: pacote.id,
+    pacoteNome: pacote.nome,
+    pacoteItens: resultado.itens,
+    baseDesconto: resultado.baseDesconto,
+    descontoProgressivo: resultado.descontoProgressivo,
+    bonusSaida: resultado.bonusSaida,
+    economiaVsAvulso: calc.economia,
+    dataLimiteCancelamentoExtras: calc.dataLimiteCancelamentoExtras,
+    reservaTeste: reservaTeste() || undefined,
+    guestFirstName: prefixo + (nameParts[0] || ""),
+    guestLastName: nameParts.slice(1).join(" ") || "",
+    guestEmail: guest.email.trim().toLowerCase(),
+    guestPhone: normalizePhone(guest.phone),
+    guestCpf: digitsOnly(guest.cpf),
+    guestNotes: guest.notes?.trim() || undefined,
+    status: "pending" as const,
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+  };
+
+  console.log("[Draft:pacoteV2]", {
+    id: draft.id,
+    pacote: pacote.id,
+    hostaway: resultado.hostawayTotal,
+    base: resultado.baseDesconto,
+    subtotal: resultado.subtotal,
+    desconto: resultado.descontoTotal,
+    bonus: `${resultado.bonusSaida} (${calc.bonusMotivo})`,
+    totalPacote: resultado.total,
+    finalTotal: draft.finalTotal,
+    economia: calc.economia,
+    limiteCancelamento: draft.dataLimiteCancelamentoExtras,
+    teste: draft.reservaTeste ?? false,
+  });
+
+  try {
+    await saveDraft(draft);
+  } catch (err) {
+    console.error("[draft:pacoteV2] saveDraft failed:", err);
+    return NextResponse.json(
+      { error: "Erro ao salvar reserva. Tente novamente em instantes." },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ draftId: draft.id, expiresAt: draft.expiresAt });
+}
+
+/** Quantidades vindas do cliente: inteiras, não negativas, com teto. */
+function sanearSelecao(bruto: Record<string, number> | undefined): Record<string, number> {
+  if (!bruto || typeof bruto !== "object") return {};
+  const limpo: Record<string, number> = {};
+  for (const [id, qtd] of Object.entries(bruto)) {
+    const n = Math.floor(Number(qtd));
+    if (Number.isFinite(n) && n > 0) limpo[id] = n;
+  }
+  return limpo;
 }
 
 export async function GET(req: NextRequest) {

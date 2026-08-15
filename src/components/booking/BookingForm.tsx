@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, ChevronDown, Tag, MessageCircle, ArrowRight } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
+import ExtrasNaCasa, { serializarSelecao } from "@/components/extras/ExtrasNaCasa";
+import { pacotesV2Ativo } from "@/config/flags";
 
 type PriceFailure = {
   reason: "missing-data" | "unavailable-day" | "min-stay-not-met" | "max-stay-exceeded" | "api-error";
@@ -83,6 +85,8 @@ export default function BookingForm({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [checkinError, setCheckinError] = useState<string | null>(null);
+  const [selecaoExtras, setSelecaoExtras] = useState<Record<string, number>>({});
+  const V2 = pacotesV2Ativo();
 
   const todayISO = useMemo(() => isoToday(), []);
   const maxDateISO = useMemo(() => isoPlus(540), []);
@@ -178,6 +182,9 @@ export default function BookingForm({
         payment: paymentMethod,
       });
       if (couponApplied) params.set("coupon", couponApplied);
+      // Extras escolhidos aqui viajam para o checkout, onde continuam editáveis.
+      const extras = serializarSelecao(selecaoExtras);
+      if (extras) params.set("extras", extras);
       router.push(`/reservar?${params.toString()}`);
     } catch {
       setValidationError("Erro ao verificar disponibilidade. Tente novamente ou fale com o concierge.");
@@ -378,6 +385,23 @@ export default function BookingForm({
             <span className="text-base uppercase tracking-widest text-charcoal/70">Total</span>
             <span className="text-3xl text-charcoal">{formatBRLPrecise(okQuote.finalTotal)}</span>
           </div>
+        </div>
+      )}
+
+      {/* Extras entre o resumo e o CTA. O bloco só existe quando já há datas, e
+          nesse caso nasce ABERTO — nada de acordeão escondendo a existência dos
+          itens. Seguem editáveis no checkout: quem pula aqui tem a última chance lá. */}
+      {V2 && okQuote && okQuote.nights > 0 && (
+        <div className="mt-6">
+          <ExtrasNaCasa
+            propertySlug={propertySlug}
+            checkin={checkin}
+            checkout={checkout}
+            contexto="casa"
+            selecao={selecaoExtras}
+            onChange={setSelecaoExtras}
+            recolhivel={false}
+          />
         </div>
       )}
 
