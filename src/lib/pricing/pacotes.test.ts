@@ -26,6 +26,10 @@ import {
   getPacoteV2,
   EXTRAS,
   bonusSaidaPara,
+  feriadoAbrePacote,
+  FERIADOS_NACIONAIS,
+  proximoFeriado,
+  pacoteVisivelHoje,
 } from "@/config/precos-e-extras";
 
 // ---------------------------------------------------------------------------
@@ -459,6 +463,47 @@ describe("§3 — preço de menu acompanha o tipo de estadia", () => {
     expect(estadiaDeFimDeSemana("2026-09-14", "2026-09-16")).toBe(false); // seg→qua
     expect(estadiaDeFimDeSemana("2026-09-11", "2026-09-13")).toBe(true); // sex→dom
     expect(estadiaDeFimDeSemana("2026-06-04", "2026-06-07")).toBe(true); // qui→dom
+  });
+});
+
+
+describe("elegibilidade do feriado — só o que gera emenda abre o pacote", () => {
+  it("15/11/2026 cai num domingo e NÃO abre o pacote", () => {
+    expect(feriadoAbrePacote("2026-11-15")).toBe(false);
+    // qui 12/11 → dom 15/11: o feriado está na estadia, mas é de domingo
+    expect(estadiaContemFeriado("2026-11-12", "2026-11-15")).toBe(false);
+  });
+
+  it("20/11/2026 cai numa sexta e abre o pacote", () => {
+    expect(feriadoAbrePacote("2026-11-20")).toBe(true);
+    expect(estadiaContemFeriado("2026-11-19", "2026-11-22")).toBe(true);
+  });
+
+  it("quinta, sexta e segunda abrem; sábado, domingo e terça não", () => {
+    expect(feriadoAbrePacote("2026-01-01")).toBe(true); // quinta
+    expect(feriadoAbrePacote("2026-12-25")).toBe(true); // sexta
+    expect(feriadoAbrePacote("2026-09-07")).toBe(true); // segunda
+    expect(feriadoAbrePacote("2026-11-15")).toBe(false); // domingo
+    expect(feriadoAbrePacote("2026-04-21")).toBe(false); // terça
+  });
+
+  it("a regra vale para a tabela inteira, sem exceção por data", () => {
+    const abrem = FERIADOS_NACIONAIS.filter((f) => feriadoAbrePacote(f.data));
+    for (const f of abrem) {
+      const dow = new Date(f.data + "T12:00:00").getDay();
+      expect([4, 5, 1]).toContain(dow);
+    }
+  });
+
+  it("a janela sazonal ignora feriado que não abre o pacote", () => {
+    // A partir de 10/11, o próximo feriado é 15/11 (domingo) — deve pular para 20/11
+    expect(proximoFeriado("2026-11-10")?.data).toBe("2026-11-20");
+  });
+
+  it("o Feriado na Serra fica invisível numa janela só com feriado de fim de semana", () => {
+    const pacote = getPacoteV2("feriado-na-serra")!;
+    expect(pacoteVisivelHoje(pacote, "2026-11-10", { checkin: "2026-11-12", checkout: "2026-11-15" }))
+      .toBe(false);
   });
 });
 

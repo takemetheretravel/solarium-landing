@@ -19,6 +19,8 @@ export default function ExtrasNaCasa({
   selecao,
   onChange,
   recolhivel = true,
+  ocultarIds = [],
+  onDisponiveis,
 }: {
   propertySlug: string;
   checkin: string;
@@ -27,6 +29,10 @@ export default function ExtrasNaCasa({
   selecao: Record<string, number>;
   onChange: (s: Record<string, number>) => void;
   recolhivel?: boolean;
+  /** Ids a esconder — ex.: cestas quando o pacote já traz café. */
+  ocultarIds?: string[];
+  /** Devolve ao pai o que o servidor ofereceu, com preço. Evita recalcular preço no cliente. */
+  onDisponiveis?: (d: ExtraExibivel[]) => void;
 }) {
   const [disponiveis, setDisponiveis] = useState<ExtraExibivel[]>([]);
 
@@ -41,7 +47,12 @@ export default function ExtrasNaCasa({
     fetch(`/api/extras/disponiveis?${params}`)
       .then((r) => (r.ok ? r.json() : { disponiveis: [] }))
       .then((d) => {
-        if (!cancelado) setDisponiveis(d.disponiveis ?? []);
+        if (cancelado) return;
+        const lista = ((d.disponiveis ?? []) as ExtraExibivel[]).filter(
+          (x) => !ocultarIds.includes(x.extra.id),
+        );
+        setDisponiveis(lista);
+        onDisponiveis?.(lista);
       })
       .catch(() => {
         if (!cancelado) setDisponiveis([]);
@@ -50,7 +61,8 @@ export default function ExtrasNaCasa({
     return () => {
       cancelado = true;
     };
-  }, [propertySlug, checkin, checkout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertySlug, checkin, checkout, ocultarIds.join(",")]);
 
   if (disponiveis.length === 0) return null;
 

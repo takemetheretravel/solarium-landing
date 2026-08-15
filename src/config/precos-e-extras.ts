@@ -285,9 +285,32 @@ export const FERIADOS_NACIONAIS: { data: string; nome: string }[] = [
   { data: "2026-12-25", nome: "Natal" },
 ];
 
-/** Feriados dentro da estadia, check-in e check-out INCLUSIVE (o hóspede está na casa). */
+/**
+ * Dias da semana em que um feriado gera emenda — e, portanto, demanda.
+ *
+ * Quinta e sexta emendam para a frente; segunda emenda para trás. Feriado em
+ * sábado ou domingo não estica fim de semana nenhum: a tarifa da Hostaway não
+ * sobe, e vender um "pacote de feriado" sobre tarifa comum seria promessa vazia.
+ *
+ * Regra da tabela inteira, nunca exceção por data.
+ */
+const DOWS_FERIADO_ELEGIVEL = [4, 5, 1]; // quinta, sexta, segunda
+
+/** O feriado abre o pacote? Só se cair em dia que gera emenda. */
+export function feriadoAbrePacote(dataISO: string): boolean {
+  const dow = new Date(dataISO + "T12:00:00").getDay();
+  return DOWS_FERIADO_ELEGIVEL.includes(dow);
+}
+
+/**
+ * Feriados dentro da estadia, check-in e check-out INCLUSIVE (o hóspede está na
+ * casa), que TORNAM a data elegível. Feriado de fim de semana continua sendo
+ * feriado, mas não abre o pacote.
+ */
 export function feriadosNaEstadia(checkin: string, checkout: string): { data: string; nome: string }[] {
-  return FERIADOS_NACIONAIS.filter((f) => f.data >= checkin && f.data <= checkout);
+  return FERIADOS_NACIONAIS.filter(
+    (f) => f.data >= checkin && f.data <= checkout && feriadoAbrePacote(f.data),
+  );
 }
 
 export function estadiaContemFeriado(checkin: string, checkout: string): boolean {
@@ -296,7 +319,9 @@ export function estadiaContemFeriado(checkin: string, checkout: string): boolean
 
 /** Próximo feriado a partir de uma data, ou null se fora da cobertura da tabela. */
 export function proximoFeriado(a_partir_de: string): { data: string; nome: string } | null {
-  return FERIADOS_NACIONAIS.find((f) => f.data >= a_partir_de) ?? null;
+  return (
+    FERIADOS_NACIONAIS.find((f) => f.data >= a_partir_de && feriadoAbrePacote(f.data)) ?? null
+  );
 }
 
 // ---------------------------------------------------------------------------
