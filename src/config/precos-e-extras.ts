@@ -305,16 +305,17 @@ export function feriadoAbrePacote(dataISO: string): boolean {
 /**
  * Feriados que TORNAM a estadia elegível.
  *
- * Duas condições, ambas necessárias:
- *  - o feriado gera emenda (quinta, sexta ou segunda);
- *  - o hóspede está de fato na casa naquele dia, ou seja, é uma das NOITES da
- *    estadia. Feriado que cai na data de check-out não conta.
+ * Uma condição só: o feriado gera emenda, ou seja, cai em quinta, sexta ou
+ * segunda. Vale em qualquer dia da estadia, INCLUSIVE na data de check-out — o
+ * hóspede está na casa até as 18h desse dia, que é justamente o que o pacote
+ * vende.
  *
- * Por isso o intervalo é fechado no check-in e ABERTO no check-out.
+ * O filtro de dia da semana já barra sábado e domingo sozinho: feriado de fim de
+ * semana não estica nada e a tarifa da Hostaway não sobe.
  */
 export function feriadosNaEstadia(checkin: string, checkout: string): { data: string; nome: string }[] {
   return FERIADOS_NACIONAIS.filter(
-    (f) => f.data >= checkin && f.data < checkout && feriadoAbrePacote(f.data),
+    (f) => f.data >= checkin && f.data <= checkout && feriadoAbrePacote(f.data),
   );
 }
 

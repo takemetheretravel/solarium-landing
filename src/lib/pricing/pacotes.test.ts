@@ -104,9 +104,7 @@ function itensReais(
 // Datas reais usadas nos golden tests
 const FDS = { checkin: "2026-09-11", checkout: "2026-09-13" }; // sexta → domingo
 const FERIADO_QUI_DOM = { checkin: "2026-06-04", checkout: "2026-06-07" }; // Corpus Christi
-// Consciência Negra cai numa sexta: é NOITE da estadia, então abre o pacote.
-// Independência (segunda) nao serve mais — cairia no dia do check-out.
-const FERIADO_SEX_SEG = { checkin: "2026-11-20", checkout: "2026-11-23" };
+const FERIADO_SEX_SEG = { checkin: "2026-09-04", checkout: "2026-09-07" }; // Independência
 
 // ---------------------------------------------------------------------------
 // TAXA PROGRESSIVA
@@ -613,6 +611,26 @@ describe("§7 — o \"a partir de\" nao tem caminho proprio", () => {
     expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-11-20", "2026-11-23").elegivel)
       .toBe(true);
   });
+
+  it("os feriadoes de emenda voltam a abrir o pacote", () => {
+    // Independencia: sex 04/09 -> seg 07/09, feriado no dia da saida
+    expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-09-04", "2026-09-07").elegivel)
+      .toBe(true);
+    // N. S. Aparecida: sex 09/10 -> seg 12/10
+    expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-10-09", "2026-10-12").elegivel)
+      .toBe(true);
+    // Finados: sex 30/10 -> seg 02/11
+    expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-10-30", "2026-11-02").elegivel)
+      .toBe(true);
+  });
+
+  it("feriado de domingo continua fora, mesmo no dia de check-out", () => {
+    // qui 12/11 -> dom 15/11: Proclamacao e domingo, nao gera emenda
+    expect(feriadoAbrePacote("2026-11-15")).toBe(false);
+    expect(estadiaContemFeriado("2026-11-12", "2026-11-15")).toBe(false);
+    expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-11-12", "2026-11-15").elegivel)
+      .toBe(false);
+  });
 });
 
 describe("golden: extras fora da base", () => {
@@ -951,13 +969,13 @@ describe("exibição de extras", () => {
 // ---------------------------------------------------------------------------
 
 describe("feriados", () => {
-  it("feriado na data de check-out NÃO conta — precisa ser uma das noites", () => {
-    // sex 04/09 → seg 07/09: Independência cai no dia da saída, não numa noite
-    expect(estadiaContemFeriado("2026-09-04", "2026-09-07")).toBe(false);
-    expect(feriadosNaEstadia("2026-09-04", "2026-09-07")).toHaveLength(0);
+  it("feriado na data de check-out CONTA — o hóspede fica até as 18h", () => {
+    // sex 04/09 → seg 07/09: Independência cai na saída, e é isso que o pacote vende
+    expect(estadiaContemFeriado("2026-09-04", "2026-09-07")).toBe(true);
+    expect(feriadosNaEstadia("2026-09-04", "2026-09-07")[0].nome).toBe("Independência");
   });
 
-  it("feriado que é noite da estadia conta", () => {
+  it("feriado que é noite da estadia também conta", () => {
     // sex 20/11 → seg 23/11: Consciência Negra é a primeira noite
     expect(estadiaContemFeriado("2026-11-20", "2026-11-23")).toBe(true);
     expect(feriadosNaEstadia("2026-11-20", "2026-11-23")[0].nome).toBe("Consciência Negra");
