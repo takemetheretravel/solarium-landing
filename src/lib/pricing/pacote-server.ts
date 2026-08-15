@@ -8,6 +8,7 @@
 
 import { Redis } from "@upstash/redis";
 import { calculatePrice, getCalendar } from "@/lib/hostaway";
+import { datasElegiveis, totalDoPacote, noitesDoPacote } from "./elegibilidade";
 import { listingsForProperty } from "@/config/operational-extras";
 import {
   PacoteV2,
@@ -72,13 +73,11 @@ export async function calcularPacoteServer(
 ): Promise<ResultadoPacoteServer> {
   const { pacote, propertySlug, propertyId, checkin, checkout, guests, removidos, selecao } = input;
 
-  if (!pacote.properties.includes(propertySlug)) {
-    return { ok: false, erro: "Este pacote não está disponível para esta casa.", status: 400 };
-  }
+  // Mesma porta que o varredor do "a partir de" e o calendário usam.
+  const eleg = datasElegiveis(pacote.slug, propertySlug, checkin, checkout);
+  if (!eleg.elegivel) return { ok: false, erro: eleg.motivo, status: 400 };
 
   const contemFeriado = estadiaContemFeriado(checkin, checkout);
-  const v = validarDatasPacote(pacote, checkin, checkout, contemFeriado);
-  if (!v.valido) return { ok: false, erro: v.motivo, status: 400 };
 
   const quote = await calculatePrice(propertyId, checkin, checkout, guests);
   if (!quote) {
@@ -233,100 +232,97 @@ function valorAbsorvido(
 // "A PARTIR DE" — total real mínimo do pacote
 // ---------------------------------------------------------------------------
 
-export type MinimoPacote = { total: number } | { total: null; motivo: "sem-data-elegivel" };
+export type MinimoPacote =
+  | { total: number; checkin: string; checkout: string }
+  | { total: null; motivo: string };
 
 /**
- * Menor total efetivamente reservável do pacote nos próximos 90 dias.
+ * "A partir de": o menor total que a PRÓPRIA PÁGINA do pacote exibiria.
  *
- * Varre as datas de check-in candidatas, descarta as que não fecham o pacote ou
- * têm alguma noite ocupada, e roda o MESMO motor da página. Nunca a diária solta:
- * o número precisa ser alcançável, senão o card promete o que a página não entrega.
+ * Varre os próximos 90 dias, aceita apenas datas que `datasElegiveis` aprova —
+ * a mesma função do calendário e do draft — e calcula com `totalDoPacote`, o
+ * mesmo caminho de preço da página, seja motor V2 ou legado.
  *
- * Nenhuma tarifa entra no código — tudo vem do calendário da Hostaway.
+ * Não existe cálculo próprio aqui. Se o número aparece no card, existe uma data
+ * concreta em que reservar entrega exatamente ele.
  */
 export async function totalMinimoDoPacote(
-  pacote: PacoteV2,
+  slug: string,
   propertySlug: string,
 ): Promise<MinimoPacote> {
-  const chave = `pacotes:minimo:${pacote.id}:${propertySlug}`;
-  const redis = redisOpcional();
+  const noites = noitesDoPacote(slug);
+  if (!noites) return { total: null, motivo: "pacote-desconhecido" };
 
+  const chave = `pacotes:minimo:v3:${slug}:${propertySlug}`;
+  const redis = redisOpcional();
   if (redis) {
     try {
-      const cache = await redis.get<number>(chave);
-      if (typeof cache === "number" && cache > 0) return { total: cache };
+      const cache = await redis.get<MinimoPacote>(chave);
+      if (cache && typeof cache === "object" && "total" in cache) return cache;
     } catch (err) {
       console.warn("[totalMinimoDoPacote] cache indisponível:", err);
     }
   }
 
   const listings = listingsForProperty(propertySlug);
-  if (listings.length === 0) return { total: null, motivo: "sem-data-elegivel" };
+  if (listings.length === 0) return { total: null, motivo: "sem-listing" };
 
   const hoje = new Date();
-  // Uma noite a mais no fim: o bônus de saída depende da noite seguinte ao check-out.
+  // Uma semana a mais: o bônus de saída olha a noite seguinte ao check-out.
   const fim = new Date(hoje.getTime() + (JANELA_A_PARTIR_DE_DIAS + 8) * 86400000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-  let noites: Map<string, { livre: boolean; preco: number }>;
+  let noitesCal: Map<string, { livre: boolean; preco: number }>;
   try {
     const calendarios = await Promise.all(
       listings.map((id) => getCalendar(id, iso(hoje), iso(fim))),
     );
     if (calendarios.some((c) => c.length === 0)) {
-      return { total: null, motivo: "sem-data-elegivel" };
+      return { total: null, motivo: "calendario-vazio" };
     }
-    noites = combinarCalendarios(calendarios);
+    noitesCal = combinarCalendarios(calendarios);
   } catch (err) {
     console.error("[totalMinimoDoPacote] calendário indisponível:", err);
-    return { total: null, motivo: "sem-data-elegivel" };
+    return { total: null, motivo: "calendario-indisponivel" };
   }
 
-  const bonusValor = bonusSaidaPara(propertySlug);
-  let melhor: number | null = null;
+  let melhor: MinimoPacote = { total: null, motivo: "sem-data-elegivel-livre" };
 
   for (let offset = 0; offset < JANELA_A_PARTIR_DE_DIAS; offset++) {
     const checkin = iso(new Date(hoje.getTime() + offset * 86400000));
-    const checkout = somarDias(checkin, pacote.noitesMin);
+    const checkout = somarDias(checkin, noites);
 
-    const contemFeriado = estadiaContemFeriado(checkin, checkout);
-    if (!validarDatasPacote(pacote, checkin, checkout, contemFeriado).valido) continue;
+    // MESMA elegibilidade do calendário e do draft.
+    if (!datasElegiveis(slug, propertySlug, checkin, checkout).elegivel) continue;
 
-    // Todas as noites da estadia precisam estar livres, nas duas casas quando Completo.
-    const noitesDaEstadia: { livre: boolean; preco: number }[] = [];
+    let hostawayTotal = 0;
     let completa = true;
-    for (let n = 0; n < pacote.noitesMin; n++) {
-      const noite = noites.get(somarDias(checkin, n));
+    for (let n = 0; n < noites; n++) {
+      const noite = noitesCal.get(somarDias(checkin, n));
       if (!noite || !noite.livre) {
         completa = false;
         break;
       }
-      noitesDaEstadia.push(noite);
+      hostawayTotal += noite.preco;
     }
     if (!completa) continue;
 
-    const hostawayTotal = noitesDaEstadia.reduce((soma, n) => soma + n.preco, 0);
-    const itens = montarItens({ pacote, propertySlug, checkin, checkout, removidos: [], selecao: {} });
-
-    const bonus = avaliarBonusSaida({
-      lateAtivo: lateCheckoutAtivo(itens),
-      noiteSeguinteLivre: noites.get(checkout)?.livre ?? false,
+    // MESMO caminho de preço da página.
+    const calc = totalDoPacote({
+      slug,
+      propertySlug,
+      checkin,
       checkout,
-      contemFeriado,
-      valorBonus: bonusValor,
-    });
-
-    const { total } = calcularPacote({
-      noites: pacote.noitesMin,
       hostawayTotal,
-      itens,
-      bonusSaida: bonus.valor,
+      noites,
+      noiteSeguinteLivre: noitesCal.get(checkout)?.livre ?? false,
     });
+    if (!calc) continue;
 
-    if (melhor === null || total < melhor) melhor = total;
+    if (melhor.total === null || calc.total < melhor.total) {
+      melhor = { total: calc.total, checkin, checkout };
+    }
   }
-
-  if (melhor === null) return { total: null, motivo: "sem-data-elegivel" };
 
   if (redis) {
     try {
@@ -335,7 +331,7 @@ export async function totalMinimoDoPacote(
       console.warn("[totalMinimoDoPacote] falha ao gravar cache:", err);
     }
   }
-  return { total: melhor };
+  return melhor;
 }
 
 /**

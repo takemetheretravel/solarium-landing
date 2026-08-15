@@ -303,13 +303,18 @@ export function feriadoAbrePacote(dataISO: string): boolean {
 }
 
 /**
- * Feriados dentro da estadia, check-in e check-out INCLUSIVE (o hóspede está na
- * casa), que TORNAM a data elegível. Feriado de fim de semana continua sendo
- * feriado, mas não abre o pacote.
+ * Feriados que TORNAM a estadia elegível.
+ *
+ * Duas condições, ambas necessárias:
+ *  - o feriado gera emenda (quinta, sexta ou segunda);
+ *  - o hóspede está de fato na casa naquele dia, ou seja, é uma das NOITES da
+ *    estadia. Feriado que cai na data de check-out não conta.
+ *
+ * Por isso o intervalo é fechado no check-in e ABERTO no check-out.
  */
 export function feriadosNaEstadia(checkin: string, checkout: string): { data: string; nome: string }[] {
   return FERIADOS_NACIONAIS.filter(
-    (f) => f.data >= checkin && f.data <= checkout && feriadoAbrePacote(f.data),
+    (f) => f.data >= checkin && f.data < checkout && feriadoAbrePacote(f.data),
   );
 }
 

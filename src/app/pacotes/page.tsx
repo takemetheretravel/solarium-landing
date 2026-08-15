@@ -40,10 +40,12 @@ export default async function PaginaPacotes() {
         const casa = vista.pacoteV2?.properties[0] ?? vista.legado?.properties[0];
         // Total real mínimo do pacote, não a diária solta. O card não pode
         // prometer um número que a página do pacote não entrega.
-        const minimo =
-          vista.pacoteV2 && casa
-            ? await totalMinimoDoPacote(vista.pacoteV2, casa)
-            : { total: null as number | null };
+        // Os cinco pacotes passam pelo mesmo varredor — inclusive os que seguem
+        // no motor legado. Nenhum deles cai em "Consultar datas" por falta de
+        // suporte do cálculo.
+        const minimo = casa
+          ? await totalMinimoDoPacote(vista.slug, casa)
+          : { total: null as number | null };
 
         return { vista, minimo };
       }),
