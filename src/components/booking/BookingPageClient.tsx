@@ -8,6 +8,7 @@ import Kicker from "@/components/ui/Kicker";
 import GuestForm from "@/components/booking/GuestForm";
 import { SITE, whatsappLink, validateCoupon, type CouponValidation } from "@/config/site";
 import { MAX_QTY_PER_EXTRA } from "@/config/service-extras";
+import { pacotesV2Ativo } from "@/config/flags";
 import { OP_EXTRA_TYPES } from "@/config/operational-extras";
 import { formatBRLPrecise, formatExtraPrice } from "@/lib/cn";
 import { trackInitiateCheckout } from "@/lib/tracking";
@@ -89,6 +90,7 @@ export default function BookingPageClient({
   inclusosPacote = [],
 }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">(initialPaymentMethod);
+  const V2 = pacotesV2Ativo();
 
   const [couponExpanded, setCouponExpanded] = useState(Boolean(initialCouponCode));
   const [couponInput, setCouponInput] = useState(initialCouponCode ?? "");
@@ -183,7 +185,7 @@ export default function BookingPageClient({
   // O riscado inclui os extras adicionados aqui: a linha tem que continuar sendo
   // a soma do que está exibido acima dela.
   const valorTotalRiscado =
-    packageInfo != null
+    V2 && packageInfo != null
       ? packageInfo.aLaCarte + servicesTotal + opExtrasNoCheckout()
       : null;
 
@@ -443,6 +445,12 @@ export default function BookingPageClient({
                         <span className="flex-shrink-0">{formatBRLPrecise(e.amount)}</span>
                       </div>
                     ))}
+                    {!V2 && packageInfo.aLaCarte > packageInfo.total && (
+                      <div className="flex justify-between text-charcoal/50">
+                        <span>Valor à la carte</span>
+                        <span className="line-through">{formatBRLPrecise(packageInfo.aLaCarte)}</span>
+                      </div>
+                    )}
                   </>
                 ) : (
                 <div className="flex justify-between text-charcoal/80">
