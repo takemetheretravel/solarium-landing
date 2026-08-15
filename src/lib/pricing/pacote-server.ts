@@ -106,6 +106,7 @@ export async function calcularPacoteServer(
     hostawayTotal: quote.totalPrice,
     itens,
     bonusSaida: bonus.valor,
+    absorvido: valorAbsorvido(pacote, quote, guests),
   };
 
   const resultado = calcularPacote(entrada);
@@ -198,4 +199,31 @@ export async function diariaMinima(propertySlug: string): Promise<number | null>
     console.error("[diariaMinima]", err);
     return null;
   }
+}
+
+
+/**
+ * Taxa de hóspede adicional que o pacote absorve.
+ *
+ * O Dois Casais é vendido para quatro pessoas: o terceiro e o quarto hóspede
+ * aparecem no Valor total pelo que a Hostaway cobra e voltam como desconto de
+ * valor idêntico. Do quinto em diante, cobrança normal.
+ *
+ * O preço por pessoa vem da Hostaway em runtime — nunca escrito aqui.
+ */
+function valorAbsorvido(
+  pacote: PacoteV2,
+  quote: { nights: number; raw?: unknown },
+  guests: number,
+): number {
+  const ate = pacote.hospedesAbsorvidosAte;
+  if (!ate) return 0;
+
+  const fees = (quote.raw as { listingFees?: Record<string, number> } | undefined)?.listingFees;
+  const inclusos = Number(fees?.guestsIncluded ?? 2);
+  const porPessoa = Number(fees?.priceForExtraPerson ?? 0);
+  if (!porPessoa) return 0;
+
+  const absorvidos = Math.max(0, Math.min(guests, ate) - inclusos);
+  return absorvidos * porPessoa * quote.nights;
 }

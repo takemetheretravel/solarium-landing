@@ -16,7 +16,10 @@ export type PersonalizeProps = {
   onChange: (selecao: Record<string, number>) => void;
   /** Recolhido por padrão na página da casa; aberto no pacote e no checkout. */
   recolhivel?: boolean;
-  /** Ids já inclusos no pacote — exibidos como marcados e não somados de novo. */
+  /**
+   * Ids inclusos e AINDA ATIVOS no pacote. Ao remover um incluso, ele sai desta
+   * lista e volta a ser item normal — o rótulo não pode sobreviver à remoção.
+   */
   inclusos?: string[];
 };
 

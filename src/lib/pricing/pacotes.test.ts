@@ -4,8 +4,6 @@ import {
   avaliarBonusSaida,
   aplicarPix,
   pisoDezena,
-  economiaVsAvulso,
-  totalAvulsoEquivalente,
   melhorTotal,
   dataLimiteCancelamentoExtras,
   extraNaoReembolsavel,
@@ -103,70 +101,106 @@ describe("taxa progressiva", () => {
 // ---------------------------------------------------------------------------
 
 describe("preço de menu dos itens operacionais", () => {
-  it("late check-out do FDS (saída no domingo) vale tabela de semana, R$ 550", () => {
+  it("late check-out do FDS aparece a R$ 850 e leva 550 para a base", () => {
     const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
     const late = itens.find((i) => i.extraId === "late_checkout");
-    expect(late?.total).toBe(550);
+    expect(late?.total).toBe(850);
+    expect(late?.valorNaBase).toBe(550);
   });
 
-  it("late check-out do Feriado sex-seg (saída na segunda) também vale 550", () => {
+  it("Feriado sex-seg: mesma diferença, 850 na linha e 550 na base", () => {
     const itens = itensReais(
       "feriado-na-serra",
       "solarium-1",
       FERIADO_SEX_SEG.checkin,
       FERIADO_SEX_SEG.checkout,
     );
-    expect(itens.find((i) => i.extraId === "late_checkout")?.total).toBe(550);
+    const late = itens.find((i) => i.extraId === "late_checkout");
+    expect(late?.total).toBe(850);
+    expect(late?.valorNaBase).toBe(550);
   });
 
-  it("Dois Casais mantém a diferença fds/semana: saída no sábado vale 1.600", () => {
-    // qui 10/09 → sáb 12/09: a noite bloqueada é sábado
+  it("saída no sábado: preço de menu e base coincidem, sem ajuste", () => {
+    // qui 10/09 → sáb 12/09: a noite bloqueada é sábado, fim de semana de verdade
     const itens = itensReais("dois-casais", "solarium-completo", "2026-09-10", "2026-09-12");
-    expect(itens.find((i) => i.extraId === "late_checkout")?.total).toBe(1600);
+    const late = itens.find((i) => i.extraId === "late_checkout");
+    expect(late?.total).toBe(1600);
+    expect(late?.valorNaBase).toBe(1600);
   });
 
-  it("Dois Casais com saída no domingo vale tabela de semana, 1.000", () => {
+  it("Dois Casais com saída no domingo: 1.600 na linha, 1.000 na base", () => {
     const itens = itensReais("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout);
-    expect(itens.find((i) => i.extraId === "late_checkout")?.total).toBe(1000);
+    const late = itens.find((i) => i.extraId === "late_checkout");
+    expect(late?.total).toBe(1600);
+    expect(late?.valorNaBase).toBe(1000);
+  });
+});
+
+describe("invariante da comparação (§1)", () => {
+  it("o Valor total riscado é sempre a soma literal das linhas exibidas", () => {
+    const casos: [string, string, string, string][] = [
+      ["fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout],
+      ["feriado-na-serra", "solarium-1", FERIADO_QUI_DOM.checkin, FERIADO_QUI_DOM.checkout],
+      ["feriado-na-serra", "solarium-1", FERIADO_SEX_SEG.checkin, FERIADO_SEX_SEG.checkout],
+      ["dois-casais", "solarium-completo", FDS.checkin, FDS.checkout],
+    ];
+
+    for (const [slug, casa, ci, co] of casos) {
+      const itens = itensReais(slug, casa, ci, co);
+      const r = calcularPacote(entrada(2, 3400, itens, BONUS));
+      const somaDasLinhas = 3400 + itens.reduce((s, i) => s + i.total, 0);
+      expect(r.subtotal).toBe(somaDasLinhas);
+    }
+  });
+
+  it("a economia é exatamente Valor total menos Total do pacote", () => {
+    const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
+    const r = calcularPacote(entrada(2, 3400, itens, BONUS));
+    expect(r.economia).toBe(r.subtotal - r.total);
+    expect(r.economia).toBe(970);
   });
 });
 
 describe("golden: Fim de Semana Completo", () => {
-  it("baixa temporada — base 3.950 · desconto 666 · total 3.460", () => {
+  it("baixa — Valor total 4.430 · desconto 966 · total 3.460 · economia 970", () => {
     const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
     const r = calcularPacote(entrada(2, 3400, itens, BONUS));
-    expect(r.baseDesconto).toBe(3950);
-    expect(r.subtotal).toBe(4130);
+    expect(r.subtotal).toBe(4430); // 3.400 + 850 + 180
+    expect(r.baseDesconto).toBe(3950); // base ainda usa 550 no late
     expect(r.descontoProgressivo).toBe(316);
     expect(r.bonusSaida).toBe(350);
-    expect(r.descontoTotal).toBe(666);
+    expect(r.descontoFixo).toBe(300); // 850 exibido − 550 na base
+    expect(r.descontoTotal).toBe(966);
     expect(r.total).toBe(3460);
+    expect(r.economia).toBe(970);
   });
 
-  it("alta temporada — base 4.250 · desconto 690 · total 3.740", () => {
+  it("alta — Valor total 4.730 · desconto 990 · total 3.740 · economia 990", () => {
     const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
     const r = calcularPacote(entrada(2, 3700, itens, BONUS));
+    expect(r.subtotal).toBe(4730);
     expect(r.baseDesconto).toBe(4250);
     expect(r.descontoProgressivo).toBe(340);
-    expect(r.descontoTotal).toBe(690);
+    expect(r.descontoTotal).toBe(990);
     expect(r.total).toBe(3740);
+    expect(r.economia).toBe(990);
   });
 
-  it("sem café, baixa — base 3.950 · desconto 666 · total 3.280, bônus mantido", () => {
+  it("sem café, baixa — Valor total 4.250 · total 3.280, bônus mantido", () => {
     const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout, [
       "cesta_cafecafe",
     ]);
     const r = calcularPacote(entrada(2, 3400, itens, BONUS));
+    expect(r.subtotal).toBe(4250); // a cesta sai do Valor total quando removida
     expect(r.baseDesconto).toBe(3950);
-    expect(r.subtotal).toBe(3950);
-    expect(r.descontoTotal).toBe(666);
+    expect(r.descontoTotal).toBe(966);
     expect(r.bonusSaida).toBe(350);
     expect(r.total).toBe(3280);
   });
 });
 
 describe("golden: Feriado na Serra", () => {
-  it("qui-dom com bônus — base 7.000 · desconto 1.190 · total 5.990", () => {
+  it("qui-dom com bônus — Valor total 7.480 · desconto 1.490 · total 5.990", () => {
     const itens = itensReais(
       "feriado-na-serra",
       "solarium-1",
@@ -174,14 +208,16 @@ describe("golden: Feriado na Serra", () => {
       FERIADO_QUI_DOM.checkout,
     );
     const r = calcularPacote(entrada(3, 6450, itens, BONUS));
+    expect(r.subtotal).toBe(7480); // 6.450 + 850 + 180
     expect(r.baseDesconto).toBe(7000);
-    expect(r.subtotal).toBe(7180);
     expect(r.descontoProgressivo).toBe(840);
-    expect(r.descontoTotal).toBe(1190);
+    expect(r.descontoFixo).toBe(300);
+    expect(r.descontoTotal).toBe(1490);
     expect(r.total).toBe(5990);
+    expect(r.economia).toBe(1490);
   });
 
-  it("sex-seg sem bônus (noite seguinte ocupada) — base 7.000 · desconto 840 · total 6.340", () => {
+  it("sex-seg sem bônus — Valor total 7.480 · desconto 1.140 · total 6.340", () => {
     const itens = itensReais(
       "feriado-na-serra",
       "solarium-1",
@@ -189,10 +225,12 @@ describe("golden: Feriado na Serra", () => {
       FERIADO_SEX_SEG.checkout,
     );
     const r = calcularPacote(entrada(3, 6450, itens, 0));
+    expect(r.subtotal).toBe(7480);
     expect(r.baseDesconto).toBe(7000);
     expect(r.descontoProgressivo).toBe(840);
-    expect(r.descontoTotal).toBe(840);
+    expect(r.descontoTotal).toBe(1140); // 840 + 300, sem bônus
     expect(r.total).toBe(6340);
+    expect(r.economia).toBe(1140);
   });
 
   it("sex-seg COM bônus (late ativo, noite seguinte livre, feriado na estadia) — total 5.990", () => {
@@ -216,31 +254,110 @@ describe("golden: Feriado na Serra", () => {
   });
 });
 
-describe("golden: economia frente à contratação avulsa", () => {
-  it("FDS Completo baixa — avulso 3.858, economia R$ 398, calculada e não hardcoded", () => {
+describe("golden: economia exibida (§1)", () => {
+  it("é a diferença entre o riscado e o total, e nada mais", () => {
     const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
-    const e = entrada(2, 3400, itens, BONUS);
-    const r = calcularPacote(e);
+    const r = calcularPacote(entrada(2, 3400, itens, BONUS));
 
-    // 3.128 (diárias com 8%) + 550 (late) + 180 (cesta)
-    expect(totalAvulsoEquivalente(e)).toBe(3858);
-    expect(economiaVsAvulso(e, r.total)).toBe(398);
+    // Não existe mais cálculo paralelo simulando cupom no fluxo avulso.
+    expect(r.economia).toBe(r.subtotal - r.total);
+    expect(r.economia).toBe(970);
   });
 
-  it("os dois lados da economia usam o mesmo preço de menu do late check-out", () => {
-    const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
-    const e = entrada(2, 3400, itens, BONUS);
-    const lateNoPacote = itens.find((i) => i.extraId === "late_checkout")?.total ?? 0;
-
-    // O avulso soma os MESMOS itens a preço cheio sobre a estadia com desconto.
-    expect(totalAvulsoEquivalente(e)).toBe(
-      Math.round(3400 * 0.92) + lateNoPacote + 180,
+  it("os quatro casos travados batem economia e total", () => {
+    const fdsBaixa = calcularPacote(
+      entrada(2, 3400, itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout), BONUS),
     );
+    const fdsAlta = calcularPacote(
+      entrada(2, 3700, itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout), BONUS),
+    );
+    const itensFer = itensReais(
+      "feriado-na-serra", "solarium-1", FERIADO_QUI_DOM.checkin, FERIADO_QUI_DOM.checkout,
+    );
+    const ferComBonus = calcularPacote(entrada(3, 6450, itensFer, BONUS));
+    const ferSemBonus = calcularPacote(entrada(3, 6450, itensFer, 0));
+
+    expect([fdsBaixa.total, fdsAlta.total, ferComBonus.total, ferSemBonus.total]).toEqual([
+      3460, 3740, 5990, 6340,
+    ]);
+    expect([
+      fdsBaixa.economia, fdsAlta.economia, ferComBonus.economia, ferSemBonus.economia,
+    ]).toEqual([970, 990, 1490, 1140]);
+  });
+});
+
+
+describe("golden: Dois Casais, Uma Vista", () => {
+  const FDS_COMPLETO = 3900; // tarifa Hostaway do Completo, 2 noites, baixa
+
+  it("late removido, 2 cestas — Valor total 4.260 · desconto 312 · total 3.940 · economia 320", () => {
+    const itens = itensReais("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout, [
+      "late_checkout",
+    ]);
+    // Sem late: sem ajuste de menu e sem bônus, no mesmo recálculo.
+    const r = calcularPacote(entrada(2, FDS_COMPLETO, itens, 0));
+
+    expect(r.subtotal).toBe(4260); // 3.900 + 2 × 180
+    expect(r.descontoProgressivo).toBe(312);
+    expect(r.descontoFixo).toBe(0);
+    expect(r.bonusSaida).toBe(0);
+    expect(r.descontoTotal).toBe(312);
+    expect(r.total).toBe(3940);
+    expect(r.economia).toBe(320);
   });
 
-  it("nunca devolve economia negativa", () => {
-    const e = entrada(1, 1000, [cafe()], 0);
-    expect(economiaVsAvulso(e, 99999)).toBe(0);
+  it("inclui duas cestas, uma por casa", () => {
+    const itens = itensReais("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout);
+    const cestas = itens.find((i) => i.extraId === "cesta_cafecafe");
+    expect(cestas?.qtd).toBe(2);
+    expect(cestas?.total).toBe(360);
+  });
+
+  it("4 hóspedes custam o mesmo que 2: o 3º e o 4º são absorvidos", () => {
+    const itens = itensReais("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout, [
+      "late_checkout",
+    ]);
+    const doisHospedes = calcularPacote(entrada(2, FDS_COMPLETO, itens, 0));
+
+    // 2 pessoas extras × R$ 100 × 2 noites = 400, dentro do total Hostaway
+    const quatroHospedes = calcularPacote({
+      ...entrada(2, FDS_COMPLETO + 400, itens, 0),
+      absorvido: 400,
+    });
+
+    expect(quatroHospedes.total).toBe(doisHospedes.total);
+    expect(quatroHospedes.subtotal).toBe(4660); // a taxa APARECE no Valor total
+    expect(quatroHospedes.descontoFixo).toBe(400); // e sai inteira no desconto
+    expect(quatroHospedes.baseDesconto).toBe(FDS_COMPLETO); // fora da base progressiva
+  });
+
+  it("do 5º hóspede em diante a cobrança é normal, sem absorção", () => {
+    const itens = itensReais("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout, [
+      "late_checkout",
+    ]);
+    const quatro = calcularPacote({
+      ...entrada(2, FDS_COMPLETO + 400, itens, 0),
+      absorvido: 400,
+    });
+    const cinco = calcularPacote({
+      ...entrada(2, FDS_COMPLETO + 600, itens, 0),
+      absorvido: 400, // segue absorvendo só o 3º e o 4º
+    });
+
+    expect(cinco.total).toBeGreaterThan(quatro.total);
+    // A taxa do 5º entra na base e por isso recebe o progressivo de 8%:
+    // 200 cobrados − 16 de desconto = 184, antes do piso de dezena.
+    expect(cinco.subtotal - quatro.subtotal).toBe(200);
+    expect(cinco.baseDesconto - quatro.baseDesconto).toBe(200);
+  });
+
+  it("o late do Dois Casais continua removível, e o bônus sai junto", () => {
+    const comLate = itensReais("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout);
+    const semLate = itensReais("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout, [
+      "late_checkout",
+    ]);
+    expect(lateCheckoutAtivo(comLate)).toBe(true);
+    expect(lateCheckoutAtivo(semLate)).toBe(false);
   });
 });
 
@@ -284,7 +401,7 @@ describe("golden: pessoa adicional", () => {
 
     expect(comPessoas.baseDesconto).toBe(4350);
     expect(comPessoas.descontoProgressivo).toBe(348);
-    expect(comPessoas.descontoTotal).toBe(698);
+    expect(comPessoas.descontoTotal).toBe(998); // 348 + 350 + 300
     expect(comPessoas.descontoTotal).not.toBe(base.descontoTotal);
     expect(comPessoas.total).toBe(3830);
   });
@@ -348,10 +465,12 @@ describe("golden: Dois Casais, Uma Vista", () => {
     expect(bonusCom.valor).toBe(350);
     expect(bonusSem.valor).toBe(0);
 
+    // Sem o late sobram as duas cestas inclusas (§3.3): 3.900 + 360 = 4.260.
     const r = calcularPacote(entrada(2, 3900, semLate, bonusSem.valor));
+    expect(r.subtotal).toBe(4260);
     expect(r.baseDesconto).toBe(3900);
     expect(r.descontoTotal).toBe(312);
-    expect(r.total).toBe(3580);
+    expect(r.total).toBe(3940);
   });
 
   it("2 noites usam a taxa de 8% da tabela, sem piso artificial", () => {
@@ -492,11 +611,11 @@ describe("cumulatividade", () => {
     expect(melhorTotal(3740, null)).toEqual({ total: 3740, origem: "pacote" });
   });
 
-  it("progressivo e bônus aparecem somados numa linha só", () => {
+  it("progressivo, bônus e ajustes fixos aparecem somados numa linha só", () => {
     const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
     const r = calcularPacote(entrada(2, 3400, itens, BONUS));
-    expect(r.descontoTotal).toBe(r.descontoProgressivo + r.bonusSaida);
-    expect(r.descontoTotal).toBe(666);
+    expect(r.descontoTotal).toBe(r.descontoProgressivo + r.bonusSaida + r.descontoFixo);
+    expect(r.descontoTotal).toBe(966);
   });
 });
 

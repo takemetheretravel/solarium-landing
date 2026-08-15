@@ -51,6 +51,14 @@ export type ItemPreco = {
   entraNaBase: boolean;
   /** Veio incluso no pacote (vs. escolhido como extra opcional). */
   incluso: boolean;
+  /**
+   * Quanto DESTE item entra na base do progressivo. Ausente = `total`.
+   *
+   * Existe porque alguns itens são exibidos ao preço cheio de menu mas custam
+   * menos na operação. A diferença não some: vira desconto fixo, fora da base
+   * progressiva. O cliente vê o preço de menu na linha e a diferença no desconto.
+   */
+  valorNaBase?: number;
 };
 
 export type EntradaMotor = {
@@ -61,6 +69,11 @@ export type EntradaMotor = {
   itens: ItemPreco[];
   /** Já resolvido por `avaliarBonusSaida`. Zero quando não aplicável. */
   bonusSaida: number;
+  /**
+   * Parte do `hostawayTotal` que o pacote absorve: sai da base progressiva e
+   * volta como desconto de valor idêntico. Efeito líquido zero sobre o total.
+   */
+  absorvido?: number;
 };
 
 export type ResultadoMotor = {
@@ -76,9 +89,17 @@ export type ResultadoMotor = {
   taxa: number;
   descontoProgressivo: number;
   bonusSaida: number;
-  /** Linha única exibida ao cliente: progressivo + bônus. */
+  /** Ajustes de item (preço de menu acima do operacional) + valor absorvido. */
+  descontoFixo: number;
+  absorvido: number;
+  /** Linha única exibida ao cliente: progressivo + bônus + fixos. */
   descontoTotal: number;
   total: number;
+  /**
+   * O que o cliente lê como economia. É, por construção, a diferença entre o
+   * `subtotal` riscado e o `total` — nunca um cálculo paralelo.
+   */
+  economia: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -87,17 +108,27 @@ export type ResultadoMotor = {
 
 export function calcularPacote(entrada: EntradaMotor): ResultadoMotor {
   const { noites, hostawayTotal, itens, bonusSaida } = entrada;
+  const absorvido = entrada.absorvido ?? 0;
 
   const operacionais = itens.filter((i) => i.entraNaBase);
   const cheios = itens.filter((i) => !i.entraNaBase);
 
-  const baseDesconto = hostawayTotal + soma(operacionais);
+  // O subtotal é a soma LITERAL das linhas exibidas, a preço cheio de menu.
+  // É o número riscado na tela, e não pode divergir do que está acima dele.
+  const subtotal = hostawayTotal + soma(operacionais) + soma(cheios);
+
+  // A base do progressivo usa o valor operacional dos itens, não o de menu, e
+  // ignora o que o pacote absorve.
+  const baseDesconto = hostawayTotal - absorvido + somaNaBase(operacionais);
   const itensSemDesconto = soma(cheios);
-  const subtotal = baseDesconto + itensSemDesconto;
+
+  // Diferença entre o preço de menu exibido e o que entrou na base.
+  const ajusteItens = soma(operacionais) - somaNaBase(operacionais);
+  const descontoFixo = ajusteItens + absorvido;
 
   const taxa = taxaProgressiva(noites);
   const descontoProgressivo = baseDesconto * taxa;
-  const descontoTotal = descontoProgressivo + bonusSaida;
+  const descontoTotal = descontoProgressivo + bonusSaida + descontoFixo;
 
   const total = pisoDezena(subtotal - descontoTotal);
 
@@ -111,9 +142,17 @@ export function calcularPacote(entrada: EntradaMotor): ResultadoMotor {
     taxa,
     descontoProgressivo,
     bonusSaida,
+    descontoFixo,
+    absorvido,
     descontoTotal,
     total,
+    economia: subtotal - total,
   };
+}
+
+/** Soma o que cada item leva para a base do progressivo (default: o total). */
+function somaNaBase(itens: ItemPreco[]): number {
+  return itens.reduce((s, i) => s + (i.valorNaBase ?? i.total), 0);
 }
 
 function soma(itens: ItemPreco[]): number {

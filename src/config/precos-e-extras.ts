@@ -86,6 +86,8 @@ export type ExtraConfig = {
   antecedenciaMinimaDias?: number;
   /** Só exibir se a noite adjacente estiver livre no calendário. */
   exigeNoiteLivre?: "anterior" | "posterior";
+  /** O que o item entrega, exibido junto ao nome. */
+  descricao?: string;
   /** Aviso ao cliente, exibido junto ao item. */
   observacao?: string;
   /** Instrução interna para o concierge — vai ao hostNote e ao alerta interno. */
@@ -122,14 +124,14 @@ export const EXTRAS: ExtraConfig[] = [
   },
   {
     id: "late_checkout",
-    nome: "Check-out estendido, até as 18h",
+    nome: "Check-out estendido, até às 18h",
     preco: { fds: 850, semana: 550 },
     unidade: "por_estadia",
     controle: "on_off",
     entraNaBase: true,
     exigeNoiteLivre: "posterior",
     idLegado: "late_checkout",
-    notaInterna: "Permitir saída até as 18h — noite do checkout bloqueada para preparo",
+    notaInterna: "Permitir saída até às 18h — noite do checkout bloqueada para preparo",
   },
   {
     id: "cesta_cafecafe",
@@ -180,7 +182,7 @@ export const EXTRAS: ExtraConfig[] = [
   {
     id: "massagem",
     nome: "Sessão de massagem",
-    preco: 150,
+    preco: 175,
     unidade: "por_sessao",
     controle: "seletor",
     entraNaBase: false,
@@ -192,7 +194,9 @@ export const EXTRAS: ExtraConfig[] = [
   {
     id: "decoracao",
     nome: "Decoração especial",
-    preco: 250,
+    descricao:
+      "Pétalas espalhadas e um coração montado na cama, velas eletrônicas, um buquê, um espumante Salton e uma foto com mensagem.",
+    preco: 600,
     unidade: "por_estadia",
     controle: "on_off",
     entraNaBase: false,
@@ -203,7 +207,7 @@ export const EXTRAS: ExtraConfig[] = [
   {
     id: "fondue_queijo",
     nome: "Fondue de queijo",
-    preco: 150,
+    preco: 175,
     unidade: "por_item",
     controle: "seletor",
     entraNaBase: false,
@@ -213,7 +217,7 @@ export const EXTRAS: ExtraConfig[] = [
   {
     id: "fondue_chocolate",
     nome: "Fondue de chocolate",
-    preco: 120,
+    preco: 140,
     unidade: "por_item",
     controle: "seletor",
     entraNaBase: false,
@@ -223,7 +227,7 @@ export const EXTRAS: ExtraConfig[] = [
   {
     id: "lenha",
     nome: "Lenha",
-    preco: 50,
+    preco: 60,
     unidade: "por_item",
     controle: "seletor",
     entraNaBase: false,
@@ -312,6 +316,17 @@ export type PacoteV2 = {
   nome: string;
   descricao: string;
   imagem: string | null;
+  /** Texto longo do corpo da página. O hero fica com a linha curta de `descricao`. */
+  descricaoLonga?: string;
+  /** Mínimo e máximo do seletor de hóspedes. Ausente = 1..capacidade da casa. */
+  hospedesMin?: number;
+  hospedesMax?: number;
+  /**
+   * Até este número de hóspedes, a taxa de pessoa adicional da Hostaway é
+   * absorvida pelo pacote: entra no Valor total e sai no desconto, efeito
+   * líquido zero. Acima disso, cobrança normal.
+   */
+  hospedesAbsorvidosAte?: number;
   /** Marcado quando a imagem ainda é placeholder — vira pendência no relatório. */
   imagemPlaceholder?: { criadoEm: string; nota: string };
   properties: string[];
@@ -338,8 +353,9 @@ export const PACOTES_V2: PacoteV2[] = [
     id: "fim-de-semana-completo",
     slug: "fim-de-semana-completo",
     nome: "Fim de Semana Completo",
-    descricao:
-      "Sexta a domingo, com a tarde de domingo inteira ainda pela frente. O café de sábado chega no horário que vocês pedirem.",
+    descricao: "Sexta a domingo, com a tarde de domingo inteira ainda pela frente.",
+    descricaoLonga:
+      "A saída vai até às 18h de domingo, então o último dia não é dia de arrumar mala às pressas. O café de sábado chega no horário que vocês pedirem, e a manhã começa na varanda.",
     imagem: "/images/solarium-1/09-deck-por-do-sol.jpg",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 2,
@@ -359,8 +375,9 @@ export const PACOTES_V2: PacoteV2[] = [
     id: "dois-casais",
     slug: "dois-casais",
     nome: "Dois Casais, Uma Vista",
-    descricao:
-      "As duas casas, cada casal com a sua. Cozinha, spa e varanda independentes, e a mesma vista das duas varandas.",
+    descricao: "As duas casas, cada casal com a sua, e a mesma vista das duas varandas.",
+    descricaoLonga:
+      "Cozinha, spa e varanda independentes em cada casa, para o encontro acontecer quando vocês quiserem e não porque o espaço obriga. O café da primeira manhã chega nas duas portas.",
     imagem: "/images/solarium-1/04-vista-traseira.jpg",
     imagemPlaceholder: {
       criadoEm: "2026-08-13",
@@ -376,7 +393,16 @@ export const PACOTES_V2: PacoteV2[] = [
     inclusos: [
       // Único pacote onde o late check-out pode sair. Ao sair, o bônus sai junto.
       { extraId: "late_checkout", qtd: 1, removivel: true },
+      // Uma cesta por casa, na primeira manhã completa.
+      { extraId: "cesta_cafecafe", qtd: 2, removivel: true },
     ],
+    hospedesMin: 4,
+    hospedesMax: 8,
+    /**
+     * Hóspedes acima da base da Hostaway que o pacote absorve: aparecem a preço
+     * cheio na linha de itens e voltam como desconto de valor idêntico.
+     */
+    hospedesAbsorvidosAte: 4,
     prioridadeHome: 2,
     ativo: true,
   },
@@ -384,7 +410,9 @@ export const PACOTES_V2: PacoteV2[] = [
     id: "feriado-na-serra",
     slug: "feriado-na-serra",
     nome: "Feriado na Serra",
-    descricao: "Três noites de feriado, e o último dia sem correria até as 18h.",
+    descricao: "Três noites de feriado, e no último dia a saída vai até às 18h, sem correria.",
+    descricaoLonga:
+      "Feriado na serra costuma ser estrada cheia na volta. Com a saída até às 18h, vocês pegam a descida depois que o movimento passa, e a última manhã ainda cabe inteira no dia.",
     imagem: "/images/solarium-1/07-nevoeiro-plantas.jpg",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 3,

@@ -138,7 +138,13 @@ export function montarItens(params: {
     if (!extra || extra.informativo) continue;
     jaIncluso.add(extra.id);
     itens.push(
-      linha(extra, incluso.qtd, precoDoItem(extra, propertySlug, checkin, checkout), true),
+      linha(
+        extra,
+        incluso.qtd,
+        precoDoItem(extra, propertySlug, checkin, checkout),
+        true,
+        valorNaBaseDoItem(extra, propertySlug, checkin, checkout),
+      ),
     );
   }
 
@@ -148,7 +154,15 @@ export function montarItens(params: {
     const extra = getExtra(id);
     if (!extra || extra.informativo) continue;
     const q = Math.min(Math.floor(qtd), extra.controle === "on_off" ? 1 : MAX_QTD_POR_EXTRA);
-    itens.push(linha(extra, q, precoDoItem(extra, propertySlug, checkin, checkout), false));
+    itens.push(
+      linha(
+        extra,
+        q,
+        precoDoItem(extra, propertySlug, checkin, checkout),
+        false,
+        valorNaBaseDoItem(extra, propertySlug, checkin, checkout),
+      ),
+    );
   }
 
   return itens;
@@ -161,12 +175,18 @@ function precoDoItem(
   checkout: string,
 ): number {
   if (extra.id === "early_checkin" || extra.id === "late_checkout") {
-    return precoOperacionalNoPacote(propertySlug, extra.id, checkin, checkout);
+    return precoMenuOperacional(propertySlug, extra.id, true);
   }
   return precoExtra(extra);
 }
 
-function linha(extra: ExtraConfig, qtd: number, precoUnitario: number, incluso: boolean): ItemPreco {
+function linha(
+  extra: ExtraConfig,
+  qtd: number,
+  precoUnitario: number,
+  incluso: boolean,
+  valorNaBaseUnitario?: number,
+): ItemPreco {
   return {
     extraId: extra.id,
     nome: extra.nome,
@@ -175,7 +195,26 @@ function linha(extra: ExtraConfig, qtd: number, precoUnitario: number, incluso: 
     total: precoUnitario * qtd,
     entraNaBase: extra.entraNaBase,
     incluso,
+    ...(valorNaBaseUnitario !== undefined
+      ? { valorNaBase: valorNaBaseUnitario * qtd }
+      : {}),
   };
+}
+
+/**
+ * Itens operacionais são exibidos ao preço de menu de fim de semana, mas só o
+ * custo operacional real da noite bloqueada entra na base do progressivo.
+ * A diferença vira desconto fixo — aparece para o cliente como desconto, não
+ * some da conta.
+ */
+function valorNaBaseDoItem(
+  extra: ExtraConfig,
+  propertySlug: string,
+  checkin: string,
+  checkout: string,
+): number | undefined {
+  if (extra.id !== "early_checkin" && extra.id !== "late_checkout") return undefined;
+  return precoOperacionalNoPacote(propertySlug, extra.id, checkin, checkout);
 }
 
 /** Late check-out ativo na reserva — incluso e não removido, ou contratado à parte. */

@@ -34,7 +34,10 @@ function rotuloNoites(p: PacoteV2): number {
 
 /** Bullets do V2: as noites, cada item incluso com o valor cheio de menu, e o concierge. */
 function inclusosV2(p: PacoteV2): string[] {
-  const casa = p.properties[0] === "solarium-completo" ? "as duas casas" : "casa completa e exclusiva";
+  const casa =
+    p.properties[0] === "solarium-completo"
+      ? "as duas casas, só de vocês"
+      : "uma casa completa, só de vocês";
   const linhas = [
     p.noitesMax === p.noitesMin
       ? `${p.noitesMin} noites em ${casa}`
@@ -44,25 +47,41 @@ function inclusosV2(p: PacoteV2): string[] {
   for (const item of p.inclusos) {
     const extra = getExtra(item.extraId);
     if (!extra) continue;
-    // Preço por período resolve fds/semana só com datas; aqui mostramos o de menu
-    // da casa elegível, que é o mesmo usado no cálculo.
-    const valor = precoExtra(extra);
-    linhas.push(valor > 0 ? `${extra.nome} — R$ ${valor}` : extra.nome);
+    // Sem preço aqui: o valor de cada item aparece na página do pacote, no bloco
+    // de extras. Card e lista de inclusos carregam só o nome e a quantidade.
+    linhas.push(rotuloIncluso(extra.id, extra.nome, item.qtd, p));
   }
 
   linhas.push("Concierge para personalizar a estadia");
   return linhas;
 }
 
+/**
+ * Quantidade explícita nas cestas. Nunca deixar ambíguo se é uma cesta para a
+ * estadia inteira ou uma por manhã.
+ */
+function rotuloIncluso(id: string, nome: string, qtd: number, p: PacoteV2): string {
+  if (!id.startsWith("cesta_")) return nome;
+
+  if (p.properties[0] === "solarium-completo") {
+    return `${qtd} cestas de café da manhã, uma para cada casa`;
+  }
+  if (p.exigeFeriado) {
+    return `${qtd} cesta de café da manhã, na manhã que vocês escolherem`;
+  }
+  if (qtd === 1) return "1 cesta de café da manhã, no sábado";
+  return `${qtd} cestas de café da manhã`;
+}
+
 function avisoDatasV2(p: PacoteV2): string | null {
   if (p.exigeFeriado) {
-    return "Este pacote vale para três noites que contenham um feriado nacional. O calendário libera só as datas elegíveis.";
+    return "Escolha as datas ao lado para ver o valor. Este pacote vale para três noites que contenham um feriado nacional.";
   }
   if (p.checkinDows?.length === 1 && p.checkinDows[0] === 5) {
-    return "Check-in na sexta, check-out no domingo. O calendário libera só as sextas.";
+    return "Escolha as datas ao lado para ver o valor. A chegada deste pacote é sempre na sexta.";
   }
   if (p.properties[0] === "solarium-completo") {
-    return "As duas casas, a partir de duas noites, em qualquer período.";
+    return "Escolha as datas ao lado para ver o valor. São as duas casas, a partir de duas noites, em qualquer período.";
   }
   return null;
 }
@@ -81,7 +100,7 @@ export function vistaPacote(slug: string, v2Ativo: boolean): VistaPacote | null 
       nome: v2.nome,
       noites: rotuloNoites(v2),
       tagline: v2.descricao,
-      descricao: v2.descricao,
+      descricao: v2.descricaoLonga ?? v2.descricao,
       imagem: v2.imagem ?? imagemDeFallback(v2),
       inclusos: inclusosV2(v2),
       aviso: avisoDatasV2(v2),

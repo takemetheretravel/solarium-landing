@@ -83,7 +83,9 @@ export async function POST(req: NextRequest) {
     descontoTotal: calc.resultado.descontoTotal,
     itens: calc.resultado.itens,
     noites: calc.resultado.noites,
-    economia: calc.economia,
+    economia: calc.resultado.economia,
+    descontoFixo: calc.resultado.descontoFixo,
+    absorvido: calc.resultado.absorvido,
     bonusAplicado: calc.resultado.bonusSaida > 0,
     dataLimiteCancelamentoExtras: calc.dataLimiteCancelamentoExtras,
     disponiveis: extrasExibiveis(property.slug, {

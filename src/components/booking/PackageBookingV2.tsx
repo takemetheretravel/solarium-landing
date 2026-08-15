@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Calendar, MessageCircle, X } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
 import { PROPERTIES } from "@/config/properties";
-import type { PacoteV2 } from "@/config/precos-e-extras";
+import { getExtra, type PacoteV2 } from "@/config/precos-e-extras";
 import PersonalizeSuaEstadia from "@/components/extras/PersonalizeSuaEstadia";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
 import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/tracking";
@@ -22,6 +22,8 @@ type Resposta =
       bonusAplicado: boolean;
       disponiveis: ExtraExibivel[];
       hostawayTotal: number;
+      subtotal: number;
+      absorvido: number;
     }
   | { compativel: false; motivo: string; alternativa?: string | null };
 
@@ -63,7 +65,7 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
   const [propertySlug, setPropertySlug] = useState(casasElegiveis[0]?.slug ?? "");
   const [checkin, setCheckin] = useState("");
   const [checkout, setCheckout] = useState("");
-  const [guests, setGuests] = useState(2);
+  const [guests, setGuests] = useState(pacote.hospedesMin ?? 2);
   const [removidos, setRemovidos] = useState<string[]>([]);
   const [selecao, setSelecao] = useState<Record<string, number>>({});
   const [resposta, setResposta] = useState<Resposta | null>(null);
@@ -82,7 +84,13 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkin, duracaoFixa, pacote.noitesMin]);
 
-  const capacidade = casasElegiveis.find((p) => p.slug === propertySlug)?.capacity.max ?? 4;
+  const capacidadeCasa = casasElegiveis.find((p) => p.slug === propertySlug)?.capacity.max ?? 4;
+  const hospedesMin = pacote.hospedesMin ?? 1;
+  const hospedesMax = Math.min(pacote.hospedesMax ?? capacidadeCasa, capacidadeCasa);
+  const opcoesHospedes = Array.from(
+    { length: Math.max(1, hospedesMax - hospedesMin + 1) },
+    (_, i) => hospedesMin + i,
+  );
 
   useEffect(() => {
     if (!checkin || !checkout || !propertySlug || checkin >= checkout) {
@@ -134,8 +142,9 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
   const incompativel = resposta?.compativel === false ? resposta : null;
   const podeReservar = Boolean(ok && !carregando && !erro);
 
-  // Âncora honesta: o mesmo conjunto de itens contratado à parte. Vem do servidor.
-  const valorALaCarte = ok ? ok.total + ok.economia : null;
+  // O riscado é a soma literal das linhas exibidas, calculada no servidor.
+  // Nunca recompor aqui — divergir da soma é o bug que a §1 veio matar.
+  const valorTotal = ok ? ok.subtotal : null;
   const pix = ok ? Math.floor((ok.total * 0.97) / 10) * 10 : null;
 
   function alternarRemovido(extraId: string) {
@@ -165,7 +174,11 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
     router.push(`/reservar?${params.toString()}`);
   }
 
-  const inclusosIds = pacote.inclusos.map((i) => i.extraId);
+  // Só os inclusos que sobreviveram à remoção. Um item removido deixa de ser
+  // "incluso no pacote" e volta a ser item normal, com o preço à frente.
+  const inclusosIds = pacote.inclusos
+    .map((i) => i.extraId)
+    .filter((id) => !removidos.includes(id));
 
   // Só os itens marcados como removíveis no catálogo ganham o "x".
   function ehRemovivel(extraId: string): boolean {
@@ -258,7 +271,7 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
           onChange={(e) => setGuests(Number(e.target.value))}
           className="mt-1 w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none focus:border-copper"
         >
-          {Array.from({ length: capacidade }, (_, i) => i + 1).map((n) => (
+          {opcoesHospedes.map((n) => (
             <option key={n} value={n}>
               {n} {n === 1 ? "hóspede" : "hóspedes"}
             </option>
@@ -301,8 +314,18 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
       <div className="mt-6 space-y-3 font-sans text-sm">
         <div className="flex justify-between text-charcoal/70">
           <span>Estadia ({ok?.noites ?? pacote.noitesMin} noites)</span>
-          <span>{ok ? formatBRLPrecise(ok.hostawayTotal) : "conforme as datas"}</span>
+          <span>
+            {ok ? formatBRLPrecise(ok.hostawayTotal - ok.absorvido) : "conforme as datas"}
+          </span>
         </div>
+
+        {/* Hóspedes absorvidos: aparecem cobrados e voltam inteiros no desconto */}
+        {ok && ok.absorvido > 0 && (
+          <div className="flex justify-between text-charcoal/70">
+            <span>Hóspedes adicionais</span>
+            <span>{formatBRLPrecise(ok.absorvido)}</span>
+          </div>
+        )}
 
         {ok?.itens
           .filter((i) => i.extraId !== "hospedagem")
@@ -330,9 +353,11 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
         {removidos.map((id) => {
           const incluso = pacote.inclusos.find((i) => i.extraId === id);
           if (!incluso) return null;
+          // Nome de exibição, sempre. Nenhum id de catálogo pode vazar para a tela.
+          const nome = getExtra(id)?.nome ?? id;
           return (
             <div key={id} className="flex items-center justify-between gap-2 text-charcoal/35">
-              <span className="line-through">{id.replace(/_/g, " ")}</span>
+              <span className="line-through">{nome}</span>
               <button
                 onClick={() => alternarRemovido(id)}
                 className="font-sans text-xs uppercase tracking-widest text-copper"
@@ -346,7 +371,7 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
         <div className="flex justify-between border-t border-charcoal/10 pt-3 text-charcoal/50">
           <span>Valor total</span>
           <span className="line-through">
-            {valorALaCarte !== null ? formatBRLPrecise(valorALaCarte) : "—"}
+            {valorTotal !== null ? formatBRLPrecise(valorTotal) : "—"}
           </span>
         </div>
         <div className="flex items-baseline justify-between pt-1">
