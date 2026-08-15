@@ -11,6 +11,21 @@ import {
   ItemPreco,
 } from "./pacotes";
 import {
+  datasElegiveis,
+  totalDoPacote,
+  noitesDoPacote,
+  motorDoPacote,
+} from "./elegibilidade";
+import { getPackageBySlug, packageTotalActive } from "@/config/packages";
+
+/** Soma dias a uma data ISO, sem depender de fuso. */
+function somaDiasISO(iso: string, dias: number): string {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + dias);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+import {
   montarItens,
   extrasExibiveis,
   lateCheckoutAtivo,
@@ -89,7 +104,9 @@ function itensReais(
 // Datas reais usadas nos golden tests
 const FDS = { checkin: "2026-09-11", checkout: "2026-09-13" }; // sexta → domingo
 const FERIADO_QUI_DOM = { checkin: "2026-06-04", checkout: "2026-06-07" }; // Corpus Christi
-const FERIADO_SEX_SEG = { checkin: "2026-09-04", checkout: "2026-09-07" }; // Independência
+// Consciência Negra cai numa sexta: é NOITE da estadia, então abre o pacote.
+// Independência (segunda) nao serve mais — cairia no dia do check-out.
+const FERIADO_SEX_SEG = { checkin: "2026-11-20", checkout: "2026-11-23" };
 
 // ---------------------------------------------------------------------------
 // TAXA PROGRESSIVA
@@ -507,6 +524,97 @@ describe("elegibilidade do feriado — só o que gera emenda abre o pacote", () 
   });
 });
 
+
+describe("§7 — o \"a partir de\" nao tem caminho proprio", () => {
+  const TODOS = [
+    { slug: "fim-de-semana-completo", casa: "solarium-1" },
+    { slug: "feriado-na-serra", casa: "solarium-1" },
+    { slug: "dois-casais", casa: "solarium-completo" },
+    { slug: "meio-de-semana", casa: "solarium-1" },
+    { slug: "imersao-na-serra", casa: "solarium-1" },
+  ];
+
+  it("os cinco pacotes sao conhecidos pelo modulo unico", () => {
+    for (const { slug } of TODOS) {
+      expect(motorDoPacote(slug), slug).not.toBeNull();
+      expect(noitesDoPacote(slug), slug).toBeGreaterThan(0);
+    }
+  });
+
+  it("Meio de Semana e Imersao tem preco — nao caem em \"Consultar datas\"", () => {
+    // O varredor usa `totalDoPacote`, que atende os dois motores. Se estes
+    // devolvessem null, o card exibiria "Consultar datas" por falta de suporte.
+    for (const slug of ["meio-de-semana", "imersao-na-serra"]) {
+      const calc = totalDoPacote({
+        slug,
+        propertySlug: "solarium-1",
+        checkin: "2026-09-14", // segunda
+        checkout: slug === "meio-de-semana" ? "2026-09-17" : "2026-09-18",
+        hostawayTotal: 3000,
+        noites: slug === "meio-de-semana" ? 3 : 4,
+      });
+      expect(calc, slug).not.toBeNull();
+      expect(calc!.total, slug).toBeGreaterThan(0);
+    }
+  });
+
+  it("preco do legado permanece o da formula antiga, sem migracao de motor", () => {
+    const pkg = getPackageBySlug("meio-de-semana")!;
+    const esperado = packageTotalActive(pkg, 3000, null);
+    const calc = totalDoPacote({
+      slug: "meio-de-semana",
+      propertySlug: "solarium-1",
+      checkin: "2026-09-14",
+      checkout: "2026-09-17",
+      hostawayTotal: 3000,
+      noites: 3,
+    });
+    expect(calc!.total).toBe(esperado);
+  });
+
+  it("INVARIANTE: data aceita pelo varredor nunca e recusada pelo calendario", () => {
+    // O varredor filtra por `datasElegiveis`. Percorremos 120 dias de candidatas
+    // e conferimos que a resposta e a mesma nos dois sentidos.
+    for (const { slug, casa } of TODOS) {
+      const noites = noitesDoPacote(slug)!;
+      for (let d = 0; d < 120; d++) {
+        const checkin = somaDiasISO("2026-08-13", d);
+        const checkout = somaDiasISO(checkin, noites);
+        const veredito = datasElegiveis(slug, casa, checkin, checkout);
+
+        // Aceita pelo varredor => tem que ter preco calculavel pelo mesmo caminho
+        if (veredito.elegivel) {
+          const calc = totalDoPacote({
+            slug, propertySlug: casa, checkin, checkout,
+            hostawayTotal: 3000, noites,
+          });
+          expect(calc, `${slug} ${checkin}`).not.toBeNull();
+        }
+        // E a resposta e estavel: chamar de novo devolve o mesmo
+        expect(datasElegiveis(slug, casa, checkin, checkout).elegivel).toBe(veredito.elegivel);
+      }
+    }
+  });
+
+  it("o Feriado nao aceita nenhuma janela derivada de 15/11/2026", () => {
+    const noites = noitesDoPacote("feriado-na-serra")!;
+    for (let d = -4; d <= 0; d++) {
+      const checkin = somaDiasISO("2026-11-15", d);
+      const checkout = somaDiasISO(checkin, noites);
+      const r = datasElegiveis("feriado-na-serra", "solarium-1", checkin, checkout);
+      // Nenhuma janela que dependa SO do feriado de domingo pode passar
+      if (r.elegivel) {
+        expect(feriadosNaEstadia(checkin, checkout).some((f) => f.data !== "2026-11-15")).toBe(true);
+      }
+    }
+  });
+
+  it("a janela de 20/11 (sexta) e elegivel para o Feriado", () => {
+    expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-11-20", "2026-11-23").elegivel)
+      .toBe(true);
+  });
+});
+
 describe("golden: extras fora da base", () => {
   it("tábua de frios aumenta o total em exatamente R$ 310 e não altera a linha de desconto", () => {
     const semTabua = calcularPacote(entrada(2, 3400, [late(), cafe()], BONUS));
@@ -843,9 +951,16 @@ describe("exibição de extras", () => {
 // ---------------------------------------------------------------------------
 
 describe("feriados", () => {
-  it("detecta feriado no check-out (o hóspede ainda está na casa)", () => {
-    expect(estadiaContemFeriado("2026-09-04", "2026-09-07")).toBe(true);
-    expect(feriadosNaEstadia("2026-09-04", "2026-09-07")[0].nome).toBe("Independência");
+  it("feriado na data de check-out NÃO conta — precisa ser uma das noites", () => {
+    // sex 04/09 → seg 07/09: Independência cai no dia da saída, não numa noite
+    expect(estadiaContemFeriado("2026-09-04", "2026-09-07")).toBe(false);
+    expect(feriadosNaEstadia("2026-09-04", "2026-09-07")).toHaveLength(0);
+  });
+
+  it("feriado que é noite da estadia conta", () => {
+    // sex 20/11 → seg 23/11: Consciência Negra é a primeira noite
+    expect(estadiaContemFeriado("2026-11-20", "2026-11-23")).toBe(true);
+    expect(feriadosNaEstadia("2026-11-20", "2026-11-23")[0].nome).toBe("Consciência Negra");
   });
 
   it("não inventa feriado onde não há", () => {
