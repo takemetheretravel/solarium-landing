@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { consultBraspagPayment } from "@/lib/braspag";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
-import { getDraft, claimWebhookEventOnce, releaseWebhookEvent } from "@/lib/kv-store";
+import { getDraft, claimWebhookEventOnce, releaseWebhookEvent , draftIdDeOrderId } from "@/lib/kv-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     }
 
     // MerchantOrderId = draftId. Identifica o MÉTODO antes de qualquer confirmação.
-    const draft = await getDraft(merchantOrderId);
+    const draft = await getDraft(draftIdDeOrderId(merchantOrderId));
     if (!draft) {
       console.warn("[Webhook:Braspag] draft não encontrado p/ merchantOrderId:", merchantOrderId);
       return NextResponse.json({ ok: true, ignored: true });

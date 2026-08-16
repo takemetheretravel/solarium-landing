@@ -15,26 +15,84 @@ function getResend(): Resend | null {
   return new Resend(key);
 }
 
+/**
+ * Alerta de pagamento recusado ou bloqueado pelo antifraude.
+ *
+ * Carrega o diagnóstico COMPLETO — não só a mensagem ao cliente. Sem
+ * ProviderReturnCode e os campos de antifraude, uma recusa real vira "não sei o
+ * que aconteceu" dois dias depois (armadilha 5 do handoff).
+ *
+ * Quando a recusa é de pacote, o assunto muda: com a flag ligada em produção, o
+ * primeiro cliente real é o teste, e essa falha não pode passar em silêncio.
+ */
 export async function enviarAlertaRecusa(dados: {
   hospede: string; propriedade: string; valor: number;
   motivo: string; mensagemCliente: string; draftId: string;
+  pacoteNome?: string;
+  merchantOrderId?: string;
+  diagnostico?: {
+    Status?: unknown;
+    ReturnCode?: unknown;
+    ReturnMessage?: unknown;
+    ProviderReturnCode?: unknown;
+    ProviderReturnMessage?: unknown;
+    FraudAnalysisStatus?: unknown;
+    FraudAnalysisReasonCode?: unknown;
+    FraudScore?: unknown;
+    PaymentId?: unknown;
+    errorBody?: unknown;
+  };
 }) {
   try {
     const resend = getResend();
     if (!resend) return;
+
+    const ehPacote = Boolean(dados.pacoteNome);
+    const assunto = ehPacote
+      ? `⚠️ PAGAMENTO DE PACOTE RECUSADO — ${dados.pacoteNome}`
+      : `🚨 Pagamento recusado — ${dados.propriedade}`;
+
+    const d = dados.diagnostico;
+    const linha = (r: string, v: unknown) =>
+      v === undefined || v === null || v === ""
+        ? ""
+        : `<tr><td style="padding:3px 10px 3px 0;color:#666">${r}</td><td><code>${
+            typeof v === "object" ? JSON.stringify(v) : String(v)
+          }</code></td></tr>`;
+
+    const bloco = d
+      ? `<h3 style="margin-top:18px">Diagnóstico</h3>
+         <table style="font-size:13px;border-collapse:collapse">
+           ${linha("Status", d.Status)}
+           ${linha("ReturnCode", d.ReturnCode)}
+           ${linha("ReturnMessage", d.ReturnMessage)}
+           ${linha("ProviderReturnCode", d.ProviderReturnCode)}
+           ${linha("ProviderReturnMessage", d.ProviderReturnMessage)}
+           ${linha("FraudAnalysisStatus", d.FraudAnalysisStatus)}
+           ${linha("FraudAnalysisReasonCode", d.FraudAnalysisReasonCode)}
+           ${linha("FraudScore", d.FraudScore)}
+           ${linha("PaymentId", d.PaymentId)}
+           ${linha("errorBody", d.errorBody)}
+         </table>`
+      : "";
+
     await resend.emails.send({
       from: ALERTA_DE,
       to: ALERTA_PARA,
-      subject: `🚨 Pagamento recusado — ${dados.propriedade}`,
+      subject: assunto,
       html: `
-        <h2>Pagamento recusado</h2>
+        <h2>${ehPacote ? "Pagamento de pacote recusado" : "Pagamento recusado"}</h2>
+        ${dados.pacoteNome ? `<p><strong>Pacote:</strong> ${dados.pacoteNome}</p>` : ""}
         <p><strong>Cliente:</strong> ${dados.hospede}</p>
         <p><strong>Casa:</strong> ${dados.propriedade}</p>
         <p><strong>Valor:</strong> R$ ${dados.valor.toFixed(2)}</p>
         <p><strong>Motivo:</strong> ${dados.motivo}</p>
         <p><strong>O que o cliente viu:</strong> ${dados.mensagemCliente}</p>
         <p><strong>Sugestão de contato:</strong> oriente o cliente conforme o motivo, ou ofereça Pix.</p>
-        <p style="color:#888;font-size:12px">Draft: ${dados.draftId}</p>
+        ${bloco}
+        <p style="color:#888;font-size:12px">
+          Draft: ${dados.draftId}${dados.merchantOrderId ? ` · MerchantOrderId: ${dados.merchantOrderId}` : ""}
+        </p>
       `,
     });
   } catch (e) {

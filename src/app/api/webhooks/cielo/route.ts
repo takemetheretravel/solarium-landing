@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDraft, updateDraft, findDraftByBraspagPaymentId } from "@/lib/kv-store";
+import { getDraft, updateDraft, findDraftByBraspagPaymentId , draftIdDeOrderId } from "@/lib/kv-store";
 import { getPaymentStatus } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
@@ -67,10 +67,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    const draft = await getDraft(merchantOrderId);
+    // MerchantOrderId pode trazer sufixo de tentativa; o draft é o prefixo.
+    const draftId = draftIdDeOrderId(merchantOrderId);
+    const draft = await getDraft(draftId);
     if (!draft || draft.status === "paid") return NextResponse.json({ ok: true });
 
-    await updateDraft(merchantOrderId, { status: "paid", cieloPaymentId: paymentId });
+    await updateDraft(draftId, { status: "paid", cieloPaymentId: paymentId });
 
     const property = getPropertyBySlug(draft.propertyId);
     if (property && !draft.hostawayReservationId) {
@@ -107,7 +109,7 @@ export async function POST(req: Request) {
         console.error("[Reserva] BLOQUEIO DE NOITE FALHOU — reserva nao criada");
       }
       if (reservation) {
-        await updateDraft(merchantOrderId, { hostawayReservationId: reservation.reservationId });
+        await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
 
         console.log("[Webhook:Cielo] Reserva criada:", reservation.reservationId);
       } else {

@@ -231,7 +231,9 @@ async function scanKeys(match: string): Promise<string[]> {
 // mais antigos são removidos). NUNCA gravar PAN/CVV/validade — só BIN/últimos 4.
 const AUTHLOG_PREFIX = "braspag:authlog:";
 const AUTHLOG_TTL = 60 * 60 * 24 * 7; // 7 dias
-const AUTHLOG_MAX = 20;
+// Elevado para o lançamento com a flag ligada: com tráfego real, 20 entradas
+// rotacionam em horas e uma recusa some antes de alguém investigar.
+const AUTHLOG_MAX = 200;
 
 export async function pushAuthLog(entry: Record<string, unknown>): Promise<void> {
   try {
@@ -284,4 +286,20 @@ export async function updateDraft(id: string, updates: Partial<ReservationDraft>
     console.error("[kv-store:updateDraft] Failed:", err);
     throw err;
   }
+}
+
+
+/**
+ * Recupera o `draftId` a partir do `MerchantOrderId` enviado ao gateway.
+ *
+ * Cada TENTATIVA de pagamento leva um MerchantOrderId novo (`<draftId>-<sufixo>`)
+ * para que três cartões no mesmo draft não cheguem à Braspag com o mesmo número
+ * de pedido. Os webhooks continuam precisando do draft, então desfazem o sufixo
+ * aqui. Formatos antigos, sem sufixo, seguem funcionando.
+ */
+export function draftIdDeOrderId(orderId: string): string {
+  const i = (orderId || "").lastIndexOf("-");
+  if (i <= 0) return orderId;
+  // UUID do draft tem 36 caracteres; o sufixo de tentativa vem depois dele.
+  return orderId.length > 36 ? orderId.slice(0, 36) : orderId;
 }

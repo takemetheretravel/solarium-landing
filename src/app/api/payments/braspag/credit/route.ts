@@ -146,9 +146,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // MerchantOrderId NOVO a cada tentativa.
+    //
+    // Antes ia o `draftId`, então três cartões diferentes no mesmo draft
+    // chegavam à Braspag com o mesmo identificador de pedido. Isso confunde a
+    // conciliação e atrapalha o antifraude, que vê repetição onde há só um
+    // cliente corrigindo o número do cartão. O `draftId` segue como referência
+    // interna, no log e no alerta.
+    const tentativaId = `${draftId}-${Date.now().toString(36)}`;
+
     // ---- Autorização (sem Capture) + Antifraude (FingerPrintId) ----
     const auth = await createBraspagAuthorization({
-      orderId: draftId,
+      orderId: tentativaId,
       amount: amountCents,
       installments: installments || 1,
       customer: {
@@ -200,6 +209,7 @@ export async function POST(req: Request) {
     // BIN/últimos 4. auth.raw carrega Tid/ProofOfSale/AuthorizationCode.
     // Além do console.log, PERSISTE no KV (últimos 20, 7 dias) para leitura via
     // /api/payments/braspag/authlog — não dependemos mais dos logs da Vercel.
+    let diagnostico: Record<string, unknown> | undefined;
     {
       const rawPayment = ((auth.raw ?? {}) as { Payment?: Record<string, unknown> }).Payment ?? {};
       const rawFa = (rawPayment.FraudAnalysis ?? {}) as Record<string, unknown>;
@@ -208,7 +218,7 @@ export async function POST(req: Request) {
         baseUrl: BRASPAG_URLS.transactional,
         merchantId: maskIfSecretLike(process.env.BRASPAG_MERCHANT_ID || ""),
         providerUsed: auth.providerUsed ?? null,
-        merchantOrderId: draftId,
+        merchantOrderId: tentativaId,
         httpStatus: auth.status,
         cardBin: binLog,
         cardLast4: authDigits.slice(-4),
@@ -231,6 +241,7 @@ export async function POST(req: Request) {
       };
       console.log("[Braspag:authorize-result] " + JSON.stringify(authResultLog));
       await pushAuthLog(authResultLog);
+      diagnostico = authResultLog;
     }
 
     // ============ DECISÃO (fluxo AuthorizeFirst) ============
@@ -276,6 +287,9 @@ export async function POST(req: Request) {
         motivo: motivoInterno,
         mensagemCliente,
         draftId,
+        pacoteNome: draft.pacoteNome,
+        merchantOrderId: tentativaId,
+        diagnostico,
       });
       return NextResponse.json({ approved: false, returnMessage: mensagemCliente }, { status: 402 });
     }
@@ -297,6 +311,9 @@ export async function POST(req: Request) {
         propriedade: draft.propertyName,
         valor: valorACobrar,
         motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorizado mas cancelado (void). PaymentId ${auth.paymentId ?? "-"}`,
+        pacoteNome: draft.pacoteNome,
+        merchantOrderId: tentativaId,
+        diagnostico,
         mensagemCliente: "Antifraude não aprovou; nenhum valor cobrado.",
         draftId,
       });
