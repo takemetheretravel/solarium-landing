@@ -6,7 +6,7 @@
  * itens removidos e extras escolhidos; todo o resto é recalculado aqui.
  */
 
-import { Redis } from "@upstash/redis";
+import { unstable_cache } from "next/cache";
 import { calculatePrice, getCalendar } from "@/lib/hostaway";
 import { datasElegiveis, totalDoPacote, noitesDoPacote } from "./elegibilidade";
 import { listingsForProperty } from "@/config/operational-extras";
@@ -137,108 +137,6 @@ export async function calcularPacoteServer(
 const JANELA_A_PARTIR_DE_DIAS = 90;
 const TTL_A_PARTIR_DE = 60 * 60; // 60 min
 
-function redisOpcional(): Redis | null {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
-  if (!url || !token) return null;
-  try {
-    return new Redis({ url, token });
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Menor diária dos próximos 90 dias por listing, para o "a partir de" dos cards.
- *
- * Cacheado no Upstash com TTL de 60 min: consultar a Hostaway a cada render de
- * home é inviável, e o número não precisa ser fresco ao minuto.
- */
-export async function diariaMinima(propertySlug: string): Promise<number | null> {
-  const chave = `pacotes:apartirde:${propertySlug}`;
-  const redis = redisOpcional();
-
-  if (redis) {
-    try {
-      const cache = await redis.get<number>(chave);
-      if (typeof cache === "number" && cache > 0) return cache;
-    } catch (err) {
-      console.warn("[diariaMinima] cache indisponível:", err);
-    }
-  }
-
-  const listings = listingsForProperty(propertySlug);
-  if (listings.length === 0) return null;
-
-  const inicio = new Date();
-  const fim = new Date(inicio.getTime() + JANELA_A_PARTIR_DE_DIAS * 86400000);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-
-  try {
-    const porListing = await Promise.all(
-      listings.map(async (id) => {
-        const dias = await getCalendar(id, iso(inicio), iso(fim));
-        const precos = dias
-          .filter((d) => d.isAvailable === 1 && Number.isFinite(d.price) && d.price > 0)
-          .map((d) => d.price);
-        return precos.length > 0 ? Math.min(...precos) : null;
-      }),
-    );
-
-    const validos = porListing.filter((v): v is number => v !== null);
-    if (validos.length === 0) return null;
-
-    // Completo = soma das duas casas; individuais = o próprio mínimo.
-    const minimo = propertySlug === "solarium-completo"
-      ? validos.reduce((s, v) => s + v, 0)
-      : Math.min(...validos);
-
-    if (redis) {
-      try {
-        await redis.set(chave, minimo, { ex: TTL_A_PARTIR_DE });
-      } catch {
-        // cache é otimização, não pode derrubar a página
-      }
-    }
-    return minimo;
-  } catch (err) {
-    console.error("[diariaMinima]", err);
-    return null;
-  }
-}
-
-
-/**
- * Taxa de hóspede adicional que o pacote absorve.
- *
- * O Dois Casais é vendido para quatro pessoas: o terceiro e o quarto hóspede
- * aparecem no Valor total pelo que a Hostaway cobra e voltam como desconto de
- * valor idêntico. Do quinto em diante, cobrança normal.
- *
- * O preço por pessoa vem da Hostaway em runtime — nunca escrito aqui.
- */
-function valorAbsorvido(
-  pacote: PacoteV2,
-  quote: { nights: number; raw?: unknown },
-  guests: number,
-): number {
-  const ate = pacote.hospedesAbsorvidosAte;
-  if (!ate) return 0;
-
-  const fees = (quote.raw as { listingFees?: Record<string, number> } | undefined)?.listingFees;
-  const inclusos = Number(fees?.guestsIncluded ?? 2);
-  const porPessoa = Number(fees?.priceForExtraPerson ?? 0);
-  if (!porPessoa) return 0;
-
-  const absorvidos = Math.max(0, Math.min(guests, ate) - inclusos);
-  return absorvidos * porPessoa * quote.nights;
-}
-
-
-// ---------------------------------------------------------------------------
-// "A PARTIR DE" — total real mínimo do pacote
-// ---------------------------------------------------------------------------
-
 export type MinimoPacote =
   | { total: number; checkin: string; checkout: string }
   | { total: null; motivo: string };
@@ -253,23 +151,22 @@ export type MinimoPacote =
  * Não existe cálculo próprio aqui. Se o número aparece no card, existe uma data
  * concreta em que reservar entrega exatamente ele.
  */
-export async function totalMinimoDoPacote(
-  slug: string,
-  propertySlug: string,
-): Promise<MinimoPacote> {
+export function totalMinimoDoPacote(slug: string, propertySlug: string): Promise<MinimoPacote> {
+  // Cache do PRÓPRIO Next, não Upstash.
+  //
+  // O SDK do Upstash faz `fetch` com `no-store`, e o Next proíbe isso dentro de
+  // página com `revalidate`: derruba a geração estática com DYNAMIC_SERVER_USAGE
+  // e quebra o build. O cache do Next dá o mesmo TTL sem tirar a home do estático.
+  return unstable_cache(
+    () => calcularMinimo(slug, propertySlug),
+    ["pacotes:minimo", slug, propertySlug],
+    { revalidate: TTL_A_PARTIR_DE, tags: ["pacotes-minimo"] },
+  )();
+}
+
+async function calcularMinimo(slug: string, propertySlug: string): Promise<MinimoPacote> {
   const noites = noitesDoPacote(slug);
   if (!noites) return { total: null, motivo: "pacote-desconhecido" };
-
-  const chave = `pacotes:minimo:v3:${slug}:${propertySlug}`;
-  const redis = redisOpcional();
-  if (redis) {
-    try {
-      const cache = await redis.get<MinimoPacote>(chave);
-      if (cache && typeof cache === "object" && "total" in cache) return cache;
-    } catch (err) {
-      console.warn("[totalMinimoDoPacote] cache indisponível:", err);
-    }
-  }
 
   const listings = listingsForProperty(propertySlug);
   if (listings.length === 0) return { total: null, motivo: "sem-listing" };
@@ -331,13 +228,6 @@ export async function totalMinimoDoPacote(
     }
   }
 
-  if (redis) {
-    try {
-      await redis.set(chave, melhor, { ex: TTL_A_PARTIR_DE });
-    } catch (err) {
-      console.warn("[totalMinimoDoPacote] falha ao gravar cache:", err);
-    }
-  }
   return melhor;
 }
 
@@ -387,4 +277,30 @@ async function comRetry<T>(fn: () => Promise<T | null>, tentativas = 2): Promise
     }
   }
   return null;
+}
+
+/**
+ * Taxa de hóspede adicional que o pacote absorve.
+ *
+ * O Dois Casais é vendido para quatro pessoas: o terceiro e o quarto hóspede
+ * aparecem no Valor total pelo que a Hostaway cobra e voltam como desconto de
+ * valor idêntico. Do quinto em diante, cobrança normal.
+ *
+ * O preço por pessoa vem da Hostaway em runtime — nunca escrito aqui.
+ */
+function valorAbsorvido(
+  pacote: PacoteV2,
+  quote: { nights: number; raw?: unknown },
+  guests: number,
+): number {
+  const ate = pacote.hospedesAbsorvidosAte;
+  if (!ate) return 0;
+
+  const fees = (quote.raw as { listingFees?: Record<string, number> } | undefined)?.listingFees;
+  const inclusos = Number(fees?.guestsIncluded ?? 2);
+  const porPessoa = Number(fees?.priceForExtraPerson ?? 0);
+  if (!porPessoa) return 0;
+
+  const absorvidos = Math.max(0, Math.min(guests, ate) - inclusos);
+  return absorvidos * porPessoa * quote.nights;
 }

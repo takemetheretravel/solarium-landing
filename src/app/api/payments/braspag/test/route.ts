@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createBraspagSaleSimulado, checkBraspagConfig } from "@/lib/braspag";
-import { getPaymentProvider } from "@/config/payment-provider";
+import { getPaymentProviderSafe } from "@/config/payment-provider";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function GET() {
     ok: true,
     service: "braspag-gateway",
     env: process.env.BRASPAG_ENVIRONMENT === "production" ? "production" : "sandbox",
-    provider: getPaymentProvider(),
+    provider: (() => { const r = getPaymentProviderSafe(); return r.ok ? r.provider : null; })(),
     merchantIdConfigured: Boolean(process.env.BRASPAG_MERCHANT_ID),
     merchantKeyConfigured: Boolean(process.env.BRASPAG_MERCHANT_KEY),
     configWarnings, // [] quando ok; avisa se MerchantId não parece GUID

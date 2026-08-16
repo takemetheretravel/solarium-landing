@@ -2,23 +2,51 @@
 
 ## RESERVAS CRIADAS — PENDENTES DE ESTORNO
 
-Duas reservas reais em produção. **Nenhuma pode ficar em aberto.**
+Três reservas reais em produção. **Nenhuma pode ficar em aberto.**
 
-| Hostaway | Datas | Casa | Pacote | Estornada em | Cancelada na Hostaway |
-|---|---|---|---|---|---|
-| **64795274** | 25–27/09/2026 | Solarium 1 | Fim de Semana Completo | ______ | ______ |
-| **64795452** | 20–23/11/2026 | Solarium 1 | Feriado na Serra | ______ | ______ |
+| Hostaway | Datas | Casa | Pacote | Gateway | Estornada em | Cancelada na Hostaway |
+|---|---|---|---|---|---|---|
+| **64795274** | 25–27/09/2026 | Solarium 1 | Fim de Semana Completo | Cielo | ______ | ______ |
+| **64795452** | 20–23/11/2026 | Solarium 1 | Feriado na Serra | Cielo | ______ | ______ |
+| **64812668** | ______ | ______ | ______ | Cielo | ______ | ______ |
 
-Os valores cobrados no cartão estavam corretos nas duas. O que falhou foi o
-registro na reserva e o bloqueio da noite seguinte — corrigido na rodada 9.
+**As três rodaram na Cielo, não na Braspag.** O Preview não tinha
+`PAYMENT_PROVIDER` e o código caía na Cielo por omissão — corrigido na rodada 10,
+que agora falha explícito. O estorno é pelo portal **Cielo**, não Braspag.
 
-**Atenção ao cancelar:** as duas têm late check-out incluso e a noite do dia de
-check-out **não foi bloqueada** (era o bug). Verificar se alguma dessas noites
-foi vendida nesse intervalo antes de liberar o calendário:
+Consequência: o fluxo de pacote **ainda não foi exercido** contra 3DS, antifraude
+Cybersource nem captura separada. Repetir os testes com `PAYMENT_PROVIDER=braspag`
+confirmado em `/api/payments/provider` antes de começar.
+
+**Atenção ao cancelar:** as duas primeiras têm late check-out incluso e a noite do
+dia de check-out **não foi bloqueada** (bug corrigido na rodada 9). Verificar se
+alguma dessas noites foi vendida antes de liberar o calendário:
 
 - 27/09/2026 (Solarium 1)
 - 23/11/2026 (Solarium 1)
 
+---
+
+## CAMPOS CUSTOMIZADOS A CRIAR NA HOSTAWAY
+
+O log traz `[Hostaway:customFields] nenhum campo compatível na conta`. O código já
+os preenche assim que existirem, e continua escrevendo tudo no `hostNote` de
+qualquer forma — o `hostNote` não será removido.
+
+Criar em **Settings → Custom Fields**, tipo **Text**, escopo **Reservation**:
+
+| Nome do campo | Tipo | O que recebe |
+|---|---|---|
+| `Pacote` | Text | Nome do pacote, ex.: `Fim de Semana Completo` |
+| `Extras` | Text | Itens com quantidade e valor, um por linha |
+| `Cancelamento de extras` | Text | Data-limite em ISO, ex.: `2026-09-18` |
+
+O código aceita nomes alternativos, caso a conta já tenha algo parecido:
+`Package` para o primeiro, `Extras a providenciar` para o segundo, e
+`Data limite cancelamento extras` para o terceiro. Qualquer um dos dois nomes
+serve; não é preciso criar os dois.
+
+---
 
 Registro das reservas criadas em produção para validar o fluxo, **e do estorno de
 cada uma**. Braspag e Hostaway são de produção: todo teste move dinheiro real e
