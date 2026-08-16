@@ -220,25 +220,6 @@ export function avaliarBonusSaida(ctx: ContextoBonus): ResultadoBonus {
 // COMPARATIVO COM A CONTRATAÇÃO AVULSA
 // ---------------------------------------------------------------------------
 
-/**
- * Quanto o hóspede pagaria contratando os MESMOS itens à parte, no fluxo avulso.
- *
- * No avulso o desconto progressivo incide apenas sobre o total da Hostaway; todos
- * os extras — inclusive early check-in e late check-out — são somados depois, a
- * preço cheio. É essa diferença de base que gera a economia do pacote.
- *
- * Sempre calculado. Nunca hardcoded, nunca exibido como percentual.
- */
-export function totalAvulsoEquivalente(entrada: EntradaMotor): number {
-  const taxa = taxaProgressiva(entrada.noites);
-  const estadiaComDesconto = Math.round(entrada.hostawayTotal * (1 - taxa));
-  return estadiaComDesconto + soma(entrada.itens);
-}
-
-export function economiaVsAvulso(entrada: EntradaMotor, totalPacote: number): number {
-  return Math.max(0, totalAvulsoEquivalente(entrada) - totalPacote);
-}
-
 // ---------------------------------------------------------------------------
 // LAST-MINUTE / EARLY-BIRD
 // ---------------------------------------------------------------------------

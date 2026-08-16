@@ -195,7 +195,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
           amount: i.total,
         })),
         total: calc.resultado.total,
-        aLaCarte: calc.resultado.total + calc.economia,
+        aLaCarte: calc.resultado.subtotal,
       };
     }
   }

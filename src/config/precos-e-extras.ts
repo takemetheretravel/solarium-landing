@@ -286,37 +286,14 @@ export const FERIADOS_NACIONAIS: { data: string; nome: string }[] = [
 ];
 
 /**
- * Dias da semana em que um feriado gera emenda — e, portanto, demanda.
+ * Feriados dentro da estadia, check-in e check-out INCLUSIVE.
  *
- * Quinta e sexta emendam para a frente; segunda emenda para trás. Feriado em
- * sábado ou domingo não estica fim de semana nenhum: a tarifa da Hostaway não
- * sobe, e vender um "pacote de feriado" sobre tarifa comum seria promessa vazia.
- *
- * Regra da tabela inteira, nunca exceção por data.
- */
-const DOWS_FERIADO_ELEGIVEL = [4, 5, 1]; // quinta, sexta, segunda
-
-/** O feriado abre o pacote? Só se cair em dia que gera emenda. */
-export function feriadoAbrePacote(dataISO: string): boolean {
-  const dow = new Date(dataISO + "T12:00:00").getDay();
-  return DOWS_FERIADO_ELEGIVEL.includes(dow);
-}
-
-/**
- * Feriados que TORNAM a estadia elegível.
- *
- * Uma condição só: o feriado gera emenda, ou seja, cai em quinta, sexta ou
- * segunda. Vale em qualquer dia da estadia, INCLUSIVE na data de check-out — o
- * hóspede está na casa até as 18h desse dia, que é justamente o que o pacote
- * vende.
- *
- * O filtro de dia da semana já barra sábado e domingo sozinho: feriado de fim de
- * semana não estica nada e a tarifa da Hostaway não sobe.
+ * Sem filtro de dia da semana: a especificação define o pacote como três noites
+ * contendo ao menos um feriado nacional, e é isso. Se uma janela de feriado sai
+ * barata, o lugar de corrigir é a tarifa na Hostaway, não a regra do produto.
  */
 export function feriadosNaEstadia(checkin: string, checkout: string): { data: string; nome: string }[] {
-  return FERIADOS_NACIONAIS.filter(
-    (f) => f.data >= checkin && f.data <= checkout && feriadoAbrePacote(f.data),
-  );
+  return FERIADOS_NACIONAIS.filter((f) => f.data >= checkin && f.data <= checkout);
 }
 
 export function estadiaContemFeriado(checkin: string, checkout: string): boolean {
@@ -325,9 +302,7 @@ export function estadiaContemFeriado(checkin: string, checkout: string): boolean
 
 /** Próximo feriado a partir de uma data, ou null se fora da cobertura da tabela. */
 export function proximoFeriado(a_partir_de: string): { data: string; nome: string } | null {
-  return (
-    FERIADOS_NACIONAIS.find((f) => f.data >= a_partir_de && feriadoAbrePacote(f.data)) ?? null
-  );
+  return FERIADOS_NACIONAIS.find((f) => f.data >= a_partir_de) ?? null;
 }
 
 // ---------------------------------------------------------------------------

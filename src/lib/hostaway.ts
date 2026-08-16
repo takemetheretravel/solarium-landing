@@ -511,6 +511,8 @@ export async function createHostawayReservation(params: {
   guestNotes?: string;       // observações do hóspede (não confundir com hostNote)
   source?: string;
   packageName?: string;      // nome do pacote, se a reserva veio de /pacotes
+  subtotalPacote?: number;
+  descontoPacote?: number;
   extrasList?: string[];     // extras do pacote (para o concierge preparar)
   shortNotice?: boolean;     // check-in < 3 dias: parceiros precisam ser acionados já
   serviceExtras?: { id: string; label: string; qty: number; price: number; note?: string }[]; // massagem/cestas a acionar
@@ -552,6 +554,29 @@ export async function createHostawayReservation(params: {
       `Pagamento: ${params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`}`,
     );
     hostNoteParts.push(`Valor cobrado: R$ ${params.totalPrice.toFixed(2)}`);
+    // Pacote V2: uma linha por item, com quantidade e valor, mais subtotal,
+    // desconto e a data-limite de cancelamento. A equipe precisa saber o que
+    // preparar sem abrir o site.
+    if (params.pacoteNome) {
+      hostNoteParts.push(`PACOTE: ${params.pacoteNome}`);
+      for (const item of params.pacoteItens ?? []) {
+        const marca = item.incluso ? "incluso" : "extra";
+        const qtd = item.qtd > 1 ? ` x${item.qtd}` : "";
+        hostNoteParts.push(`  - ${item.nome}${qtd} (${marca}): R$ ${item.total.toFixed(2)}`);
+      }
+      if (params.subtotalPacote !== undefined) {
+        hostNoteParts.push(`Valor total dos itens: R$ ${params.subtotalPacote.toFixed(2)}`);
+      }
+      if (params.descontoPacote !== undefined && params.descontoPacote > 0) {
+        hostNoteParts.push(`Desconto do pacote: -R$ ${params.descontoPacote.toFixed(2)}`);
+      }
+      if (params.dataLimiteCancelamentoExtras) {
+        hostNoteParts.push(
+          `Extras canceláveis com reembolso até ${params.dataLimiteCancelamentoExtras}`,
+        );
+      }
+    }
+
     if (params.packageName) {
       hostNoteParts.push(
         `PACOTE: ${params.packageName}${params.extrasList?.length ? ` | Extras: ${params.extrasList.join("; ")}` : ""}`,
