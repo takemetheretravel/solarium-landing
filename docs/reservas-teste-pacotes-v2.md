@@ -1,5 +1,25 @@
 # Reservas de teste — Pacotes V2
 
+## RESERVAS CRIADAS — PENDENTES DE ESTORNO
+
+Duas reservas reais em produção. **Nenhuma pode ficar em aberto.**
+
+| Hostaway | Datas | Casa | Pacote | Estornada em | Cancelada na Hostaway |
+|---|---|---|---|---|---|
+| **64795274** | 25–27/09/2026 | Solarium 1 | Fim de Semana Completo | ______ | ______ |
+| **64795452** | 20–23/11/2026 | Solarium 1 | Feriado na Serra | ______ | ______ |
+
+Os valores cobrados no cartão estavam corretos nas duas. O que falhou foi o
+registro na reserva e o bloqueio da noite seguinte — corrigido na rodada 9.
+
+**Atenção ao cancelar:** as duas têm late check-out incluso e a noite do dia de
+check-out **não foi bloqueada** (era o bug). Verificar se alguma dessas noites
+foi vendida nesse intervalo antes de liberar o calendário:
+
+- 27/09/2026 (Solarium 1)
+- 23/11/2026 (Solarium 1)
+
+
 Registro das reservas criadas em produção para validar o fluxo, **e do estorno de
 cada uma**. Braspag e Hostaway são de produção: todo teste move dinheiro real e
 ocupa calendário real.

@@ -13,6 +13,7 @@ import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
+import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
 import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
 
@@ -366,11 +367,21 @@ export async function POST(req: Request) {
         shortNotice: draft.shortNotice,
         serviceExtras: enrichServiceExtras(draft.serviceExtras),
         opExtras: draft.opExtras,
+        ...paramsDePacote(draft),
       };
-      const reservation = await createHostawayReservation(reservationParams);
+      // Bloquear ANTES de criar. O check-in do listing e as 15h e o hospede
+      // fica ate as 18h: sem o bloqueio, da para aceitar reserva nova com
+      // ele ainda na casa. Nunca criar com o bloqueio falhando em silencio.
+      const bloqueio = await blockOpExtraNights(property.slug, draft);
+      const opExtrasForEmail = bloqueio.resultados;
+      if (!bloqueio.todasBloqueadas) {
+        console.error("[Reserva] BLOQUEIO FALHOU — reserva nao criada", draftId);
+      }
+      const reservation = bloqueio.todasBloqueadas
+        ? await createHostawayReservation(reservationParams)
+        : null;
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
-        const opExtrasForEmail = await blockOpExtraNights(property.slug, draft.opExtras);
         console.log("📧 NOVA RESERVA PAGA (Braspag):", {
           hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
           propriedade: draft.propertyName,
@@ -382,6 +393,9 @@ export async function POST(req: Request) {
           braspagId: auth.paymentId,
         });
         await enviarAlertaAprovacao({
+        pacoteNome: draft.pacoteNome,
+        extrasProvidenciar: extrasProvidenciar(draft),
+        dataLimiteCancelamentoExtras: draft.dataLimiteCancelamentoExtras,
           hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
           propriedade: draft.propertyName,
           valor: valorACobrar,

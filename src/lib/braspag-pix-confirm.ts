@@ -4,6 +4,7 @@ import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
+import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaAprovacao } from "@/lib/email";
 import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
 
@@ -147,12 +148,19 @@ async function criarReservaSeNecessario(draftId: string, draftSnapshot: Reservat
     shortNotice: draft.shortNotice,
     serviceExtras: enrichServiceExtras(draft.serviceExtras),
     opExtras: draft.opExtras,
+    ...paramsDePacote(draft),
   };
-  const reservation = await createHostawayReservation(reservationParams);
+
+  // Bloquear ANTES de criar: sem isso, da para aceitar reserva nova com o hospede
+  // ainda na casa ate as 18h.
+  const bloqueio = await blockOpExtraNights(property.slug, draft);
+  const reservation = bloqueio.todasBloqueadas
+    ? await createHostawayReservation(reservationParams)
+    : null;
 
   if (reservation) {
     await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
-    const opExtrasForEmail = await blockOpExtraNights(property.slug, draft.opExtras);
+    const opExtrasForEmail = bloqueio.resultados;
     console.log("📧 NOVA RESERVA PAGA (Pix Braspag):", {
       hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
       propriedade: draft.propertyName,

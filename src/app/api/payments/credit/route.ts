@@ -5,6 +5,7 @@ import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
+import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -86,7 +87,10 @@ export async function POST(req: Request) {
     const property = getPropertyBySlug(draft.propertyId);
     if (property) {
       const totalDiscount = (draft.couponDiscount || 0) + (draft.pixDiscount || 0);
-      const reservation = await createHostawayReservation({
+        // Bloquear ANTES de criar: o check-in do listing e as 15h e o hospede fica
+        // ate as 18h. Sem o bloqueio, da para aceitar reserva nova com ele na casa.
+        const bloqueio = await blockOpExtraNights(property.slug, draft);
+      const reservation = bloqueio.todasBloqueadas ? await createHostawayReservation({
         listingMapId: property.id,
         arrivalDate: draft.checkin,
         departureDate: draft.checkout,
@@ -109,12 +113,15 @@ export async function POST(req: Request) {
         shortNotice: draft.shortNotice,
         serviceExtras: enrichServiceExtras(draft.serviceExtras),
         opExtras: draft.opExtras,
-      });
+        ...paramsDePacote(draft),
+      }) : null;
+      if (!bloqueio.todasBloqueadas) {
+        console.error("[Reserva] BLOQUEIO DE NOITE FALHOU — reserva nao criada");
+      }
       if (reservation) {
         await updateDraft(draftId, { hostawayReservationId: reservation.reservationId });
 
-        // Bloqueio automático das noites adjacentes (best-effort; hostNote é a garantia).
-        const opExtrasForEmail = await blockOpExtraNights(property.slug, draft.opExtras);
+        const opExtrasForEmail = bloqueio.resultados;
 
         console.log("📧 NOVA RESERVA PAGA:", {
           hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
@@ -127,6 +134,9 @@ export async function POST(req: Request) {
           cieloId: result.paymentId,
         });
         await enviarAlertaAprovacao({
+        pacoteNome: draft.pacoteNome,
+        extrasProvidenciar: extrasProvidenciar(draft),
+        dataLimiteCancelamentoExtras: draft.dataLimiteCancelamentoExtras,
           hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
           propriedade: draft.propertyName,
           valor: valorACobrar,

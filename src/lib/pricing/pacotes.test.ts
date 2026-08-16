@@ -41,7 +41,6 @@ import {
   getPacoteV2,
   EXTRAS,
   bonusSaidaPara,
-  feriadoAbrePacote,
   FERIADOS_NACIONAIS,
   proximoFeriado,
   pacoteVisivelHoje,
@@ -482,47 +481,6 @@ describe("§3 — preço de menu acompanha o tipo de estadia", () => {
 });
 
 
-describe("elegibilidade do feriado — só o que gera emenda abre o pacote", () => {
-  it("15/11/2026 cai num domingo e NÃO abre o pacote", () => {
-    expect(feriadoAbrePacote("2026-11-15")).toBe(false);
-    // qui 12/11 → dom 15/11: o feriado está na estadia, mas é de domingo
-    expect(estadiaContemFeriado("2026-11-12", "2026-11-15")).toBe(false);
-  });
-
-  it("20/11/2026 cai numa sexta e abre o pacote", () => {
-    expect(feriadoAbrePacote("2026-11-20")).toBe(true);
-    expect(estadiaContemFeriado("2026-11-19", "2026-11-22")).toBe(true);
-  });
-
-  it("quinta, sexta e segunda abrem; sábado, domingo e terça não", () => {
-    expect(feriadoAbrePacote("2026-01-01")).toBe(true); // quinta
-    expect(feriadoAbrePacote("2026-12-25")).toBe(true); // sexta
-    expect(feriadoAbrePacote("2026-09-07")).toBe(true); // segunda
-    expect(feriadoAbrePacote("2026-11-15")).toBe(false); // domingo
-    expect(feriadoAbrePacote("2026-04-21")).toBe(false); // terça
-  });
-
-  it("a regra vale para a tabela inteira, sem exceção por data", () => {
-    const abrem = FERIADOS_NACIONAIS.filter((f) => feriadoAbrePacote(f.data));
-    for (const f of abrem) {
-      const dow = new Date(f.data + "T12:00:00").getDay();
-      expect([4, 5, 1]).toContain(dow);
-    }
-  });
-
-  it("a janela sazonal ignora feriado que não abre o pacote", () => {
-    // A partir de 10/11, o próximo feriado é 15/11 (domingo) — deve pular para 20/11
-    expect(proximoFeriado("2026-11-10")?.data).toBe("2026-11-20");
-  });
-
-  it("o Feriado na Serra fica invisível numa janela só com feriado de fim de semana", () => {
-    const pacote = getPacoteV2("feriado-na-serra")!;
-    expect(pacoteVisivelHoje(pacote, "2026-11-10", { checkin: "2026-11-12", checkout: "2026-11-15" }))
-      .toBe(false);
-  });
-});
-
-
 describe("§7 — o \"a partir de\" nao tem caminho proprio", () => {
   const TODOS = [
     { slug: "fim-de-semana-completo", casa: "solarium-1" },
@@ -594,21 +552,13 @@ describe("§7 — o \"a partir de\" nao tem caminho proprio", () => {
     }
   });
 
-  it("o Feriado nao aceita nenhuma janela derivada de 15/11/2026", () => {
-    const noites = noitesDoPacote("feriado-na-serra")!;
-    for (let d = -4; d <= 0; d++) {
-      const checkin = somaDiasISO("2026-11-15", d);
-      const checkout = somaDiasISO(checkin, noites);
-      const r = datasElegiveis("feriado-na-serra", "solarium-1", checkin, checkout);
-      // Nenhuma janela que dependa SO do feriado de domingo pode passar
-      if (r.elegivel) {
-        expect(feriadosNaEstadia(checkin, checkout).some((f) => f.data !== "2026-11-15")).toBe(true);
-      }
-    }
-  });
-
   it("a janela de 20/11 (sexta) e elegivel para o Feriado", () => {
     expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-11-20", "2026-11-23").elegivel)
+      .toBe(true);
+  });
+
+  it("13-16/11 abre: Proclamacao e domingo e isso deixou de importar", () => {
+    expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-11-13", "2026-11-16").elegivel)
       .toBe(true);
   });
 
@@ -624,12 +574,11 @@ describe("§7 — o \"a partir de\" nao tem caminho proprio", () => {
       .toBe(true);
   });
 
-  it("feriado de domingo continua fora, mesmo no dia de check-out", () => {
-    // qui 12/11 -> dom 15/11: Proclamacao e domingo, nao gera emenda
-    expect(feriadoAbrePacote("2026-11-15")).toBe(false);
-    expect(estadiaContemFeriado("2026-11-12", "2026-11-15")).toBe(false);
-    expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-11-12", "2026-11-15").elegivel)
-      .toBe(false);
+  it("feriado em qualquer dia da semana abre — inclusive domingo (§4 rodada 9)", () => {
+    // qui 13/11 -> dom 16/11 contem Proclamacao (15/11, domingo)
+    expect(estadiaContemFeriado("2026-11-13", "2026-11-16")).toBe(true);
+    expect(datasElegiveis("feriado-na-serra", "solarium-1", "2026-11-13", "2026-11-16").elegivel)
+      .toBe(true);
   });
 });
 

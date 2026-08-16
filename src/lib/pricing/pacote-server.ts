@@ -19,7 +19,6 @@ import {
 import {
   calcularPacote,
   avaliarBonusSaida,
-  economiaVsAvulso,
   dataLimiteCancelamentoExtras,
   EntradaMotor,
   ResultadoMotor,
@@ -79,9 +78,15 @@ export async function calcularPacoteServer(
 
   const contemFeriado = estadiaContemFeriado(checkin, checkout);
 
-  const quote = await calculatePrice(propertyId, checkin, checkout, guests);
+  // A Hostaway responde 502/timeout de vez em quando. Uma segunda tentativa
+  // resolve a maioria; sem ela o hóspede via erro cru na tela do pacote.
+  const quote = await comRetry(() => calculatePrice(propertyId, checkin, checkout, guests));
   if (!quote) {
-    return { ok: false, erro: "Preço indisponível para essas datas.", status: 502 };
+    return {
+      ok: false,
+      erro: "Não conseguimos calcular o preço agora. Tente de novo em instantes ou fale com o concierge.",
+      status: 502,
+    };
   }
 
   // Itens inclusos (menos os removidos) + extras opcionais, a preço cheio de menu.
@@ -114,7 +119,9 @@ export async function calcularPacoteServer(
     ok: true,
     resultado,
     entrada,
-    economia: economiaVsAvulso(entrada, resultado.total),
+    // Economia = Valor total riscado − TOTAL. Fonte única: o motor.
+    // A formula antiga (recompor o avulso com progressivo embutido) foi deletada.
+    economia: resultado.economia,
     bonusMotivo: bonus.motivo,
     dataLimiteCancelamentoExtras: dataLimiteCancelamentoExtras(
       checkin,
@@ -363,4 +370,21 @@ function somarDias(iso: string, dias: number): string {
   const d = new Date(iso + "T12:00:00");
   d.setDate(d.getDate() + dias);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+
+/**
+ * Duas tentativas com uma pausa curta. A Hostaway falha de forma intermitente e
+ * um erro cru na tela custa a reserva; repetir uma vez custa 400ms.
+ */
+async function comRetry<T>(fn: () => Promise<T | null>, tentativas = 2): Promise<T | null> {
+  for (let i = 1; i <= tentativas; i++) {
+    const r = await fn();
+    if (r) return r;
+    if (i < tentativas) {
+      console.warn(`[pacote-server] tentativa ${i} falhou, repetindo`);
+      await new Promise((res) => setTimeout(res, 400));
+    }
+  }
+  return null;
 }
