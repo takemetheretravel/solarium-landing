@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Container from "@/components/ui/Container";
@@ -94,7 +94,14 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   // (a confirmação pode levar alguns minutos e a reserva nasce automaticamente).
   const [pixWaitLong, setPixWaitLong] = useState(false);
   const providerIdRef = useRef<string>(""); // ProviderIdentifier do fingerprint
-  const braspagInitRef = useRef(false);
+  // Chave da sessao 3DS ja inicializada: "<centavos>:<parcelas>".
+  // Era um booleano, e por isso a sessao nascia com `installments: 1` e valor do
+  // draft, enquanto a autenticacao usava o valor e as parcelas REAIS. No avulso a
+  // vista os dois coincidiam; num pacote em 6x, nao. Cavv gerado para um par
+  // (valor, parcelas) e usado para outro.
+  const braspagInitRef = useRef<string>("");
+  // Fingerprint efetivamente coletado. Sem ele, nao enviamos transacao.
+  const [fingerprintPronto, setFingerprintPronto] = useState(false);
   const threeDSResultRef = useRef<ThreeDSResult | null>(null);
   const threeDSResolverRef = useRef<((r: ThreeDSResult) => void) | null>(null);
 
@@ -145,28 +152,55 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     };
   }, []);
 
+  // Valor efetivamente cobrado, calculado junto dos demais hooks para que a
+  // sessao 3DS possa nascer com ele. Espelha exatamente a lista de parcelas
+  // exibida abaixo — uma fonte so, para init e autenticacao nao divergirem.
+  const valorACobrar = useMemo(() => {
+    if (!draft) return 0;
+    const aVista = draft.finalTotal;
+    const cupom = draft.couponCode ? COUPONS.find((c) => c.code === draft.couponCode) || null : null;
+    const semJuros = cupom?.installmentsWithoutInterest ?? 6;
+    if (installments <= 1 || draft.nights === 1) return aVista;
+    if (installments <= semJuros) return aVista;
+    return calcTotalComJuros(aVista, installments);
+  }, [draft, installments]);
+
   // Caminho Braspag: prepara FingerPrint + 3DS APENAS quando provider=braspag e
   // for pagamento com cartão. No modo cielo este efeito não faz absolutamente
   // nada (early return), então nenhum fetch/af-config/3ds-session/script roda.
   useEffect(() => {
     if (provider !== "braspag") return;
     if (!draft || draft.paymentMethod !== "card") return;
-    if (braspagInitRef.current) return;
-    braspagInitRef.current = true;
+
+    // A sessao 3DS precisa nascer com o MESMO valor e as MESMAS parcelas que a
+    // autenticacao vai usar. Se qualquer um dos dois muda, a sessao e refeita.
+    const centavos = Math.round(valorACobrar * 100);
+    const chave = `${centavos}:${installments}`;
+    if (braspagInitRef.current === chave) return;
+    braspagInitRef.current = chave;
+
+    let cancelado = false;
+    setBraspagReady(false);
 
     (async () => {
       try {
         const fp = await initBraspagFingerprint();
+        if (cancelado) return;
         providerIdRef.current = fp.providerIdentifier;
+        setFingerprintPronto(Boolean(fp.providerIdentifier));
       } catch (e) {
         console.error("[Braspag:checkout] fingerprint:", e);
+        setFingerprintPronto(false);
       }
       try {
+        resetBraspag3ds();
         await initBraspag3ds({
           orderNumber: params.draftId,
-          amountCentavos: Math.round(draft.finalTotal * 100),
-          installments: 1,
-          onReady: () => setBraspagReady(true),
+          amountCentavos: centavos,
+          installments,
+          onReady: () => {
+            if (!cancelado) setBraspagReady(true);
+          },
           onResult: (r) => {
             threeDSResultRef.current = r;
             threeDSResolverRef.current?.(r);
@@ -174,10 +208,17 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         });
       } catch (e) {
         console.error("[Braspag:checkout] 3ds init:", e);
+        // Libera a chave: sem isso, a falha trava o botao para sempre e so
+        // recarregar a pagina resolve — foi o sintoma relatado.
+        braspagInitRef.current = "";
         setCardError("Não foi possível preparar o pagamento seguro. Recarregue a página ou pague via Pix.");
       }
     })();
-  }, [provider, draft, params.draftId]);
+
+    return () => {
+      cancelado = true;
+    };
+  }, [provider, draft, params.draftId, valorACobrar, installments]);
 
   useEffect(() => {
     if (!draft || draft.paymentMethod !== "pix" || pixStarted) return;
@@ -405,6 +446,15 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       setCardError("Estamos preparando o pagamento seguro. Aguarde um instante e tente novamente.");
       return;
     }
+    // Fingerprint ausente = rejeicao automatica no antifraude, independente do
+    // score. Melhor falhar aqui, com mensagem clara, do que enviar a transacao
+    // sem dado de dispositivo e colher uma recusa sem causa aparente.
+    if (!fingerprintPronto || !providerIdRef.current) {
+      setCardError(
+        "Não conseguimos identificar seu dispositivo para a análise de segurança. Recarregue a página e tente de novo, ou pague via Pix.",
+      );
+      return;
+    }
 
     setCardProcessing(true);
 
@@ -440,24 +490,12 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       setCardError(MSG_3DS_FALHOU);
       setCardProcessing(false);
       // Novo token para a próxima tentativa.
+      // Limpar a chave faz o efeito de init rodar de novo, com o valor e as
+      // parcelas ATUAIS. Antes havia uma segunda init aqui, com `installments: 1`
+      // e o total do draft — reintroduzindo a divergencia que causou o problema.
       resetBraspag3ds();
       setBraspagReady(false);
-      braspagInitRef.current = false;
-      try {
-        await initBraspag3ds({
-          orderNumber: params.draftId,
-          amountCentavos: Math.round(draft.finalTotal * 100),
-          installments: 1,
-          onReady: () => setBraspagReady(true),
-          onResult: (r) => {
-            threeDSResultRef.current = r;
-            threeDSResolverRef.current?.(r);
-          },
-        });
-        braspagInitRef.current = true;
-      } catch {
-        // se falhar, o usuário pode recarregar
-      }
+      braspagInitRef.current = "";
       return;
     }
 
@@ -781,7 +819,6 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     : opcoesParcelas;
 
   const opcaoSelecionada = opcoesParcelas.find((o) => o.n === installments);
-  const valorACobrar = opcaoSelecionada?.totalCobrado ?? totalAVista;
 
   return (
     <main className="bg-cream pt-32 pb-20">
