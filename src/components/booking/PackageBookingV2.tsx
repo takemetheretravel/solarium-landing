@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Calendar, MessageCircle, X } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
 import { PROPERTIES } from "@/config/properties";
@@ -54,6 +54,12 @@ function somaDias(base: string, dias: number): string {
  */
 export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
   const router = useRouter();
+  // Link personalizado: ?checkin=&checkout=&casa=&guests=
+  //
+  // A agente de atendimento monta esse link e manda para o cliente, que precisa
+  // abrir a pagina JA com o valor calculado. Sem isto a pagina carregava com o
+  // formulario vazio e o link parecia funcionar, o que e pior do que nao existir.
+  const params = useSearchParams();
 
   const casasElegiveis = useMemo(
     () => PROPERTIES.filter((p) => pacote.properties.includes(p.slug)),
@@ -62,10 +68,21 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
 
   const duracaoFixa = pacote.noitesMax === pacote.noitesMin;
 
-  const [propertySlug, setPropertySlug] = useState(casasElegiveis[0]?.slug ?? "");
-  const [checkin, setCheckin] = useState("");
-  const [checkout, setCheckout] = useState("");
-  const [guests, setGuests] = useState(pacote.hospedesMin ?? 2);
+  // So aceitamos o que e valido: casa elegivel, data no formato ISO e numero de
+  // hospedes dentro da faixa. Parametro invalido e ignorado, nunca quebra a tela.
+  const casaDaUrl = casasElegiveis.find((p) => p.slug === params.get("casa"))?.slug;
+  const dataDaUrl = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "");
+
+  const [propertySlug, setPropertySlug] = useState(
+    casaDaUrl ?? casasElegiveis[0]?.slug ?? "",
+  );
+  const [checkin, setCheckin] = useState(() => dataDaUrl(params.get("checkin")));
+  const [checkout, setCheckout] = useState(() => dataDaUrl(params.get("checkout")));
+  const [guests, setGuests] = useState(() => {
+    const n = Number(params.get("guests"));
+    const min = pacote.hospedesMin ?? 2;
+    return Number.isFinite(n) && n >= min ? n : min;
+  });
   const [removidos, setRemovidos] = useState<string[]>([]);
   const [selecao, setSelecao] = useState<Record<string, number>>({});
   const [resposta, setResposta] = useState<Resposta | null>(null);
