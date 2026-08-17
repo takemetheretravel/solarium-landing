@@ -15,6 +15,8 @@ import {
   totalDoPacote,
   noitesDoPacote,
   motorDoPacote,
+  melhorCupomPublico,
+  tetoAvulsoComCupom,
 } from "./elegibilidade";
 import { getPackageBySlug, packageTotalActive } from "@/config/packages";
 
@@ -582,6 +584,43 @@ describe("§7 — o \"a partir de\" nao tem caminho proprio", () => {
   });
 });
 
+
+describe("§5 rodada 14 — trava contra o cupom publico", () => {
+  it("o pacote nunca custa mais que a estadia avulsa com o melhor cupom", () => {
+    // 2 noites => DUASNOITES 8% e o melhor publico aplicavel
+    expect(melhorCupomPublico(2)).toBe(0.08);
+    expect(melhorCupomPublico(3)).toBe(0.12);
+    expect(melhorCupomPublico(5)).toBe(0.17);
+    expect(melhorCupomPublico(1)).toBe(0);
+  });
+
+  it("o teto e a diaria com cupom mais os itens a preco cheio", () => {
+    // 3.400 com 8% = 3.128, mais 850 + 180 de itens
+    expect(tetoAvulsoComCupom(3400, 2, [{ total: 850 }, { total: 180 }])).toBe(4158);
+  });
+
+  it("o FDS Completo fica abaixo do teto — a trava nao dispara", () => {
+    const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
+    const teto = tetoAvulsoComCupom(3400, 2, itens);
+    const r = calcularPacote(entrada(2, 3400, itens, BONUS));
+    expect(r.total).toBeLessThan(teto);
+    expect(r.total).toBe(3460); // golden intacto
+  });
+
+  it("Virada na Serra existe, e sazonal e traz o espumante", () => {
+    const p = getPacoteV2("virada-na-serra");
+    expect(p).toBeTruthy();
+    expect(p!.sazonal).toBe(true);
+    expect(p!.inclusos.map((i) => i.extraId)).toContain("espumante_chandon");
+    expect(p!.checkinDatas).toEqual(["2026-12-28", "2026-12-29", "2026-12-30"]);
+  });
+
+  it("o espumante entrou no catalogo a R$ 140", () => {
+    const e = EXTRAS.find((x) => x.id === "espumante_chandon");
+    expect(e?.preco).toBe(140);
+  });
+});
+
 describe("golden: extras fora da base", () => {
   it("tábua de frios aumenta o total em exatamente R$ 310 e não altera a linha de desconto", () => {
     const semTabua = calcularPacote(entrada(2, 3400, [late(), cafe()], BONUS));
@@ -908,8 +947,8 @@ describe("exibição de extras", () => {
     expect(ocupados).not.toContain("late_checkout");
   });
 
-  it("o catálogo tem os 12 itens da especificação", () => {
-    expect(EXTRAS).toHaveLength(12);
+  it("o catálogo tem os 13 itens: os 12 da especificação mais o espumante", () => {
+    expect(EXTRAS).toHaveLength(13);
   });
 });
 
@@ -934,10 +973,13 @@ describe("feriados", () => {
     expect(estadiaContemFeriado("2026-09-11", "2026-09-13")).toBe(false);
   });
 
-  it("a cobertura da tabela de feriados não pode ter expirado", () => {
-    // Falha de propósito quando o ano corrente passa da cobertura: sem isso o
-    // pacote Feriado na Serra fica cego e ninguém percebe.
-    expect(new Date().getFullYear()).toBeLessThanOrEqual(ANO_FINAL_FERIADOS);
+  it("a tabela cobre 2026 e 2027", () => {
+    // O teste que quebrava o build na virada do ano saiu: derrubar o deploy no
+    // dia 1º de janeiro é pior do que a tabela ficar curta. A cobertura vira
+    // conferência explícita.
+    const anos = new Set(FERIADOS_NACIONAIS.map((f) => Number(f.data.slice(0, 4))));
+    expect(Array.from(anos).sort()).toEqual([2026, 2027]);
+    expect(ANO_FINAL_FERIADOS).toBe(2027);
   });
 });
 

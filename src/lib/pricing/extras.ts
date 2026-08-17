@@ -144,13 +144,21 @@ export function extrasExibiveis(
     }));
 }
 
+/**
+ * Preço EXIBIDO na lista de extras — o mesmo de menu que aparece na linha de
+ * preço. Eram dois caminhos: a lista mostrava o valor operacional (550) e a
+ * linha, o de menu (850), para o mesmo item.
+ *
+ * O desconto até o valor operacional aparece no detalhamento, como
+ * "Ajuste do check-out estendido". Nenhum total muda.
+ */
 function precoUnitarioDe(
   extra: ExtraConfig,
   propertySlug: string,
   ctx: ContextoExibicao,
 ): number {
   if (extra.id === "early_checkin" || extra.id === "late_checkout") {
-    return precoOperacionalNoPacote(propertySlug, extra.id, ctx.checkin, ctx.checkout);
+    return precoMenuDoItem(propertySlug, extra.id, ctx.checkin, ctx.checkout);
   }
   return precoExtra(extra);
 }

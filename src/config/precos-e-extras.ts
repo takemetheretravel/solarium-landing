@@ -225,6 +225,16 @@ export const EXTRAS: ExtraConfig[] = [
     prazoFornecedorDias: 2,
   },
   {
+    id: "espumante_chandon",
+    nome: "Espumante Chandon",
+    preco: 140,
+    unidade: "por_item",
+    controle: "seletor",
+    entraNaBase: false,
+    notaInterna: "Deixar espumante Chandon gelado na casa",
+    prazoFornecedorDias: 2,
+  },
+  {
     id: "lenha",
     nome: "Lenha",
     preco: 60,
@@ -267,7 +277,7 @@ export function precoExtra(extra: ExtraConfig, noiteReferencia?: string): number
  * ATENÇÃO: cobertura termina em ANO_FINAL_FERIADOS. Há teste que falha quando o
  * ano corrente ultrapassa a cobertura — o pacote Feriado na Serra fica cego sem isso.
  */
-export const ANO_FINAL_FERIADOS = 2026;
+export const ANO_FINAL_FERIADOS = 2027;
 
 export const FERIADOS_NACIONAIS: { data: string; nome: string }[] = [
   { data: "2026-01-01", nome: "Confraternização Universal" },
@@ -283,6 +293,19 @@ export const FERIADOS_NACIONAIS: { data: string; nome: string }[] = [
   { data: "2026-11-15", nome: "Proclamação da República" },
   { data: "2026-11-20", nome: "Consciência Negra" },
   { data: "2026-12-25", nome: "Natal" },
+  { data: "2027-01-01", nome: "Confraternização Universal" },
+  { data: "2027-02-08", nome: "Carnaval" },
+  { data: "2027-02-09", nome: "Carnaval" },
+  { data: "2027-03-26", nome: "Sexta-feira Santa" },
+  { data: "2027-04-21", nome: "Tiradentes" },
+  { data: "2027-05-01", nome: "Dia do Trabalho" },
+  { data: "2027-05-27", nome: "Corpus Christi" },
+  { data: "2027-09-07", nome: "Independência" },
+  { data: "2027-10-12", nome: "Nossa Senhora Aparecida" },
+  { data: "2027-11-02", nome: "Finados" },
+  { data: "2027-11-15", nome: "Proclamação da República" },
+  { data: "2027-11-20", nome: "Consciência Negra" },
+  { data: "2027-12-25", nome: "Natal" },
 ];
 
 /**
@@ -324,6 +347,10 @@ export type PacoteV2 = {
   imagem: string | null;
   /** Texto longo do corpo da página. O hero fica com a linha curta de `descricao`. */
   descricaoLonga?: string;
+  /** Janela fixa de exibição (MM-DD), quando o pacote não depende de feriado. */
+  janelaFixa?: { de: string; ate: string };
+  /** Datas de check-in permitidas, quando o pacote tem datas fixas. */
+  checkinDatas?: string[];
   /** Mínimo e máximo do seletor de hóspedes. Ausente = 1..capacidade da casa. */
   hospedesMin?: number;
   hospedesMax?: number;
@@ -432,6 +459,32 @@ export const PACOTES_V2: PacoteV2[] = [
       { extraId: "cesta_cafecafe", qtd: 1, removivel: true },
     ],
     prioridadeHome: 3,
+    ativo: true,
+  },
+  {
+    id: "virada-na-serra",
+    slug: "virada-na-serra",
+    nome: "Virada na Serra",
+    descricao: "A virada do ano na Mantiqueira, com a primeira manhã de 2027 sem hora para acabar.",
+    descricaoLonga:
+      "Chegada entre 28 e 30 de dezembro, e a escolha entre sair no sábado ou esticar até domingo. Quem fica até domingo leva o check-out estendido sem custo — o dia 3 inteiro pela frente, sem estrada cheia.",
+    imagem: "/images/solarium-1/08-fire-pit.jpg",
+    properties: ["solarium-1", "solarium-2"],
+    noitesMin: 3,
+    noitesMax: 6,
+    checkinDows: null,
+    checkoutDows: null,
+    exigeFeriado: false,
+    sazonal: true,
+    /** Janela fixa de exibição: 1º de novembro a 3 de janeiro. */
+    janelaFixa: { de: "11-01", ate: "01-03" },
+    /** Check-in permitido apenas nestas datas. */
+    checkinDatas: ["2026-12-28", "2026-12-29", "2026-12-30"],
+    inclusos: [
+      { extraId: "cesta_cafecafe", qtd: 1, removivel: true },
+      { extraId: "espumante_chandon", qtd: 1, removivel: true },
+    ],
+    prioridadeHome: 0,
     ativo: true,
   },
 ];

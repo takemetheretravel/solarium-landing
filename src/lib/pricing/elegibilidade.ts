@@ -23,6 +23,7 @@ import {
 import { validarDatasPacote, montarItens, lateCheckoutAtivo } from "./extras";
 import { calcularPacote, avaliarBonusSaida, type ResultadoMotor } from "./pacotes";
 import { bonusSaidaPara } from "@/config/precos-e-extras";
+import { COUPONS } from "@/config/coupons";
 
 export type MotorDoPacote =
   | { motor: "v2"; pacote: PacoteV2 }
@@ -142,6 +143,17 @@ export function totalDoPacote(params: {
     absorvido: params.absorvido ?? 0,
   });
 
+  // TRAVA: se o pacote ficar acima do que o hóspede conseguiria sozinho com o
+  // melhor cupom público, o total cai para esse teto. Nenhum pacote pode custar
+  // mais que a mesma estadia avulsa.
+  const teto = tetoAvulsoComCupom(params.hostawayTotal, params.noites, itens);
+  if (resultado.total > teto) {
+    console.warn(
+      `[pacote] ${params.slug}: total ${resultado.total} acima do avulso com cupom (${teto}) — limitado ao teto`,
+    );
+    return { total: teto, resultado: { ...resultado, total: teto } };
+  }
+
   return { total: resultado.total, resultado };
 }
 
@@ -150,4 +162,41 @@ export function hospedesBase(slug: string): number {
   const m = motorDoPacote(slug);
   if (!m) return 2;
   return m.motor === "v2" ? (m.pacote.hospedesMin ?? 2) : 2;
+}
+
+
+// ---------------------------------------------------------------------------
+// TRAVA: o pacote nunca pode custar mais que a mesma estadia avulsa
+// ---------------------------------------------------------------------------
+
+/**
+ * Melhor cupom PÚBLICO aplicável a esta estadia, em fração de desconto.
+ *
+ * O hóspede tem acesso a esses códigos em `/ofertas`. Se o pacote sair mais caro
+ * do que ele conseguiria sozinho com um cupom, o pacote deixa de ser oferta e
+ * vira armadilha — mesmo que a conta interna feche.
+ */
+export function melhorCupomPublico(noites: number): number {
+  const publicos = COUPONS.filter(
+    (c) => c.isPublic && c.type === "percentage" && noites >= c.minNights,
+  );
+  if (publicos.length === 0) return 0;
+  return Math.max(...publicos.map((c) => c.discount)) / 100;
+}
+
+/**
+ * Teto do pacote: a mesma estadia contratada à parte, com o melhor cupom público
+ * sobre as diárias, mais os itens a preço cheio.
+ *
+ * O cupom incide só sobre a tarifa Hostaway — é assim que o fluxo avulso funciona
+ * e é contra isso que a comparação precisa ser feita.
+ */
+export function tetoAvulsoComCupom(
+  hostawayTotal: number,
+  noites: number,
+  itens: { total: number }[],
+): number {
+  const comCupom = hostawayTotal * (1 - melhorCupomPublico(noites));
+  const extras = itens.reduce((s, i) => s + i.total, 0);
+  return Math.round(comCupom + extras);
 }
