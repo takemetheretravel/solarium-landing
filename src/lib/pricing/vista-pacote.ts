@@ -1,5 +1,5 @@
-import { getPacoteV2, getExtra, precoExtra, type PacoteV2 } from "@/config/precos-e-extras";
-import { getPackageBySlug, type PackageConfig } from "@/config/packages";
+import { getPacoteV2, getExtra, precoExtra, PACOTES_V2, type PacoteV2 } from "@/config/precos-e-extras";
+import { getPackageBySlug, PACKAGES, type PackageConfig } from "@/config/packages";
 import { PROPERTIES } from "@/config/properties";
 
 /**
@@ -22,6 +22,8 @@ export type VistaPacote = {
   inclusos: string[];
   /** Aviso de regra de datas, quando o pacote tem uma. */
   aviso: string | null;
+  /** Duração variável: o card diz "a partir de N noites". */
+  duracaoVariavel: boolean;
   /** Presente = motor V2. Ausente = pacote legado, intocado. */
   pacoteV2: PacoteV2 | null;
   /** Legado, para o cartão de reserva antigo. */
@@ -30,6 +32,11 @@ export type VistaPacote = {
 
 function rotuloNoites(p: PacoteV2): number {
   return p.noitesMin;
+}
+
+/** "3 noites" quando fixo; "A partir de 3 noites" quando a duração varia. */
+export function textoNoites(v: { noites: number; duracaoVariavel: boolean }): string {
+  return v.duracaoVariavel ? `A partir de ${v.noites} noites` : `${v.noites} noites`;
 }
 
 /** Bullets do V2: as noites, cada item incluso com o valor cheio de menu, e o concierge. */
@@ -68,10 +75,15 @@ function rotuloIncluso(id: string, nome: string, qtd: number, p: PacoteV2): stri
   if (p.properties[0] === "solarium-completo") {
     return `${qtd} cestas de café da manhã, uma para cada casa`;
   }
-  if (p.exigeFeriado) {
-    return `${qtd} cesta de café da manhã, na manhã que vocês escolherem`;
+  // Só o Fim de Semana Completo tem manhã fixa (sábado). Qualquer pacote de
+  // duração variável escolhe a manhã — prender ao sábado era copy herdada.
+  const duracaoFixa = p.noitesMax === p.noitesMin;
+  if (qtd === 1) {
+    if (duracaoFixa && p.checkinDows?.length === 1 && p.checkinDows[0] === 5) {
+      return "1 cesta de café da manhã, no sábado";
+    }
+    return "1 cesta de café da manhã, na manhã que vocês escolherem";
   }
-  if (qtd === 1) return "1 cesta de café da manhã, no sábado";
   return `${qtd} cestas de café da manhã`;
 }
 
@@ -106,6 +118,7 @@ export function vistaPacote(slug: string, v2Ativo: boolean): VistaPacote | null 
       imagem: v2.imagem ?? imagemDeFallback(v2),
       inclusos: inclusosV2(v2),
       aviso: avisoDatasV2(v2),
+      duracaoVariavel: v2.noitesMax !== v2.noitesMin,
       pacoteV2: v2,
       legado: null,
     };
@@ -122,6 +135,7 @@ export function vistaPacote(slug: string, v2Ativo: boolean): VistaPacote | null 
     descricao: antigo.description,
     imagem: antigo.image,
     inclusos: antigo.included,
+    duracaoVariavel: false,
     aviso: antigo.weekdaysOnly
       ? "Este pacote é válido para noites de segunda a quinta, fora de feriados. Para finais de semana e datas de feriado, fale com nosso concierge."
       : null,
@@ -132,12 +146,12 @@ export function vistaPacote(slug: string, v2Ativo: boolean): VistaPacote | null 
 
 /** Os cinco slugs que a grade e o roteamento precisam conhecer. */
 export function slugsDePacote(v2Ativo: boolean): string[] {
-  if (!v2Ativo) return getSlugsLegado();
-  const v2 = ["fim-de-semana-completo", "feriado-na-serra", "dois-casais"];
+  // DERIVADO do catálogo, nunca escrito à mão. Era uma lista fixa, e um pacote
+  // novo no config dava 404 na própria página — terceira lista de slugs, o mesmo
+  // caminho paralelo que já custou caro antes.
+  const legado = PACKAGES.map((p) => p.slug);
+  if (!v2Ativo) return legado;
+  const v2 = PACOTES_V2.filter((p) => p.ativo).map((p) => p.slug);
   // Meio de Semana e Imersão seguem no motor antigo, com preço e copy inalterados.
-  return [...v2, "meio-de-semana", "imersao-na-serra"];
-}
-
-function getSlugsLegado(): string[] {
-  return ["meio-de-semana", "imersao-na-serra", "data-especial"];
+  return Array.from(new Set([...v2, ...legado]));
 }

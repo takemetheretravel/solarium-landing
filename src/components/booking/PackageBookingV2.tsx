@@ -19,6 +19,7 @@ type Resposta =
       itens: ItemPrecoApi[];
       noites: number;
       economia: number;
+      ajusteOperacional: number;
       bonusAplicado: boolean;
       disponiveis: ExtraExibivel[];
       hostawayTotal: number;
@@ -407,6 +408,14 @@ export default function PackageBookingV2({
             {ok ? formatBRLPrecise(ok.total) : "—"}
           </span>
         </div>
+        {/* Detalhamento do desconto: o ajuste até o preço operacional aparece
+            rotulado, em vez de embutido sem explicação. */}
+        {ok && ok.ajusteOperacional > 0 && (
+          <div className="flex justify-between text-charcoal/50">
+            <span>Ajuste do check-out estendido</span>
+            <span>− {formatBRLPrecise(ok.ajusteOperacional)}</span>
+          </div>
+        )}
         {ok && ok.economia > 0 && (
           <p className="text-right font-sans text-xs text-serra">
             {formatBRLPrecise(ok.economia)} a menos que contratando cada item à parte

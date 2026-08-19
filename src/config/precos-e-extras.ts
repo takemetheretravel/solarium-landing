@@ -349,8 +349,8 @@ export type PacoteV2 = {
   descricaoLonga?: string;
   /** Janela fixa de exibição (MM-DD), quando o pacote não depende de feriado. */
   janelaFixa?: { de: string; ate: string };
-  /** Datas de check-in permitidas, quando o pacote tem datas fixas. */
-  checkinDatas?: string[];
+  /** Faixa de check-in permitida (MM-DD), independente do ano. */
+  janelaCheckin?: { de: string; ate: string };
   /** Mínimo e máximo do seletor de hóspedes. Ausente = 1..capacidade da casa. */
   hospedesMin?: number;
   hospedesMax?: number;
@@ -462,24 +462,26 @@ export const PACOTES_V2: PacoteV2[] = [
     ativo: true,
   },
   {
-    id: "virada-na-serra",
-    slug: "virada-na-serra",
-    nome: "Virada na Serra",
-    descricao: "A virada do ano na Mantiqueira, com a primeira manhã de 2027 sem hora para acabar.",
+    id: "final-de-ano",
+    slug: "final-de-ano",
+    nome: "Final de Ano",
+    descricao: "Natal ou Ano Novo na serra, com a saída no fim de semana sem estrada cheia.",
     descricaoLonga:
-      "Chegada entre 28 e 30 de dezembro, e a escolha entre sair no sábado ou esticar até domingo. Quem fica até domingo leva o check-out estendido sem custo — o dia 3 inteiro pela frente, sem estrada cheia.",
+      "Chegada no começo da semana e saída no sábado ou no domingo, cobrindo tanto o Natal quanto a virada. Quem sai no domingo leva o check-out estendido sem custo — o último dia inteiro pela frente, e a descida depois que o movimento passa.",
     imagem: "/images/solarium-1/08-fire-pit.jpg",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 3,
     noitesMax: 6,
-    checkinDows: null,
-    checkoutDows: null,
+    // Uma regra só cobre Natal e Ano Novo: chegada seg/ter/qua entre 21 e 30/12,
+    // saída no sábado ou domingo seguinte. 21-23/12 saindo em 26 ou 27/12, e
+    // 28-30/12 saindo em 02 ou 03/01.
+    checkinDows: [1, 2, 3],
+    checkoutDows: [6, 0],
     exigeFeriado: false,
     sazonal: true,
-    /** Janela fixa de exibição: 1º de novembro a 3 de janeiro. */
+    /** Janela de exibição e de check-in permitido (MM-DD). */
     janelaFixa: { de: "11-01", ate: "01-03" },
-    /** Check-in permitido apenas nestas datas. */
-    checkinDatas: ["2026-12-28", "2026-12-29", "2026-12-30"],
+    janelaCheckin: { de: "12-21", ate: "12-30" },
     inclusos: [
       { extraId: "cesta_cafecafe", qtd: 1, removivel: true },
       { extraId: "espumante_chandon", qtd: 1, removivel: true },
@@ -505,6 +507,15 @@ export function pacoteVisivelHoje(
 ): boolean {
   if (!pacote.ativo) return false;
   if (!pacote.sazonal) return true;
+
+  // Sazonal com janela fixa (MM-DD), como o Final de Ano: a visibilidade não
+  // depende de feriado, e sim de estar dentro da temporada. A janela atravessa a
+  // virada do ano quando `de` > `ate`.
+  if (pacote.janelaFixa) {
+    const md = hoje.slice(5);
+    const { de, ate } = pacote.janelaFixa;
+    return de <= ate ? md >= de && md <= ate : md >= de || md <= ate;
+  }
 
   if (datas) return estadiaContemFeriado(datas.checkin, datas.checkout);
 

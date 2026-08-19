@@ -6,8 +6,8 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import { formatBRL } from "@/lib/cn";
-import { PACOTES_V2, pacoteVisivelHoje } from "@/config/precos-e-extras";
-import { vistaPacote } from "@/lib/pricing/vista-pacote";
+import { pacotesVisiveis } from "@/lib/pricing/elegibilidade";
+import { vistaPacote, textoNoites } from "@/lib/pricing/vista-pacote";
 import { totalMinimoDoPacote } from "@/lib/pricing/pacote-server";
 
 /**
@@ -20,13 +20,10 @@ import { totalMinimoDoPacote } from "@/lib/pricing/pacote-server";
 export default async function PacotesHome() {
   const hoje = new Date().toISOString().slice(0, 10);
 
-  const prioritarios = PACOTES_V2.filter((p) => p.ativo && pacoteVisivelHoje(p, hoje))
-    .sort((a, b) => a.prioridadeHome - b.prioridadeHome)
-    .map((p) => p.slug);
-
-  // Fora da janela de feriado sobra espaço: o Meio de Semana entra como terceiro.
-  const slugs = [...prioritarios];
-  if (slugs.length < 3) slugs.push("meio-de-semana");
+  // MESMA fonte de /pacotes. A home aplica só a truncagem para 3 cards; nenhuma
+  // regra de filtro em separado — era assim que um pacote aparecia num lugar e
+  // não no outro.
+  const slugs = pacotesVisiveis(hoje);
 
   const cards = (
     await Promise.all(
@@ -76,7 +73,7 @@ export default async function PacotesHome() {
               </div>
 
               <div className="flex flex-1 flex-col pt-6">
-                <Kicker className="mb-3">{vista.noites} noites</Kicker>
+                <Kicker className="mb-3">{textoNoites(vista)}</Kicker>
                 <Heading level={3} className="text-2xl text-charcoal sm:text-3xl">
                   {vista.nome}
                 </Heading>

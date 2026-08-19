@@ -296,6 +296,21 @@ export function validarDatasPacote(
   checkout: string,
   contemFeriado: boolean,
 ): ValidacaoDatas {
+  // Janela sazonal de check-in (MM-DD), independente do ano. Atravessa a virada
+  // quando `de` > `ate`.
+  if (pacote.janelaCheckin) {
+    const md = checkin.slice(5); // MM-DD
+    const { de, ate } = pacote.janelaCheckin;
+    const dentro = de <= ate ? md >= de && md <= ate : md >= de || md <= ate;
+    if (!dentro) {
+      return {
+        valido: false,
+        motivo: "Este pacote vale para chegadas entre 21 e 30 de dezembro.",
+        alternativa: "avulso",
+      };
+    }
+  }
+
   const noites = Math.round(
     (new Date(checkout + "T12:00:00").getTime() - new Date(checkin + "T12:00:00").getTime()) /
       86400000,

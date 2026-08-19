@@ -12,6 +12,8 @@
 import {
   getPacoteV2,
   estadiaContemFeriado,
+  PACOTES_V2,
+  pacoteVisivelHoje,
   type PacoteV2,
 } from "@/config/precos-e-extras";
 import {
@@ -199,4 +201,25 @@ export function tetoAvulsoComCupom(
   const comCupom = hostawayTotal * (1 - melhorCupomPublico(noites));
   const extras = itens.reduce((s, i) => s + i.total, 0);
   return Math.round(comCupom + extras);
+}
+
+
+// ---------------------------------------------------------------------------
+// VISIBILIDADE — fonte única para a home e para /pacotes
+// ---------------------------------------------------------------------------
+
+/**
+ * Slugs visíveis hoje, na ordem de prioridade.
+ *
+ * A home aplica APENAS a truncagem para 3 cards sobre este resultado; nenhuma
+ * outra regra em separado. Era caminho paralelo — o Final de Ano aparecia na home
+ * e não em /pacotes, o mesmo problema que a rodada 7 eliminou no "a partir de".
+ */
+export function pacotesVisiveis(hoje: string): string[] {
+  const v2 = PACOTES_V2.filter((p) => p.ativo && pacoteVisivelHoje(p, hoje))
+    .sort((a, b) => a.prioridadeHome - b.prioridadeHome)
+    .map((p) => p.slug);
+
+  // Os dois pacotes do motor legado não são sazonais: sempre visíveis.
+  return [...v2, "meio-de-semana", "imersao-na-serra"];
 }

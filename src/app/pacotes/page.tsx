@@ -10,7 +10,8 @@ import SmartImage from "@/components/ui/SmartImage";
 import { formatBRL } from "@/lib/cn";
 import { pacotesV2Ativo } from "@/config/flags";
 import { pacoteVisivelHoje, getPacoteV2 } from "@/config/precos-e-extras";
-import { vistaPacote, slugsDePacote } from "@/lib/pricing/vista-pacote";
+import { vistaPacote, textoNoites } from "@/lib/pricing/vista-pacote";
+import { pacotesVisiveis } from "@/lib/pricing/elegibilidade";
 import { totalMinimoDoPacote } from "@/lib/pricing/pacote-server";
 import { getPropertyBySlug } from "@/config/properties";
 
@@ -29,13 +30,9 @@ export default async function PaginaPacotes() {
 
   const cards = (
     await Promise.all(
-      slugsDePacote(v2Ativo).map(async (slug) => {
+      pacotesVisiveis(hoje).map(async (slug) => {
         const vista = vistaPacote(slug, v2Ativo);
         if (!vista) return null;
-
-        // Sazonal fora da janela não aparece na grade.
-        const v2 = getPacoteV2(slug);
-        if (v2 && !pacoteVisivelHoje(v2, hoje)) return null;
 
         const casa = vista.pacoteV2?.properties[0] ?? vista.legado?.properties[0];
         // Total real mínimo do pacote, não a diária solta. O card não pode
@@ -83,7 +80,7 @@ export default async function PaginaPacotes() {
                 </div>
 
                 <div className="flex flex-1 flex-col pt-6">
-                  <Kicker className="mb-3">{vista.noites} noites</Kicker>
+                  <Kicker className="mb-3">{textoNoites(vista)}</Kicker>
                   <Heading level={3} className="text-2xl text-charcoal sm:text-3xl">
                     {vista.nome}
                   </Heading>

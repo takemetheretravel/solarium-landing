@@ -17,6 +17,7 @@ import {
   motorDoPacote,
   melhorCupomPublico,
   tetoAvulsoComCupom,
+  pacotesVisiveis,
 } from "./elegibilidade";
 import { getPackageBySlug, packageTotalActive } from "@/config/packages";
 
@@ -607,17 +608,66 @@ describe("§5 rodada 14 — trava contra o cupom publico", () => {
     expect(r.total).toBe(3460); // golden intacto
   });
 
-  it("Virada na Serra existe, e sazonal e traz o espumante", () => {
-    const p = getPacoteV2("virada-na-serra");
+  it("Final de Ano existe, e sazonal e traz o espumante", () => {
+    const p = getPacoteV2("final-de-ano");
     expect(p).toBeTruthy();
     expect(p!.sazonal).toBe(true);
     expect(p!.inclusos.map((i) => i.extraId)).toContain("espumante_chandon");
-    expect(p!.checkinDatas).toEqual(["2026-12-28", "2026-12-29", "2026-12-30"]);
+    expect(p!.janelaCheckin).toEqual({ de: "12-21", ate: "12-30" });
+    expect(p!.noitesMin).toBe(3);
+    expect(p!.noitesMax).toBe(6);
+  });
+
+  it("Final de Ano cobre Natal e Ano Novo com uma regra so", () => {
+    const ok = (ci: string, co: string) =>
+      datasElegiveis("final-de-ano", "solarium-1", ci, co).elegivel;
+    // Natal: seg 21/12 -> sab 26/12 e -> dom 27/12
+    expect(ok("2026-12-21", "2026-12-26")).toBe(true);
+    expect(ok("2026-12-21", "2026-12-27")).toBe(true);
+    // Ano Novo: seg 28/12 -> sab 02/01 e -> dom 03/01
+    expect(ok("2026-12-28", "2027-01-02")).toBe(true);
+    expect(ok("2026-12-28", "2027-01-03")).toBe(true);
+  });
+
+  it("Final de Ano recusa chegada fora da janela e saida fora do fim de semana", () => {
+    const r = (ci: string, co: string) =>
+      datasElegiveis("final-de-ano", "solarium-1", ci, co).elegivel;
+    expect(r("2026-12-14", "2026-12-19")).toBe(false); // fora da janela de dezembro
+    expect(r("2026-12-22", "2026-12-25")).toBe(false); // saida numa sexta
+    expect(r("2026-12-25", "2026-12-27")).toBe(false); // chegada numa sexta
   });
 
   it("o espumante entrou no catalogo a R$ 140", () => {
     const e = EXTRAS.find((x) => x.id === "espumante_chandon");
     expect(e?.preco).toBe(140);
+  });
+});
+
+
+describe("§3 rodada 16 — uma fonte so de visibilidade", () => {
+  it("todo pacote visivel na home esta em /pacotes", () => {
+    for (const hoje of ["2026-08-19", "2026-11-15", "2026-12-29", "2027-01-02", "2027-03-10"]) {
+      const todos = pacotesVisiveis(hoje);
+      const home = todos.slice(0, 3); // a home aplica SO a truncagem
+      for (const slug of home) expect(todos, hoje).toContain(slug);
+    }
+  });
+
+  it("Final de Ano visivel dentro da temporada e invisivel fora", () => {
+    const p = getPacoteV2("final-de-ano")!;
+    expect(pacoteVisivelHoje(p, "2026-11-01")).toBe(true);
+    expect(pacoteVisivelHoje(p, "2026-12-29")).toBe(true);
+    expect(pacoteVisivelHoje(p, "2027-01-03")).toBe(true);
+    expect(pacoteVisivelHoje(p, "2027-01-04")).toBe(false);
+    expect(pacoteVisivelHoje(p, "2026-08-19")).toBe(false);
+  });
+
+  it("os cinco pacotes fixos aparecem sempre", () => {
+    const fora = pacotesVisiveis("2026-08-19");
+    for (const s of ["fim-de-semana-completo", "dois-casais", "meio-de-semana", "imersao-na-serra"]) {
+      expect(fora).toContain(s);
+    }
+    expect(fora).not.toContain("final-de-ano");
   });
 });
 
