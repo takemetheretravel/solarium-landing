@@ -12,6 +12,8 @@
 import {
   getPacoteV2,
   estadiaContemFeriado,
+  PACOTES_V2,
+  pacoteVisivelHoje,
   type PacoteV2,
 } from "@/config/precos-e-extras";
 import {
@@ -140,9 +142,18 @@ export function totalDoPacote(params: {
     itens,
     bonusSaida: bonus.valor,
     absorvido: params.absorvido ?? 0,
+    ajusteTaxa: ajusteTaxaDoCheckout(m.pacote, params.checkout),
   });
 
   return { total: resultado.total, resultado };
+}
+
+/** Ajuste de taxa configurado para o dia da semana do check-out. */
+function ajusteTaxaDoCheckout(pacote: PacoteV2, checkout: string): number {
+  const tabela = pacote.ajusteTaxaPorCheckoutDow;
+  if (!tabela) return 0;
+  const dow = new Date(checkout + "T12:00:00").getDay();
+  return tabela[dow] ?? 0;
 }
 
 /** Hóspedes com que o pacote é vendido por padrão — base do "a partir de". */
@@ -150,4 +161,51 @@ export function hospedesBase(slug: string): number {
   const m = motorDoPacote(slug);
   if (!m) return 2;
   return m.motor === "v2" ? (m.pacote.hospedesMin ?? 2) : 2;
+}
+
+
+// ---------------------------------------------------------------------------
+// VISIBILIDADE — fonte única para a home e para /pacotes
+// ---------------------------------------------------------------------------
+
+/**
+ * Slugs visíveis hoje, na ordem de prioridade.
+ *
+ * A home aplica APENAS a truncagem para 3 cards sobre este resultado; nenhuma
+ * outra regra em separado. Era caminho paralelo — o Final de Ano aparecia na home
+ * e não em /pacotes, o mesmo problema que a rodada 7 eliminou no "a partir de".
+ */
+export function pacotesVisiveis(hoje: string): string[] {
+  const v2 = PACOTES_V2.filter((p) => p.ativo && pacoteVisivelHoje(p, hoje))
+    .sort((a, b) => a.prioridadeHome - b.prioridadeHome)
+    .map((p) => p.slug);
+
+  // Os dois pacotes do motor legado não são sazonais: sempre visíveis.
+  return [...v2, "meio-de-semana", "imersao-na-serra"];
+}
+
+
+/**
+ * Check-out sugerido ao escolher a chegada.
+ *
+ * Quando o pacote define um dia da semana de saída, devolve a PRÓXIMA ocorrência
+ * dele que respeite a duração mínima — para o Final de Ano, sempre o domingo da
+ * semana seguinte. Sem isso a sugestão era "chegada + noitesMin", que caía em
+ * dia recusado pelo próprio pacote.
+ */
+export function checkoutSugerido(slug: string, checkin: string): string | null {
+  const m = motorDoPacote(slug);
+  if (!m) return null;
+
+  const noitesMin = m.motor === "v2" ? m.pacote.noitesMin : m.pacote.nights;
+  const alvo = m.motor === "v2" ? m.pacote.checkoutSugeridoDow : undefined;
+
+  const d = new Date(checkin + "T12:00:00");
+  d.setDate(d.getDate() + noitesMin);
+
+  if (alvo !== undefined) {
+    // Anda até o dia da semana alvo, sem nunca encurtar abaixo do mínimo.
+    while (d.getDay() !== alvo) d.setDate(d.getDate() + 1);
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

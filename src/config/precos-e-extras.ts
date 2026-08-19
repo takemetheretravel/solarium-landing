@@ -225,6 +225,16 @@ export const EXTRAS: ExtraConfig[] = [
     prazoFornecedorDias: 2,
   },
   {
+    id: "espumante_chandon",
+    nome: "Espumante Chandon",
+    preco: 140,
+    unidade: "por_item",
+    controle: "seletor",
+    entraNaBase: false,
+    notaInterna: "Deixar espumante Chandon gelado na casa",
+    prazoFornecedorDias: 2,
+  },
+  {
     id: "lenha",
     nome: "Lenha",
     preco: 60,
@@ -267,7 +277,7 @@ export function precoExtra(extra: ExtraConfig, noiteReferencia?: string): number
  * ATENÇÃO: cobertura termina em ANO_FINAL_FERIADOS. Há teste que falha quando o
  * ano corrente ultrapassa a cobertura — o pacote Feriado na Serra fica cego sem isso.
  */
-export const ANO_FINAL_FERIADOS = 2026;
+export const ANO_FINAL_FERIADOS = 2027;
 
 export const FERIADOS_NACIONAIS: { data: string; nome: string }[] = [
   { data: "2026-01-01", nome: "Confraternização Universal" },
@@ -283,6 +293,19 @@ export const FERIADOS_NACIONAIS: { data: string; nome: string }[] = [
   { data: "2026-11-15", nome: "Proclamação da República" },
   { data: "2026-11-20", nome: "Consciência Negra" },
   { data: "2026-12-25", nome: "Natal" },
+  { data: "2027-01-01", nome: "Confraternização Universal" },
+  { data: "2027-02-08", nome: "Carnaval" },
+  { data: "2027-02-09", nome: "Carnaval" },
+  { data: "2027-03-26", nome: "Sexta-feira Santa" },
+  { data: "2027-04-21", nome: "Tiradentes" },
+  { data: "2027-05-01", nome: "Dia do Trabalho" },
+  { data: "2027-05-27", nome: "Corpus Christi" },
+  { data: "2027-09-07", nome: "Independência" },
+  { data: "2027-10-12", nome: "Nossa Senhora Aparecida" },
+  { data: "2027-11-02", nome: "Finados" },
+  { data: "2027-11-15", nome: "Proclamação da República" },
+  { data: "2027-11-20", nome: "Consciência Negra" },
+  { data: "2027-12-25", nome: "Natal" },
 ];
 
 /**
@@ -314,6 +337,13 @@ export type ItemIncluso = {
   /** Quantidade de menu. Cestas por manhã, itens on/off sempre 1. */
   qtd: number;
   removivel: boolean;
+  /**
+   * Só entra quando o check-out cai num destes dias da semana.
+   *
+   * O Final de Ano inclui o check-out estendido apenas na saída de domingo: o
+   * item entra e sai sozinho quando o cliente troca a data, no mesmo recálculo.
+   */
+  somenteCheckoutDows?: number[];
 };
 
 export type PacoteV2 = {
@@ -324,6 +354,22 @@ export type PacoteV2 = {
   imagem: string | null;
   /** Texto longo do corpo da página. O hero fica com a linha curta de `descricao`. */
   descricaoLonga?: string;
+  /** Janela fixa de exibição (MM-DD), quando o pacote não depende de feriado. */
+  janelaFixa?: { de: string; ate: string };
+  /** Faixa de check-in permitida (MM-DD), independente do ano. */
+  janelaCheckin?: { de: string; ate: string };
+  /**
+   * Ajuste na taxa progressiva por dia da semana do check-out, em pontos.
+   * Ex.: `{ 6: -0.05 }` tira 5 pontos quando a saída é no sábado.
+   */
+  ajusteTaxaPorCheckoutDow?: Record<number, number>;
+  /**
+   * Dia da semana do check-out SUGERIDO ao abrir a página.
+   *
+   * Sem isto a sugestão era "check-in + noitesMin", data que o próprio pacote
+   * recusava — o cliente abria a tela num estado inválido.
+   */
+  checkoutSugeridoDow?: number;
   /** Mínimo e máximo do seletor de hóspedes. Ausente = 1..capacidade da casa. */
   hospedesMin?: number;
   hospedesMax?: number;
@@ -434,6 +480,40 @@ export const PACOTES_V2: PacoteV2[] = [
     prioridadeHome: 3,
     ativo: true,
   },
+  {
+    id: "final-de-ano",
+    slug: "final-de-ano",
+    nome: "Final de Ano",
+    descricao: "As festas emendadas, do jeito que raramente dá para fazer.",
+    descricaoLonga:
+      "Fim de ano costuma ser corrido: chega todo mundo, e no dia seguinte já é hora de arrumar mala. Aqui a estadia atravessa a semana, então a ceia não termina numa despedida às pressas — sobra manhã de café sem hora, tarde de piscina aquecida e a serra fazendo o resto. O espumante espera gelado na chegada.",
+    imagem: "/images/solarium-1/08-fire-pit.jpg",
+    properties: ["solarium-1", "solarium-2"],
+    noitesMin: 3,
+    noitesMax: 6,
+    // Uma regra só cobre Natal e Ano Novo: chegada seg/ter/qua entre 21 e 30/12,
+    // saída no sábado ou domingo seguinte. 21-23/12 saindo em 26 ou 27/12, e
+    // 28-30/12 saindo em 02 ou 03/01.
+    checkinDows: [1, 2, 3],
+    // Sábado, domingo ou segunda. O domingo é o sugerido; os outros dois saem
+    // sem o check-out estendido, e o sábado ainda perde 5 pontos de progressivo.
+    checkoutDows: [6, 0, 1],
+    exigeFeriado: false,
+    // Sem janela sazonal de exibição: o pacote fica sempre na grade, e a ordem
+    // de destaque é que muda quando o dono quiser promovê-lo.
+    sazonal: false,
+    janelaCheckin: { de: "12-21", ate: "12-30" },
+    ajusteTaxaPorCheckoutDow: { 6: -0.05 },
+  /** Saída sugerida: o domingo da semana seguinte à chegada. */
+  checkoutSugeridoDow: 0,
+    inclusos: [
+      { extraId: "late_checkout", qtd: 1, removivel: false, somenteCheckoutDows: [0] },
+      { extraId: "cesta_cafecafe", qtd: 1, removivel: true },
+      { extraId: "espumante_chandon", qtd: 1, removivel: true },
+    ],
+    prioridadeHome: 4,
+    ativo: true,
+  },
 ];
 
 export function getPacoteV2(slug: string): PacoteV2 | undefined {
@@ -452,6 +532,15 @@ export function pacoteVisivelHoje(
 ): boolean {
   if (!pacote.ativo) return false;
   if (!pacote.sazonal) return true;
+
+  // Sazonal com janela fixa (MM-DD), como o Final de Ano: a visibilidade não
+  // depende de feriado, e sim de estar dentro da temporada. A janela atravessa a
+  // virada do ano quando `de` > `ate`.
+  if (pacote.janelaFixa) {
+    const md = hoje.slice(5);
+    const { de, ate } = pacote.janelaFixa;
+    return de <= ate ? md >= de && md <= ate : md >= de || md <= ate;
+  }
 
   if (datas) return estadiaContemFeriado(datas.checkin, datas.checkout);
 

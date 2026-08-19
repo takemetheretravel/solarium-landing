@@ -8,6 +8,7 @@ import { PROPERTIES } from "@/config/properties";
 import { getExtra, type PacoteV2 } from "@/config/precos-e-extras";
 import PersonalizeSuaEstadia from "@/components/extras/PersonalizeSuaEstadia";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
+import { checkoutSugerido } from "@/lib/pricing/elegibilidade";
 import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/tracking";
 
 type ItemPrecoApi = { extraId: string; nome: string; total: number; qtd: number; incluso: boolean };
@@ -52,7 +53,21 @@ function somaDias(base: string, dias: number): string {
  * miolo: seletor de hóspedes e bloco de extras entre as datas e o preço, e o
  * total vindo do recálculo server-side.
  */
-export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
+/** Valores vindos do link personalizado, já validados no servidor. */
+export type DatasIniciais = {
+  checkin?: string;
+  checkout?: string;
+  casa?: string;
+  guests?: number;
+};
+
+export default function PackageBookingV2({
+  pacote,
+  iniciais,
+}: {
+  pacote: PacoteV2;
+  iniciais?: DatasIniciais;
+}) {
   const router = useRouter();
 
   const casasElegiveis = useMemo(
@@ -62,10 +77,21 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
 
   const duracaoFixa = pacote.noitesMax === pacote.noitesMin;
 
-  const [propertySlug, setPropertySlug] = useState(casasElegiveis[0]?.slug ?? "");
-  const [checkin, setCheckin] = useState("");
-  const [checkout, setCheckout] = useState("");
-  const [guests, setGuests] = useState(pacote.hospedesMin ?? 2);
+  // O link personalizado chega como prop, ja validado no servidor. Nada de
+  // `useSearchParams` aqui: o hook obriga <Suspense> acima e, sem ele, o Next
+  // derruba a pagina inteira com BAILOUT_TO_CLIENT_SIDE_RENDERING.
+  const casaDaUrl = casasElegiveis.find((p) => p.slug === iniciais?.casa)?.slug;
+
+  const [propertySlug, setPropertySlug] = useState(
+    casaDaUrl ?? casasElegiveis[0]?.slug ?? "",
+  );
+  const [checkin, setCheckin] = useState(iniciais?.checkin ?? "");
+  const [checkout, setCheckout] = useState(iniciais?.checkout ?? "");
+  const [guests, setGuests] = useState(() => {
+    const min = pacote.hospedesMin ?? 2;
+    const n = iniciais?.guests;
+    return typeof n === "number" && n >= min ? n : min;
+  });
   const [removidos, setRemovidos] = useState<string[]>([]);
   const [selecao, setSelecao] = useState<Record<string, number>>({});
   const [resposta, setResposta] = useState<Resposta | null>(null);
@@ -76,13 +102,19 @@ export default function PackageBookingV2({ pacote }: { pacote: PacoteV2 }) {
   const maxISO = useMemo(() => isoMais(540), []);
 
   // Duração fixa: o check-out acompanha o check-in e não é editável.
+  // Duração variável: sugere a saída pela REGRA do pacote — somar as noites
+  // mínimas caía em dia que o próprio pacote recusa.
   useEffect(() => {
-    if (checkin && duracaoFixa) setCheckout(somaDias(checkin, pacote.noitesMin));
-    if (checkin && !duracaoFixa && (!checkout || checkout <= checkin)) {
+    if (!checkin) return;
+    if (duracaoFixa) {
       setCheckout(somaDias(checkin, pacote.noitesMin));
+      return;
+    }
+    if (!checkout || checkout <= checkin) {
+      setCheckout(checkoutSugerido(pacote.slug, checkin) ?? somaDias(checkin, pacote.noitesMin));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkin, duracaoFixa, pacote.noitesMin]);
+  }, [checkin, duracaoFixa, pacote.noitesMin, pacote.slug]);
 
   const capacidadeCasa = casasElegiveis.find((p) => p.slug === propertySlug)?.capacity.max ?? 4;
   const hospedesMin = pacote.hospedesMin ?? 1;

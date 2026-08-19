@@ -8,7 +8,7 @@ import SmartImage from "@/components/ui/SmartImage";
 import PackageBooking from "@/components/booking/PackageBooking";
 import { PACKAGES } from "@/config/packages";
 import { pacotesV2Ativo } from "@/config/flags";
-import { vistaPacote, slugsDePacote } from "@/lib/pricing/vista-pacote";
+import { vistaPacote, slugsDePacote, textoNoites } from "@/lib/pricing/vista-pacote";
 import { JANELA_CANCELAMENTO_EXTRAS_DIAS } from "@/config/precos-e-extras";
 
 export const revalidate = 300;
@@ -36,7 +36,32 @@ export async function generateMetadata({
   };
 }
 
-export default function PackagePage({ params }: { params: { slug: string } }) {
+type Busca = { checkin?: string; checkout?: string; casa?: string; guests?: string };
+
+/** Aceita só o que é válido; parâmetro inválido é ignorado, nunca quebra a página. */
+function lerLinkPersonalizado(sp: Busca): {
+  checkin?: string;
+  checkout?: string;
+  casa?: string;
+  guests?: number;
+} {
+  const dataOk = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  const n = Number(sp.guests);
+  return {
+    checkin: dataOk(sp.checkin),
+    checkout: dataOk(sp.checkout),
+    casa: sp.casa?.trim() || undefined,
+    guests: Number.isFinite(n) && n > 0 ? n : undefined,
+  };
+}
+
+export default function PackagePage({
+  params,
+  searchParams,
+}: {
+  params: { slug: string };
+  searchParams: Busca;
+}) {
   const v2Ativo = pacotesV2Ativo();
   const vista = vistaPacote(params.slug, v2Ativo);
   if (!vista) notFound();
@@ -50,7 +75,7 @@ export default function PackagePage({ params }: { params: { slug: string } }) {
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-transparent to-charcoal/70" />
         <div className="relative z-10 flex h-full flex-col items-start justify-end px-6 pb-20 text-cream sm:px-16 sm:pb-24">
           <Kicker tone="cream" className="mb-4 opacity-90">
-            Pacote · {vista.noites} noites
+            Pacote · {textoNoites(vista)}
           </Kicker>
           <Heading level={1} className="text-cream">
             {vista.nome}
@@ -119,7 +144,11 @@ export default function PackagePage({ params }: { params: { slug: string } }) {
           {/* BOOKING — sticky no desktop */}
           <aside>
             <div className="lg:sticky lg:top-24">
-              <PackageBooking pkg={vista.legado} pacoteV2={vista.pacoteV2} />
+              <PackageBooking
+                pkg={vista.legado}
+                pacoteV2={vista.pacoteV2}
+                iniciais={lerLinkPersonalizado(searchParams)}
+              />
             </div>
           </aside>
         </div>

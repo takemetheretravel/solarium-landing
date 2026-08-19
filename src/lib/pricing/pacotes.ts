@@ -74,6 +74,13 @@ export type EntradaMotor = {
    * volta como desconto de valor idêntico. Efeito líquido zero sobre o total.
    */
   absorvido?: number;
+  /**
+   * Ajuste na taxa progressiva, em pontos. Negativo reduz.
+   *
+   * O Final de Ano tira 5 pontos na saída de sábado: é o dia que deixa a noite
+   * de domingo encalhada, e o desconto acompanha isso.
+   */
+  ajusteTaxa?: number;
 };
 
 export type ResultadoMotor = {
@@ -126,7 +133,8 @@ export function calcularPacote(entrada: EntradaMotor): ResultadoMotor {
   const ajusteItens = soma(operacionais) - somaNaBase(operacionais);
   const descontoFixo = ajusteItens + absorvido;
 
-  const taxa = taxaProgressiva(noites);
+  // Nunca abaixo de zero: ajuste não vira acréscimo.
+  const taxa = Math.max(0, taxaProgressiva(noites) + (entrada.ajusteTaxa ?? 0));
   const descontoProgressivo = baseDesconto * taxa;
   const descontoTotal = descontoProgressivo + bonusSaida + descontoFixo;
 

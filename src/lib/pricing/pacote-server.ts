@@ -8,7 +8,7 @@
 
 import { unstable_cache } from "next/cache";
 import { calculatePrice, getCalendar } from "@/lib/hostaway";
-import { datasElegiveis, totalDoPacote, noitesDoPacote } from "./elegibilidade";
+import { datasElegiveis, totalDoPacote, noitesDoPacote, motorDoPacote } from "./elegibilidade";
 import { listingsForProperty } from "@/config/operational-extras";
 import {
   PacoteV2,
@@ -171,15 +171,25 @@ async function calcularMinimo(slug: string, propertySlug: string): Promise<Minim
   const listings = listingsForProperty(propertySlug);
   if (listings.length === 0) return { total: null, motivo: "sem-listing" };
 
-  const hoje = new Date();
-  // Uma semana a mais: o bônus de saída olha a noite seguinte ao check-out.
-  const fim = new Date(hoje.getTime() + (JANELA_A_PARTIR_DE_DIAS + 8) * 86400000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const hoje = new Date();
+
+  // A varredura percorre a janela do PRÓPRIO pacote, não 90 dias fixos.
+  //
+  // Um sazonal de dezembro não é alcançado por uma janela contada de hoje, e o
+  // resultado era um valor vindo de data não elegível — barato e inalcançável,
+  // justamente no produto de maior demanda do ano.
+  const janela = janelaDeVarredura(slug, hoje);
+  if (!janela) return { total: null, motivo: "fora-da-temporada" };
+  const { inicio, dias } = janela;
+
+  // Uma semana a mais: o bônus de saída olha a noite seguinte ao check-out.
+  const fim = new Date(inicio.getTime() + (dias + 8) * 86400000);
 
   let noitesCal: Map<string, { livre: boolean; preco: number }>;
   try {
     const calendarios = await Promise.all(
-      listings.map((id) => getCalendar(id, iso(hoje), iso(fim))),
+      listings.map((id) => getCalendar(id, iso(inicio), iso(fim))),
     );
     if (calendarios.some((c) => c.length === 0)) {
       return { total: null, motivo: "calendario-vazio" };
@@ -192,8 +202,8 @@ async function calcularMinimo(slug: string, propertySlug: string): Promise<Minim
 
   let melhor: MinimoPacote = { total: null, motivo: "sem-data-elegivel-livre" };
 
-  for (let offset = 0; offset < JANELA_A_PARTIR_DE_DIAS; offset++) {
-    const checkin = iso(new Date(hoje.getTime() + offset * 86400000));
+  for (let offset = 0; offset < dias; offset++) {
+    const checkin = iso(new Date(inicio.getTime() + offset * 86400000));
     const checkout = somarDias(checkin, noites);
 
     // MESMA elegibilidade do calendário e do draft.
@@ -303,4 +313,33 @@ function valorAbsorvido(
 
   const absorvidos = Math.max(0, Math.min(guests, ate) - inclusos);
   return absorvidos * porPessoa * quote.nights;
+}
+
+
+/**
+ * Janela que a varredura precisa percorrer para este pacote.
+ *
+ * Pacote sem sazonalidade: os próximos 90 dias. Pacote com janela de check-in
+ * (Final de Ano): a própria janela, resolvida para a ocorrência mais próxima que
+ * ainda não passou. Fora da temporada, devolve null — e o card mostra
+ * "Consultar datas" em vez de um número de data não elegível.
+ */
+function janelaDeVarredura(
+  slug: string,
+  hoje: Date,
+): { inicio: Date; dias: number } | null {
+  const m = motorDoPacote(slug);
+  const janela = m?.motor === "v2" ? m.pacote.janelaCheckin : undefined;
+  if (!janela) return { inicio: hoje, dias: JANELA_A_PARTIR_DE_DIAS };
+
+  const ano = hoje.getFullYear();
+  for (const a of [ano, ano + 1]) {
+    const inicio = new Date(`${a}-${janela.de}T12:00:00`);
+    const fim = new Date(`${janela.de <= janela.ate ? a : a + 1}-${janela.ate}T12:00:00`);
+    if (fim < hoje) continue;
+    const de = inicio < hoje ? hoje : inicio;
+    const dias = Math.ceil((fim.getTime() - de.getTime()) / 86400000) + 1;
+    if (dias > 0) return { inicio: de, dias };
+  }
+  return null;
 }

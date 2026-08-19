@@ -144,13 +144,21 @@ export function extrasExibiveis(
     }));
 }
 
+/**
+ * Preço EXIBIDO na lista de extras — o mesmo de menu que aparece na linha de
+ * preço. Eram dois caminhos: a lista mostrava o valor operacional (550) e a
+ * linha, o de menu (850), para o mesmo item.
+ *
+ * O desconto até o valor operacional aparece no detalhamento, como
+ * "Ajuste do check-out estendido". Nenhum total muda.
+ */
 function precoUnitarioDe(
   extra: ExtraConfig,
   propertySlug: string,
   ctx: ContextoExibicao,
 ): number {
   if (extra.id === "early_checkin" || extra.id === "late_checkout") {
-    return precoOperacionalNoPacote(propertySlug, extra.id, ctx.checkin, ctx.checkout);
+    return precoMenuDoItem(propertySlug, extra.id, ctx.checkin, ctx.checkout);
   }
   return precoExtra(extra);
 }
@@ -178,8 +186,16 @@ export function montarItens(params: {
   const itens: ItemPreco[] = [];
   const jaIncluso = new Set<string>();
 
+  const dowCheckout = new Date(checkout + "T12:00:00").getDay();
+
   for (const incluso of pacote?.inclusos ?? []) {
     if (incluso.removivel && removidos.includes(incluso.extraId)) continue;
+    // Incluso condicionado à saída: entra e sai sozinho quando o cliente muda a
+    // data, no mesmo recálculo. É assim que o late do Final de Ano acompanha o
+    // domingo sem o cliente precisar mexer em nada.
+    if (incluso.somenteCheckoutDows && !incluso.somenteCheckoutDows.includes(dowCheckout)) {
+      continue;
+    }
     const extra = getExtra(incluso.extraId);
     if (!extra || extra.informativo) continue;
     jaIncluso.add(extra.id);
@@ -288,6 +304,21 @@ export function validarDatasPacote(
   checkout: string,
   contemFeriado: boolean,
 ): ValidacaoDatas {
+  // Janela sazonal de check-in (MM-DD), independente do ano. Atravessa a virada
+  // quando `de` > `ate`.
+  if (pacote.janelaCheckin) {
+    const md = checkin.slice(5); // MM-DD
+    const { de, ate } = pacote.janelaCheckin;
+    const dentro = de <= ate ? md >= de && md <= ate : md >= de || md <= ate;
+    if (!dentro) {
+      return {
+        valido: false,
+        motivo: "Este pacote vale para chegadas entre 21 e 30 de dezembro.",
+        alternativa: "avulso",
+      };
+    }
+  }
+
   const noites = Math.round(
     (new Date(checkout + "T12:00:00").getTime() - new Date(checkin + "T12:00:00").getTime()) /
       86400000,

@@ -11,6 +11,13 @@ const nextConfig = {
       { protocol: "https", hostname: "res.cloudinary.com" },
     ],
   },
+  async redirects() {
+    return [
+      // O pacote foi renomeado para cobrir Natal e Ano Novo, nao so a virada.
+      { source: "/pacotes/virada-na-serra", destination: "/pacotes/final-de-ano", permanent: true },
+    ];
+  },
+
   async headers() {
     // Preview nunca é indexado: os preços de teste não podem aparecer em busca.
     const naoIndexar =
