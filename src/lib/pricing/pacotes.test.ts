@@ -15,9 +15,8 @@ import {
   totalDoPacote,
   noitesDoPacote,
   motorDoPacote,
-  melhorCupomPublico,
-  tetoAvulsoComCupom,
   pacotesVisiveis,
+  checkoutSugerido,
 } from "./elegibilidade";
 import { getPackageBySlug, packageTotalActive } from "@/config/packages";
 
@@ -586,55 +585,42 @@ describe("§7 — o \"a partir de\" nao tem caminho proprio", () => {
 });
 
 
-describe("§5 rodada 14 — trava contra o cupom publico", () => {
-  it("o pacote nunca custa mais que a estadia avulsa com o melhor cupom", () => {
-    // 2 noites => DUASNOITES 8% e o melhor publico aplicavel
-    expect(melhorCupomPublico(2)).toBe(0.08);
-    expect(melhorCupomPublico(3)).toBe(0.12);
-    expect(melhorCupomPublico(5)).toBe(0.17);
-    expect(melhorCupomPublico(1)).toBe(0);
-  });
-
-  it("o teto e a diaria com cupom mais os itens a preco cheio", () => {
-    // 3.400 com 8% = 3.128, mais 850 + 180 de itens
-    expect(tetoAvulsoComCupom(3400, 2, [{ total: 850 }, { total: 180 }])).toBe(4158);
-  });
-
-  it("o FDS Completo fica abaixo do teto — a trava nao dispara", () => {
-    const itens = itensReais("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
-    const teto = tetoAvulsoComCupom(3400, 2, itens);
-    const r = calcularPacote(entrada(2, 3400, itens, BONUS));
-    expect(r.total).toBeLessThan(teto);
-    expect(r.total).toBe(3460); // golden intacto
+describe("§1 rodada 17 — o unico teto legitimo e o Valor total", () => {
+  // A trava contra o cupom publico foi REMOVIDA: comparava o pacote (com cesta,
+  // late e demais inclusos) contra o avulso so de diarias com cupom. Cestas
+  // diferentes, comparacao invalida — cortava R$ 466 de um pacote correto.
+  //
+  // O teto que faz sentido e o proprio Valor total: a soma dos MESMOS itens a
+  // preco cheio, que ja esta na tela. Isso e verdade por construcao, e este
+  // teste trava a construcao.
+  it("o total nunca supera o Valor total, em nenhum pacote nem data", () => {
+    const casos: [string, string, string, string, number][] = [
+      ["fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout, 2],
+      ["feriado-na-serra", "solarium-1", FERIADO_QUI_DOM.checkin, FERIADO_QUI_DOM.checkout, 3],
+      ["feriado-na-serra", "solarium-1", FERIADO_SEX_SEG.checkin, FERIADO_SEX_SEG.checkout, 3],
+      ["dois-casais", "solarium-completo", FDS.checkin, FDS.checkout, 2],
+      ["dois-casais", "solarium-completo", "2026-09-14", "2026-09-16", 2],
+      ["final-de-ano", "solarium-1", "2026-12-28", "2027-01-03", 6],
+    ];
+    for (const [slug, casa, ci, co, n] of casos) {
+      for (const tarifa of [1500, 3400, 6450, 12000]) {
+        for (const bonus of [0, BONUS]) {
+          const itens = itensReais(slug, casa, ci, co);
+          const r = calcularPacote(entrada(n, tarifa, itens, bonus));
+          expect(r.total, `${slug} ${ci} tarifa ${tarifa}`).toBeLessThanOrEqual(r.subtotal);
+          expect(r.descontoTotal).toBeGreaterThanOrEqual(0);
+        }
+      }
+    }
   });
 
   it("Final de Ano existe, e sazonal e traz o espumante", () => {
     const p = getPacoteV2("final-de-ano");
     expect(p).toBeTruthy();
-    expect(p!.sazonal).toBe(true);
     expect(p!.inclusos.map((i) => i.extraId)).toContain("espumante_chandon");
     expect(p!.janelaCheckin).toEqual({ de: "12-21", ate: "12-30" });
     expect(p!.noitesMin).toBe(3);
     expect(p!.noitesMax).toBe(6);
-  });
-
-  it("Final de Ano cobre Natal e Ano Novo com uma regra so", () => {
-    const ok = (ci: string, co: string) =>
-      datasElegiveis("final-de-ano", "solarium-1", ci, co).elegivel;
-    // Natal: seg 21/12 -> sab 26/12 e -> dom 27/12
-    expect(ok("2026-12-21", "2026-12-26")).toBe(true);
-    expect(ok("2026-12-21", "2026-12-27")).toBe(true);
-    // Ano Novo: seg 28/12 -> sab 02/01 e -> dom 03/01
-    expect(ok("2026-12-28", "2027-01-02")).toBe(true);
-    expect(ok("2026-12-28", "2027-01-03")).toBe(true);
-  });
-
-  it("Final de Ano recusa chegada fora da janela e saida fora do fim de semana", () => {
-    const r = (ci: string, co: string) =>
-      datasElegiveis("final-de-ano", "solarium-1", ci, co).elegivel;
-    expect(r("2026-12-14", "2026-12-19")).toBe(false); // fora da janela de dezembro
-    expect(r("2026-12-22", "2026-12-25")).toBe(false); // saida numa sexta
-    expect(r("2026-12-25", "2026-12-27")).toBe(false); // chegada numa sexta
   });
 
   it("o espumante entrou no catalogo a R$ 140", () => {
@@ -642,7 +628,6 @@ describe("§5 rodada 14 — trava contra o cupom publico", () => {
     expect(e?.preco).toBe(140);
   });
 });
-
 
 describe("§3 rodada 16 — uma fonte so de visibilidade", () => {
   it("todo pacote visivel na home esta em /pacotes", () => {
@@ -653,21 +638,118 @@ describe("§3 rodada 16 — uma fonte so de visibilidade", () => {
     }
   });
 
-  it("Final de Ano visivel dentro da temporada e invisivel fora", () => {
+  it("Final de Ano fica SEMPRE visivel — sem janela sazonal", () => {
     const p = getPacoteV2("final-de-ano")!;
-    expect(pacoteVisivelHoje(p, "2026-11-01")).toBe(true);
-    expect(pacoteVisivelHoje(p, "2026-12-29")).toBe(true);
-    expect(pacoteVisivelHoje(p, "2027-01-03")).toBe(true);
-    expect(pacoteVisivelHoje(p, "2027-01-04")).toBe(false);
-    expect(pacoteVisivelHoje(p, "2026-08-19")).toBe(false);
+    for (const dia of ["2026-08-19", "2026-11-01", "2026-12-29", "2027-01-04", "2027-06-15"]) {
+      expect(pacoteVisivelHoje(p, dia), dia).toBe(true);
+    }
   });
 
-  it("os cinco pacotes fixos aparecem sempre", () => {
+  it("os pacotes nao sazonais aparecem sempre, Final de Ano incluso", () => {
     const fora = pacotesVisiveis("2026-08-19");
-    for (const s of ["fim-de-semana-completo", "dois-casais", "meio-de-semana", "imersao-na-serra"]) {
+    for (const s of [
+      "fim-de-semana-completo",
+      "dois-casais",
+      "final-de-ano",
+      "meio-de-semana",
+      "imersao-na-serra",
+    ]) {
       expect(fora).toContain(s);
     }
-    expect(fora).not.toContain("final-de-ano");
+  });
+
+  it("a ordem de destaque na home vem do config, sem promocao aplicada agora", () => {
+    const ordem = pacotesVisiveis("2026-08-19");
+    // Final de Ano configurado em prioridadeHome 4: fica atras dos tres de sempre.
+    expect(ordem.indexOf("final-de-ano")).toBeGreaterThan(ordem.indexOf("fim-de-semana-completo"));
+    expect(ordem.slice(0, 3)).not.toContain("final-de-ano");
+  });
+});
+
+
+describe("§3 rodada 17 — Final de Ano: saidas, late e taxa", () => {
+  const CASA = "solarium-1";
+  const noite = (ci: string, co: string) =>
+    montarItens({ pacote: getPacoteV2("final-de-ano")!, propertySlug: CASA, checkin: ci, checkout: co, removidos: [], selecao: {} });
+
+  it("saida sugerida e sempre o domingo da semana seguinte", () => {
+    expect(checkoutSugerido("final-de-ano", "2026-12-21")).toBe("2026-12-27");
+    expect(checkoutSugerido("final-de-ano", "2026-12-22")).toBe("2026-12-27");
+    expect(checkoutSugerido("final-de-ano", "2026-12-23")).toBe("2026-12-27");
+    expect(checkoutSugerido("final-de-ano", "2026-12-28")).toBe("2027-01-03");
+    expect(checkoutSugerido("final-de-ano", "2026-12-29")).toBe("2027-01-03");
+    expect(checkoutSugerido("final-de-ano", "2026-12-30")).toBe("2027-01-03");
+  });
+
+  it("a saida sugerida e sempre elegivel", () => {
+    for (const ci of ["2026-12-21", "2026-12-22", "2026-12-23", "2026-12-28", "2026-12-29", "2026-12-30"]) {
+      const co = checkoutSugerido("final-de-ano", ci)!;
+      expect(datasElegiveis("final-de-ano", CASA, ci, co).elegivel, `${ci} -> ${co}`).toBe(true);
+    }
+  });
+
+  it("as tres saidas sao aceitas: sabado, domingo e segunda", () => {
+    const ok = (ci: string, co: string) => datasElegiveis("final-de-ano", CASA, ci, co).elegivel;
+    expect(ok("2026-12-28", "2027-01-02")).toBe(true); // sabado, 5 noites
+    expect(ok("2026-12-28", "2027-01-03")).toBe(true); // domingo, 6 noites
+    expect(ok("2026-12-30", "2027-01-04")).toBe(true); // segunda, 5 noites
+    expect(ok("2026-12-28", "2027-01-01")).toBe(false); // sexta
+    // Segunda a partir de 28/12 daria 7 noites, acima do maximo de 6.
+    expect(ok("2026-12-28", "2027-01-04")).toBe(false);
+  });
+
+  it("o late entra sozinho no domingo e sai sozinho no sabado e na segunda", () => {
+    const temLate = (co: string) => noite("2026-12-28", co).some((i) => i.extraId === "late_checkout");
+    expect(temLate("2027-01-03")).toBe(true); // domingo: incluso
+    expect(temLate("2027-01-02")).toBe(false); // sabado
+    expect(temLate("2027-01-04")).toBe(false); // segunda
+  });
+
+  it("saida no sabado perde 5 pontos de progressivo; domingo e segunda nao", () => {
+    const taxaDe = (co: string) => {
+      const r = totalDoPacote({
+        slug: "final-de-ano", propertySlug: CASA, checkin: "2026-12-28", checkout: co,
+        hostawayTotal: 9000, noites: 6,
+      });
+      return r!.resultado!.taxa;
+    };
+    // 6 noites => 17% cheio
+    expect(taxaDe("2027-01-03")).toBeCloseTo(0.17, 5); // domingo
+    expect(taxaDe("2027-01-04")).toBeCloseTo(0.17, 5); // segunda
+    expect(taxaDe("2027-01-02")).toBeCloseTo(0.12, 5); // sabado: -5 pontos
+  });
+
+  it("o ajuste nunca vira acrescimo nem taxa negativa", () => {
+    const r = calcularPacote({ noites: 1, hostawayTotal: 1000, itens: [], bonusSaida: 0, ajusteTaxa: -0.5 });
+    expect(r.taxa).toBe(0);
+    expect(r.total).toBeLessThanOrEqual(r.subtotal);
+  });
+});
+
+describe("§5 rodada 17 — late em meio de semana, quatro combinacoes", () => {
+  const late = (slug: string, casa: string, ci: string, co: string) =>
+    montarItens({ pacote: getPacoteV2(slug)!, propertySlug: casa, checkin: ci, checkout: co, removidos: [], selecao: {} })
+      .find((i) => i.extraId === "late_checkout");
+
+  it("casa unica, fim de semana: 850 na linha, 550 na base", () => {
+    const l = late("fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout);
+    expect([l?.total, l?.valorNaBase]).toEqual([850, 550]);
+  });
+
+  it("casa unica, meio de semana: 550 na linha e na base", () => {
+    // seg 14/09 -> qua 16/09, nenhuma noite de sexta ou sabado
+    const l = late("feriado-na-serra", "solarium-1", "2026-09-14", "2026-09-16");
+    expect([l?.total, l?.valorNaBase]).toEqual([550, 550]);
+  });
+
+  it("Dois Casais, fim de semana: 1.600 na linha, 1.000 na base", () => {
+    const l = late("dois-casais", "solarium-completo", FDS.checkin, FDS.checkout);
+    expect([l?.total, l?.valorNaBase]).toEqual([1600, 1000]);
+  });
+
+  it("Dois Casais, meio de semana: 1.000 na linha e na base", () => {
+    const l = late("dois-casais", "solarium-completo", "2026-09-14", "2026-09-16");
+    expect([l?.total, l?.valorNaBase]).toEqual([1000, 1000]);
   });
 });
 

@@ -186,8 +186,16 @@ export function montarItens(params: {
   const itens: ItemPreco[] = [];
   const jaIncluso = new Set<string>();
 
+  const dowCheckout = new Date(checkout + "T12:00:00").getDay();
+
   for (const incluso of pacote?.inclusos ?? []) {
     if (incluso.removivel && removidos.includes(incluso.extraId)) continue;
+    // Incluso condicionado à saída: entra e sai sozinho quando o cliente muda a
+    // data, no mesmo recálculo. É assim que o late do Final de Ano acompanha o
+    // domingo sem o cliente precisar mexer em nada.
+    if (incluso.somenteCheckoutDows && !incluso.somenteCheckoutDows.includes(dowCheckout)) {
+      continue;
+    }
     const extra = getExtra(incluso.extraId);
     if (!extra || extra.informativo) continue;
     jaIncluso.add(extra.id);

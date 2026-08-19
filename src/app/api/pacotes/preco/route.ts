@@ -85,11 +85,6 @@ export async function POST(req: NextRequest) {
     noites: calc.resultado.noites,
     economia: calc.resultado.economia,
     descontoFixo: calc.resultado.descontoFixo,
-    // Parcela do desconto que vem do preço de menu dos itens operacionais.
-    // Exibida rotulada no detalhamento; o total não muda por causa dela.
-    ajusteOperacional: calc.resultado.itens
-      .filter((i) => i.entraNaBase && i.valorNaBase !== undefined)
-      .reduce((soma, i) => soma + (i.total - (i.valorNaBase ?? i.total)), 0),
     absorvido: calc.resultado.absorvido,
     bonusAplicado: calc.resultado.bonusSaida > 0,
     dataLimiteCancelamentoExtras: calc.dataLimiteCancelamentoExtras,

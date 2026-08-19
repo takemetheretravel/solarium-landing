@@ -8,6 +8,7 @@ import { PROPERTIES } from "@/config/properties";
 import { getExtra, type PacoteV2 } from "@/config/precos-e-extras";
 import PersonalizeSuaEstadia from "@/components/extras/PersonalizeSuaEstadia";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
+import { checkoutSugerido } from "@/lib/pricing/elegibilidade";
 import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/tracking";
 
 type ItemPrecoApi = { extraId: string; nome: string; total: number; qtd: number; incluso: boolean };
@@ -19,7 +20,6 @@ type Resposta =
       itens: ItemPrecoApi[];
       noites: number;
       economia: number;
-      ajusteOperacional: number;
       bonusAplicado: boolean;
       disponiveis: ExtraExibivel[];
       hostawayTotal: number;
@@ -102,13 +102,19 @@ export default function PackageBookingV2({
   const maxISO = useMemo(() => isoMais(540), []);
 
   // Duração fixa: o check-out acompanha o check-in e não é editável.
+  // Duração variável: sugere a saída pela REGRA do pacote — somar as noites
+  // mínimas caía em dia que o próprio pacote recusa.
   useEffect(() => {
-    if (checkin && duracaoFixa) setCheckout(somaDias(checkin, pacote.noitesMin));
-    if (checkin && !duracaoFixa && (!checkout || checkout <= checkin)) {
+    if (!checkin) return;
+    if (duracaoFixa) {
       setCheckout(somaDias(checkin, pacote.noitesMin));
+      return;
+    }
+    if (!checkout || checkout <= checkin) {
+      setCheckout(checkoutSugerido(pacote.slug, checkin) ?? somaDias(checkin, pacote.noitesMin));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkin, duracaoFixa, pacote.noitesMin]);
+  }, [checkin, duracaoFixa, pacote.noitesMin, pacote.slug]);
 
   const capacidadeCasa = casasElegiveis.find((p) => p.slug === propertySlug)?.capacity.max ?? 4;
   const hospedesMin = pacote.hospedesMin ?? 1;
@@ -408,14 +414,6 @@ export default function PackageBookingV2({
             {ok ? formatBRLPrecise(ok.total) : "—"}
           </span>
         </div>
-        {/* Detalhamento do desconto: o ajuste até o preço operacional aparece
-            rotulado, em vez de embutido sem explicação. */}
-        {ok && ok.ajusteOperacional > 0 && (
-          <div className="flex justify-between text-charcoal/50">
-            <span>Ajuste do check-out estendido</span>
-            <span>− {formatBRLPrecise(ok.ajusteOperacional)}</span>
-          </div>
-        )}
         {ok && ok.economia > 0 && (
           <p className="text-right font-sans text-xs text-serra">
             {formatBRLPrecise(ok.economia)} a menos que contratando cada item à parte
