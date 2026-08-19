@@ -620,7 +620,7 @@ describe("§1 rodada 17 — o unico teto legitimo e o Valor total", () => {
     expect(p!.inclusos.map((i) => i.extraId)).toContain("espumante_chandon");
     expect(p!.janelaCheckin).toEqual({ de: "12-21", ate: "12-30" });
     expect(p!.noitesMin).toBe(3);
-    expect(p!.noitesMax).toBe(6);
+    expect(p!.noitesMax).toBe(7);
   });
 
   it("o espumante entrou no catalogo a R$ 140", () => {
@@ -694,8 +694,9 @@ describe("§3 rodada 17 — Final de Ano: saidas, late e taxa", () => {
     expect(ok("2026-12-28", "2027-01-03")).toBe(true); // domingo, 6 noites
     expect(ok("2026-12-30", "2027-01-04")).toBe(true); // segunda, 5 noites
     expect(ok("2026-12-28", "2027-01-01")).toBe(false); // sexta
-    // Segunda a partir de 28/12 daria 7 noites, acima do maximo de 6.
-    expect(ok("2026-12-28", "2027-01-04")).toBe(false);
+    // Com o maximo em 7 noites, a segunda passa a caber a partir de qualquer
+    // chegada da janela.
+    expect(ok("2026-12-28", "2027-01-04")).toBe(true);
   });
 
   it("o late entra sozinho no domingo e sai sozinho no sabado e na segunda", () => {
@@ -750,6 +751,52 @@ describe("§5 rodada 17 — late em meio de semana, quatro combinacoes", () => {
   it("Dois Casais, meio de semana: 1.000 na linha e na base", () => {
     const l = late("dois-casais", "solarium-completo", "2026-09-14", "2026-09-16");
     expect([l?.total, l?.valorNaBase]).toEqual([1000, 1000]);
+  });
+});
+
+
+describe("§1 rodada 18 — rotulo de incluso segue o calculo, nao o config", () => {
+  const CASA = "solarium-1";
+  const itensDe = (ci: string, co: string) =>
+    montarItens({ pacote: getPacoteV2("final-de-ano")!, propertySlug: CASA, checkin: ci, checkout: co, removidos: [], selecao: {} });
+
+  it("o conjunto rotulado incluso e exatamente o presente nas linhas de preco", () => {
+    // As tres saidas possiveis a partir de 28/12
+    for (const co of ["2027-01-02", "2027-01-03", "2027-01-04"]) {
+      const itens = itensDe("2026-12-28", co);
+      // O que a tela rotula como incluso: derivado das MESMAS linhas
+      const rotulados = itens.filter((i) => i.incluso).map((i) => i.extraId).sort();
+      const nasLinhas = itens.map((i) => i.extraId).sort();
+      expect(rotulados, co).toEqual(nasLinhas);
+    }
+  });
+
+  it("o late so e rotulado incluso quando esta no total", () => {
+    const temLate = (co: string) => itensDe("2026-12-28", co).some((i) => i.extraId === "late_checkout" && i.incluso);
+    expect(temLate("2027-01-03")).toBe(true);  // domingo
+    expect(temLate("2027-01-02")).toBe(false); // sabado
+    expect(temLate("2027-01-04")).toBe(false); // segunda
+  });
+
+  it("vale para todos os pacotes, nao so o Final de Ano", () => {
+    const casos: [string, string, string, string][] = [
+      ["fim-de-semana-completo", "solarium-1", FDS.checkin, FDS.checkout],
+      ["feriado-na-serra", "solarium-1", FERIADO_QUI_DOM.checkin, FERIADO_QUI_DOM.checkout],
+      ["dois-casais", "solarium-completo", FDS.checkin, FDS.checkout],
+    ];
+    for (const [slug, casa, ci, co] of casos) {
+      const itens = itensReais(slug, casa, ci, co);
+      const rotulados = itens.filter((i) => i.incluso).map((i) => i.extraId);
+      // Nenhum rotulo sem linha correspondente
+      for (const id of rotulados) {
+        expect(itens.some((i) => i.extraId === id), `${slug} ${id}`).toBe(true);
+      }
+    }
+  });
+
+  it("7 noites: 28/12 -> 04/01 e 21/12 -> 28/12 aceitos", () => {
+    expect(datasElegiveis("final-de-ano", CASA, "2026-12-28", "2027-01-04").elegivel).toBe(true);
+    expect(datasElegiveis("final-de-ano", CASA, "2026-12-21", "2026-12-28").elegivel).toBe(true);
   });
 });
 

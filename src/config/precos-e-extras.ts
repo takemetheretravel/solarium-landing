@@ -484,13 +484,15 @@ export const PACOTES_V2: PacoteV2[] = [
     id: "final-de-ano",
     slug: "final-de-ano",
     nome: "Final de Ano",
-    descricao: "As festas emendadas, do jeito que raramente dá para fazer.",
+    descricao: "Emende a comemoração com o fim de semana, e volte sem pressa.",
     descricaoLonga:
-      "Fim de ano costuma ser corrido: chega todo mundo, e no dia seguinte já é hora de arrumar mala. Aqui a estadia atravessa a semana, então a ceia não termina numa despedida às pressas — sobra manhã de café sem hora, tarde de piscina aquecida e a serra fazendo o resto. O espumante espera gelado na chegada.",
+      "Comemoração de fim de ano costuma acabar com todo mundo olhando o relógio, calculando a hora de pegar a estrada. Aqui a data cai no começo da semana e a estadia segue até o fim de semana seguinte: o dia depois da comemoração é de café sem hora e piscina aquecida, não de arrumar mala. Saindo no domingo, o check-out vai até às 18h — a última tarde é inteira sua, e a descida acontece quando a estrada já esvaziou. O espumante espera gelado na chegada.",
     imagem: "/images/solarium-1/08-fire-pit.jpg",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 3,
-    noitesMax: 6,
+    // 7 noites: a saida na segunda a partir de 28/12 precisa caber. A tabela
+    // progressiva ja cobre (5+ -> 17%).
+    noitesMax: 7,
     // Uma regra só cobre Natal e Ano Novo: chegada seg/ter/qua entre 21 e 30/12,
     // saída no sábado ou domingo seguinte. 21-23/12 saindo em 26 ou 27/12, e
     // 28-30/12 saindo em 02 ou 03/01.

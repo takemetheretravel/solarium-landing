@@ -206,11 +206,13 @@ export default function PackageBookingV2({
     router.push(`/reservar?${params.toString()}`);
   }
 
-  // Só os inclusos que sobreviveram à remoção. Um item removido deixa de ser
-  // "incluso no pacote" e volta a ser item normal, com o preço à frente.
-  const inclusosIds = pacote.inclusos
-    .map((i) => i.extraId)
-    .filter((id) => !removidos.includes(id));
+  // DERIVADO das linhas de preço, nunca do config estático.
+  //
+  // Eram duas fontes decidindo a mesma coisa: o rótulo vinha da configuração do
+  // pacote e o valor vinha do cálculo por data de saída. Resultado: com saída no
+  // sábado o late não entrava no total e continuava marcado como incluso. Um item
+  // só é "incluso no pacote" se estiver de fato no total.
+  const inclusosIds = (ok?.itens ?? []).filter((i) => i.incluso).map((i) => i.extraId);
 
   // Só os itens marcados como removíveis no catálogo ganham o "x".
   function ehRemovivel(extraId: string): boolean {
