@@ -36,7 +36,32 @@ export async function generateMetadata({
   };
 }
 
-export default function PackagePage({ params }: { params: { slug: string } }) {
+type Busca = { checkin?: string; checkout?: string; casa?: string; guests?: string };
+
+/** Aceita só o que é válido; parâmetro inválido é ignorado, nunca quebra a página. */
+function lerLinkPersonalizado(sp: Busca): {
+  checkin?: string;
+  checkout?: string;
+  casa?: string;
+  guests?: number;
+} {
+  const dataOk = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  const n = Number(sp.guests);
+  return {
+    checkin: dataOk(sp.checkin),
+    checkout: dataOk(sp.checkout),
+    casa: sp.casa?.trim() || undefined,
+    guests: Number.isFinite(n) && n > 0 ? n : undefined,
+  };
+}
+
+export default function PackagePage({
+  params,
+  searchParams,
+}: {
+  params: { slug: string };
+  searchParams: Busca;
+}) {
   const v2Ativo = pacotesV2Ativo();
   const vista = vistaPacote(params.slug, v2Ativo);
   if (!vista) notFound();
@@ -119,7 +144,11 @@ export default function PackagePage({ params }: { params: { slug: string } }) {
           {/* BOOKING — sticky no desktop */}
           <aside>
             <div className="lg:sticky lg:top-24">
-              <PackageBooking pkg={vista.legado} pacoteV2={vista.pacoteV2} />
+              <PackageBooking
+                pkg={vista.legado}
+                pacoteV2={vista.pacoteV2}
+                iniciais={lerLinkPersonalizado(searchParams)}
+              />
             </div>
           </aside>
         </div>

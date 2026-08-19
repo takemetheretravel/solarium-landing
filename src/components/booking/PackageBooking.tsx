@@ -13,10 +13,14 @@ import { PROPERTIES } from "@/config/properties";
 import { pacotesV2Ativo } from "@/config/flags";
 import ExtrasNaCasa, { serializarSelecao } from "@/components/extras/ExtrasNaCasa";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
-import PackageBookingV2 from "@/components/booking/PackageBookingV2";
+import PackageBookingV2, { type DatasIniciais } from "@/components/booking/PackageBookingV2";
 import type { PacoteV2 } from "@/config/precos-e-extras";
 
-type Props = { pkg: PackageConfig | null; pacoteV2?: PacoteV2 | null };
+type Props = {
+  pkg: PackageConfig | null;
+  pacoteV2?: PacoteV2 | null;
+  iniciais?: DatasIniciais;
+};
 
 function isoToday(): string {
   const d = new Date();
@@ -35,9 +39,9 @@ function isoAddDays(iso: string, days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function PackageBooking({ pkg, pacoteV2 }: Props) {
+export default function PackageBooking({ pkg, pacoteV2, iniciais }: Props) {
   // Motor novo tem cartão próprio, com hóspedes e extras. Mesma estrutura visual.
-  if (pacoteV2) return <PackageBookingV2 pacote={pacoteV2} />;
+  if (pacoteV2) return <PackageBookingV2 pacote={pacoteV2} iniciais={iniciais} />;
   if (!pkg) return null;
   return <PackageBookingLegado pkg={pkg} />;
 }
