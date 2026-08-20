@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // A camada de I/O é a única coisa falsa aqui: elegibilidade, motor e mensagens
 // são os de produção.
 vi.mock("@/lib/hostaway", () => ({
-  calculatePrice: vi.fn(),
+  calculatePriceDetailed: vi.fn(),
   getCalendar: vi.fn(),
 }));
 
-import { calculatePrice, getCalendar } from "@/lib/hostaway";
+import { calculatePriceDetailed, getCalendar } from "@/lib/hostaway";
 import { calcularPacoteServer } from "./pacote-server";
 import { getPacoteV2 } from "@/config/precos-e-extras";
 import { getPropertyBySlug } from "@/config/properties";
@@ -55,14 +55,19 @@ function entrada(propertySlug: string, checkin = CHECKIN, checkout = CHECKOUT) {
   };
 }
 
+/** Recusa da Hostaway, no formato que `calculatePriceDetailed` devolve. */
+function recusa(reason: string, meta?: Record<string, unknown>) {
+  return { failure: { reason, message: `falha: ${reason}`, meta } } as never;
+}
+
 beforeEach(() => {
-  vi.mocked(calculatePrice).mockReset();
+  vi.mocked(calculatePriceDetailed).mockReset();
   vi.mocked(getCalendar).mockReset();
 });
 
 describe("§3.2 rodada 19 — indisponibilidade tem três saídas distintas", () => {
   it("ocupado nesta casa e livre na outra: oferece a outra casa nas MESMAS datas", async () => {
-    vi.mocked(calculatePrice).mockResolvedValue(null);
+    vi.mocked(calculatePriceDetailed).mockResolvedValue(recusa("unavailable-day"));
     vi.mocked(getCalendar).mockImplementation(
       calendarioCom({ [SOL1]: [CHECKIN, "2026-09-12"] }) as never,
     );
@@ -85,7 +90,7 @@ describe("§3.2 rodada 19 — indisponibilidade tem três saídas distintas", ()
   });
 
   it("ocupado nas duas casas: oferece a próxima data livre do mesmo pacote", async () => {
-    vi.mocked(calculatePrice).mockResolvedValue(null);
+    vi.mocked(calculatePriceDetailed).mockResolvedValue(recusa("unavailable-day"));
     // Fim de semana pedido bloqueado nas duas; o seguinte, livre.
     vi.mocked(getCalendar).mockImplementation(
       calendarioCom({
@@ -112,7 +117,7 @@ describe("§3.2 rodada 19 — indisponibilidade tem três saídas distintas", ()
   });
 
   it("calendário fora do ar: fala de falha técnica e não inventa alternativa", async () => {
-    vi.mocked(calculatePrice).mockResolvedValue(null);
+    vi.mocked(calculatePriceDetailed).mockResolvedValue(recusa("api-error"));
     vi.mocked(getCalendar).mockRejectedValue(new Error("timeout"));
 
     const r = await calcularPacoteServer(entrada("solarium-1"));
@@ -125,7 +130,7 @@ describe("§3.2 rodada 19 — indisponibilidade tem três saídas distintas", ()
   });
 
   it("noites livres mas sem preço: continua sendo falha técnica", async () => {
-    vi.mocked(calculatePrice).mockResolvedValue(null);
+    vi.mocked(calculatePriceDetailed).mockResolvedValue(recusa("api-error"));
     vi.mocked(getCalendar).mockImplementation(calendarioCom({}) as never);
 
     const r = await calcularPacoteServer(entrada("solarium-1"));
@@ -133,6 +138,25 @@ describe("§3.2 rodada 19 — indisponibilidade tem três saídas distintas", ()
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.status).toBe(502);
+    expect(r.alternativa).toBeUndefined();
+  });
+
+  it("mínimo de noites da chegada: diz o número e oferece a saída que fecha", async () => {
+    // A tarifa da chegada exige 4 noites; o cliente pediu 2.
+    vi.mocked(calculatePriceDetailed).mockResolvedValue(
+      recusa("min-stay-not-met", { minimumStay: 4, requested: 2 }),
+    );
+    vi.mocked(getCalendar).mockImplementation(calendarioCom({}) as never);
+
+    const r = await calcularPacoteServer(entrada("solarium-1"));
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.status).toBe(200);
+    expect(r.erro).toContain("4 noites");
+    expect(r.erro).not.toContain("Tente de novo");
+    // A saída de 4 noites cai numa terça, que este pacote não aceita: sem
+    // alternativa inventada.
     expect(r.alternativa).toBeUndefined();
   });
 });

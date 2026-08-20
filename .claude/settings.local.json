@@ -117,7 +117,14 @@
       "Bash(netstat -ano)",
       "Bash(curl -s -o /tmp/r.html -w \"%{http_code}\\\\n\" \"http://localhost:3121/reservar?checkin=2026-09-11&checkout=2026-09-13&guests=2\")",
       "Bash(curl -s -o /tmp/r2.html -w \"%{http_code}\\\\n\" \"http://localhost:3121/reservar?checkin=2026-09-11&checkout=2026-09-13&guests=2\")",
-      "Bash(taskkill //PID 14436 //F)"
+      "Bash(taskkill //PID 14436 //F)",
+      "Bash(git commit -q -m '@ *)",
+      "Bash(curl -s -X POST http://localhost:3122/api/pacotes/preco -H \"Content-Type: application/json\" -d '{\"pacoteId\":\"imersao-na-serra\",\"propertySlug\":\"solarium-2\",\"checkin\":\"2026-09-13\",\"checkout\":\"2026-09-17\",\"guests\":2}')",
+      "Bash(curl -s \"http://localhost:3122/reservar?checkin=2026-08-21&checkout=2026-08-23&guests=2\" -o /tmp/a.html -w \"%{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:3122/reservar?checkin=2026-09-05&checkout=2026-09-07&guests=2\" -o /tmp/b.html -w \"%{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:3122/reservar?checkin=2026-09-14&checkout=2026-09-17&guests=2\")",
+      "Bash(grep -o \"Meio de Semana na Serra\\\\|Estas datas também fecham um pacote\\\\|R\\\\$ [0-9.]*\")",
+      "Bash(curl -s \"http://localhost:3122/reservar?checkin=2026-09-13&checkout=2026-09-17&guests=2\")"
     ]
   }
 }

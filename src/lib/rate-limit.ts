@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { createHash, timingSafeEqual } from "crypto";
 
 /**
  * Limite por IP, janela deslizante simples com contador no Upstash.
@@ -23,16 +24,16 @@ function redisOpcional(): Redis | null {
   }
 }
 
-export async function limitarPorIp(
+export async function limitarPorChave(
   chave: string,
-  ip: string,
+  identidade: string,
   maximo: number,
   janelaSegundos: number,
 ): Promise<ResultadoLimite> {
   const redis = redisOpcional();
   if (!redis) return { permitido: true };
 
-  const k = `rl:${chave}:${ip}`;
+  const k = `rl:${chave}:${identidade}`;
   try {
     const n = await redis.incr(k);
     if (n === 1) await redis.expire(k, janelaSegundos);
@@ -56,4 +57,47 @@ export function ipDaRequisicao(req: Request): string {
     h.get("x-real-ip") ||
     "desconhecido"
   );
+}
+
+/**
+ * Quem está chamando: serviço autenticado ou tráfego anônimo.
+ *
+ * O agente de atendimento sai por poucos IPs, e um limite por IP transformaria
+ * vizinhança em 429. Com token, o limite é dele e é mais alto; sem token, o
+ * limite por IP continua valendo igual.
+ *
+ * O segredo vive só em variável de ambiente. Sem `PACOTES_API_TOKEN` configurado
+ * nenhuma requisição é tratada como autenticada — ninguém vira serviço por acaso.
+ */
+export type Chamador = {
+  tipo: "servico" | "anonimo";
+  /** Chave do contador: id do token ou IP. */
+  identidade: string;
+};
+
+export function identificarChamador(req: Request): Chamador {
+  const esperado = process.env.PACOTES_API_TOKEN || "";
+  const recebido = tokenDoHeader(req);
+
+  if (esperado && recebido && igualEmTempoConstante(recebido, esperado)) {
+    // Nunca usar o segredo como chave do Redis: um hash curto identifica sem
+    // guardar o valor em lugar nenhum.
+    const id = createHash("sha256").update(esperado).digest("hex").slice(0, 12);
+    return { tipo: "servico", identidade: `svc:${id}` };
+  }
+
+  return { tipo: "anonimo", identidade: ipDaRequisicao(req) };
+}
+
+function tokenDoHeader(req: Request): string {
+  const auth = req.headers.get("authorization") || "";
+  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  return (req.headers.get("x-api-token") || "").trim();
+}
+
+function igualEmTempoConstante(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
 }

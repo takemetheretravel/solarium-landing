@@ -45,6 +45,12 @@ function isComplete(s: Search): s is Required<Pick<Search, "propertyId" | "check
   return Boolean(s.propertyId && s.checkin && s.checkout);
 }
 
+/** Nenhuma das três casas tem preço para as datas: todas ocupadas. */
+function nenhumaCasaLivre(prices: Record<string, number | null>): boolean {
+  const valores = Object.values(prices);
+  return valores.length > 0 && valores.every((v) => v == null);
+}
+
 export default async function ReservarPage({ searchParams }: { searchParams: Search }) {
   if (!isComplete(searchParams)) {
     const checkin = searchParams.checkin;
@@ -70,11 +76,25 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
         prices={prices}
         pacotes={
           checkin && checkout ? (
-            <PacotesCompativeis checkin={checkin} checkout={checkout} guests={guests} />
+            <PacotesCompativeis
+              checkin={checkin}
+              checkout={checkout}
+              guests={guests}
+              variante={nenhumaCasaLivre(prices) ? "acima" : "abaixo"}
+            />
           ) : null
         }
+        pacotesAcima={nenhumaCasaLivre(prices)}
       />
     );
+  }
+
+  // Link antigo com `?package=` para um pacote que migrou para o motor V2: vale
+  // como `?pacote=`. Sem isto, um link já enviado pelo atendimento passaria a
+  // abrir o checkout sem o pacote — a preço cheio, em silêncio.
+  if (searchParams.package && !searchParams.pacote && getPacoteV2(searchParams.package)) {
+    searchParams.pacote = searchParams.package;
+    searchParams.package = undefined;
   }
 
   const property = getPropertyBySlug(searchParams.propertyId);
@@ -276,13 +296,19 @@ function ChooseProperty({
   guests,
   prices,
   pacotes,
+  pacotesAcima,
 }: {
   checkin?: string;
   checkout?: string;
   guests?: number;
   prices?: Record<string, number | null>;
-  /** Bloco de pacotes compatíveis, renderizado ABAIXO dos cards de casa. */
+  /** Bloco de pacotes compatíveis. */
   pacotes?: React.ReactNode;
+  /**
+   * Sobe o bloco para cima dos cards quando nenhuma casa está livre: três
+   * "indisponível" e mais nada é a pior tela do site.
+   */
+  pacotesAcima?: boolean;
 }) {
   const hasDates = Boolean(checkin && checkout);
 
@@ -307,6 +333,7 @@ function ChooseProperty({
             Selecione a casa, datas e hóspedes para iniciar a reserva.
           </p>
         )}
+        {pacotesAcima ? <div className="mt-12">{pacotes}</div> : null}
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
           {PROPERTIES.map((p) => {
             const total = prices?.[p.slug];
@@ -352,7 +379,7 @@ function ChooseProperty({
             );
           })}
         </div>
-        {pacotes}
+        {pacotesAcima ? null : pacotes}
       </Container>
     </main>
   );

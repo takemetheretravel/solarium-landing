@@ -6,6 +6,8 @@
  * nós controlamos, e as regras que combinam esses itens.
  */
 
+import { imageUrl } from "@/lib/cloudinary";
+
 export const CONFIG_VERSION = "2026-08-13";
 
 /** Janela de cancelamento com reembolso integral dos extras, contada a partir do CHECK-IN. */
@@ -96,6 +98,11 @@ export type ExtraConfig = {
   prazoFornecedorDias?: number;
   /** Mapeia para o id já usado no fluxo avulso, quando existe. */
   idLegado?: string;
+  /**
+   * Item que só existe dentro de um pacote. Fica fora da lista de extras
+   * avulsos, mas o preço mora aqui como o de qualquer outro — uma fonte só.
+   */
+  somenteEmPacote?: boolean;
 };
 
 export const EXTRAS: ExtraConfig[] = [
@@ -235,6 +242,18 @@ export const EXTRAS: ExtraConfig[] = [
     prazoFornecedorDias: 2,
   },
   {
+    id: "quadriciclo",
+    nome: "Passeio de quadriciclo — Cachoeira da Gomeira",
+    descricao: "Cerca de duas horas, com guia, saindo da casa.",
+    preco: 300,
+    unidade: "por_estadia",
+    controle: "on_off",
+    entraNaBase: false,
+    somenteEmPacote: true,
+    notaInterna: "Acionar parceiro de quadriciclo — combinar horário com o hóspede",
+    prazoFornecedorDias: 3,
+  },
+  {
     id: "lenha",
     nome: "Lenha",
     preco: 60,
@@ -329,6 +348,41 @@ export function proximoFeriado(a_partir_de: string): { data: string; nome: strin
 }
 
 // ---------------------------------------------------------------------------
+// JANELAS BLOQUEADAS
+// ---------------------------------------------------------------------------
+
+/**
+ * Noites em que os pacotes de meio de semana não valem, por [primeira, última].
+ *
+ * Fonte única: era uma lista dentro de `config/packages.ts`, usada só pelo motor
+ * antigo. Migrada para cá com os mesmos intervalos, sem alteração.
+ */
+export const JANELAS_BLOQUEADAS: [string, string][] = [
+  ["2026-02-14", "2026-02-17"],
+  ["2026-04-18", "2026-04-20"],
+  ["2026-05-01", "2026-05-02"],
+  ["2026-06-04", "2026-06-06"],
+  ["2026-09-05", "2026-09-06"],
+  ["2026-10-10", "2026-10-11"],
+  ["2026-10-31", "2026-11-01"],
+  ["2026-11-13", "2026-11-14"],
+  ["2026-12-23", "2026-12-25"],
+  ["2026-12-30", "2027-01-01"],
+];
+
+/** Alguma NOITE da estadia cai numa janela bloqueada. O check-out não é noite. */
+export function estadiaEmJanelaBloqueada(checkin: string, checkout: string): boolean {
+  const d = new Date(checkin + "T12:00:00");
+  const fim = new Date(checkout + "T12:00:00");
+  while (d < fim) {
+    const noite = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (JANELAS_BLOQUEADAS.some(([de, ate]) => noite >= de && noite <= ate)) return true;
+    d.setDate(d.getDate() + 1);
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // PACOTES
 // ---------------------------------------------------------------------------
 
@@ -389,6 +443,8 @@ export type PacoteV2 = {
   checkoutDows: number[] | null;
   /** Exige ao menos um feriado nacional dentro da estadia. */
   exigeFeriado: boolean;
+  /** Recusa estadias com noite dentro de `JANELAS_BLOQUEADAS`. */
+  naoValeEmJanelaBloqueada?: boolean;
   /** Sazonal: só visível dentro da janela de feriado. */
   sazonal: boolean;
   inclusos: ItemIncluso[];
@@ -514,6 +570,54 @@ export const PACOTES_V2: PacoteV2[] = [
       { extraId: "espumante_chandon", qtd: 1, removivel: true },
     ],
     prioridadeHome: 4,
+    ativo: true,
+  },
+  {
+    id: "meio-de-semana",
+    slug: "meio-de-semana",
+    nome: "Meio de Semana na Serra",
+    descricao: "Três manhãs de café com vista, sem pressa e sem multidão.",
+    descricaoLonga:
+      "Três noites durante a semana, quando a serra está mais silenciosa, com a cesta de café da manhã do Café Café servida nas três manhãs. Você só escolhe as datas — o resto é com a gente.",
+    imagem: imageUrl("solarium/experiencias/cesta-cafe-preparada", { width: 1200, height: 900 }),
+    properties: ["solarium-1", "solarium-2"],
+    noitesMin: 3,
+    noitesMax: 3,
+    // Domingo, segunda ou terça: são as chegadas cujas três noites caem todas
+    // entre domingo e quinta. É a mesma regra do motor antigo, escrita como dia
+    // de chegada em vez de varredura das noites.
+    checkinDows: [0, 1, 2],
+    checkoutDows: null,
+    exigeFeriado: false,
+    naoValeEmJanelaBloqueada: true,
+    sazonal: false,
+    inclusos: [{ extraId: "cesta_cafecafe", qtd: 3, removivel: false }],
+    prioridadeHome: 5,
+    ativo: true,
+  },
+  {
+    id: "imersao-na-serra",
+    slug: "imersao-na-serra",
+    nome: "Imersão na Serra",
+    descricao: "Quatro noites, café todas as manhãs e a serra de quadriciclo.",
+    descricaoLonga:
+      "Quatro noites de semana com café da manhã servido todos os dias e um passeio de quadriciclo até a Cachoeira da Gomeira. A experiência completa da Mantiqueira, organizada em uma reserva só.",
+    imagem: imageUrl("solarium/experiencias/cachoeira", { width: 1200, height: 900 }),
+    properties: ["solarium-1", "solarium-2"],
+    noitesMin: 4,
+    noitesMax: 4,
+    // Quatro noites entre domingo e quinta só cabem começando no domingo ou na
+    // segunda.
+    checkinDows: [0, 1],
+    checkoutDows: null,
+    exigeFeriado: false,
+    naoValeEmJanelaBloqueada: true,
+    sazonal: false,
+    inclusos: [
+      { extraId: "cesta_cafecafe", qtd: 4, removivel: false },
+      { extraId: "quadriciclo", qtd: 1, removivel: false },
+    ],
+    prioridadeHome: 6,
     ativo: true,
   },
 ];

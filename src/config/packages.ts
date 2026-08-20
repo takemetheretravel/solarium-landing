@@ -1,4 +1,5 @@
 import { imageUrl } from "@/lib/cloudinary";
+import { JANELAS_BLOQUEADAS } from "./precos-e-extras";
 
 export type PackageExtraChoice = { label: string; price: number };
 export type PackageExtra = {
@@ -23,59 +24,13 @@ export type PackageConfig = {
   included: string[];            // bullets do que está incluído (copy)
 };
 
-// Feriados 2026 — noites bloqueadas para pacotes (ranges [primeira noite, última noite])
-export const HOLIDAY_RANGES_2026: [string, string][] = [
-  ["2026-02-14", "2026-02-17"], // Carnaval
-  ["2026-04-18", "2026-04-20"], // Tiradentes
-  ["2026-05-01", "2026-05-02"], // Dia do Trabalho
-  ["2026-06-04", "2026-06-06"], // Corpus Christi
-  ["2026-09-05", "2026-09-06"], // Independência
-  ["2026-10-10", "2026-10-11"], // N. S. Aparecida
-  ["2026-10-31", "2026-11-01"], // Finados
-  ["2026-11-13", "2026-11-14"], // Proclamação
-  ["2026-12-23", "2026-12-25"], // Natal
-  ["2026-12-30", "2027-01-01"], // Réveillon
-];
+/**
+ * Janelas bloqueadas do motor antigo. A lista vive em `precos-e-extras.ts`, junto
+ * com o resto da configuração de pacote — aqui é só o nome herdado.
+ */
+export const HOLIDAY_RANGES_2026 = JANELAS_BLOQUEADAS;
 
 export const PACKAGES: PackageConfig[] = [
-  {
-    slug: "meio-de-semana",
-    name: "Meio de Semana na Serra",
-    tagline: "Três manhãs de café com vista, sem pressa e sem multidão.",
-    description: "Três noites durante a semana, quando a serra está mais silenciosa, com a cesta de café da manhã do Café Café servida nas três manhãs. Você só escolhe as datas — o resto é com a gente.",
-    image: imageUrl("solarium/experiencias/cesta-cafe-preparada", { width: 1200, height: 900 }),
-    properties: ["solarium-1", "solarium-2"],
-    nights: 3,
-    weekdaysOnly: true,
-    stayDiscountPct: 12,
-    extras: [{ label: "Cesta de café da manhã Café Café (casal)", price: 180, perNight: true }],
-    included: [
-      "3 noites em casa completa e exclusiva",
-      "Cesta de café da manhã Café Café nas 3 manhãs (para o casal)",
-      "Concierge para personalizar a estadia",
-    ],
-  },
-  {
-    slug: "imersao-na-serra",
-    name: "Imersão na Serra",
-    tagline: "Quatro noites, café todas as manhãs e a serra de quadriciclo.",
-    description: "Quatro noites de semana com café da manhã servido todos os dias e um passeio de quadriciclo até a Cachoeira da Gomeira. A experiência completa da Mantiqueira, organizada em uma reserva só.",
-    image: imageUrl("solarium/experiencias/cachoeira", { width: 1200, height: 900 }),
-    properties: ["solarium-1", "solarium-2"],
-    nights: 4,
-    weekdaysOnly: true,
-    stayDiscountPct: 12,
-    extras: [
-      { label: "Cesta de café da manhã Café Café (casal)", price: 180, perNight: true },
-      { label: "Passeio de quadriciclo — Cachoeira da Gomeira (~2h)", price: 300 },
-    ],
-    included: [
-      "4 noites em casa completa e exclusiva",
-      "Cesta de café da manhã nas 4 manhãs (para o casal)",
-      "Passeio de quadriciclo até a Cachoeira da Gomeira",
-      "Concierge para personalizar a estadia",
-    ],
-  },
   {
     slug: "data-especial",
     name: "Data Especial",

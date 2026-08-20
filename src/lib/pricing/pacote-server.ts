@@ -7,7 +7,7 @@
  */
 
 import { unstable_cache } from "next/cache";
-import { calculatePrice, getCalendar } from "@/lib/hostaway";
+import { calculatePriceDetailed, getCalendar, type HostawayPriceFailure } from "@/lib/hostaway";
 import { datasElegiveis, totalDoPacote, noitesDoPacote, motorDoPacote } from "./elegibilidade";
 import { listingsForProperty } from "@/config/operational-extras";
 import { getPropertyBySlug } from "@/config/properties";
@@ -87,13 +87,20 @@ export async function calcularPacoteServer(
 
   // A Hostaway responde 502/timeout de vez em quando. Uma segunda tentativa
   // resolve a maioria; sem ela o hóspede via erro cru na tela do pacote.
-  const quote = await comRetry(() => calculatePrice(propertyId, checkin, checkout, guests));
-  if (!quote) {
-    // Sem preço podem ser duas coisas MUITO diferentes: as noites já estão
-    // vendidas, ou a Hostaway falhou. Dizer "erro técnico" para quem só escolheu
-    // uma data ocupada é mandar a pessoa embora sem alternativa nenhuma.
-    return await diagnosticarSemPreco(input);
+  // `Detailed` porque o MOTIVO importa: noite vendida, mínimo de noites da data
+  // e falha de API pedem respostas diferentes. Antes tudo virava "erro técnico".
+  // Só falha de API merece segunda tentativa: noite vendida e mínimo de noites
+  // são respostas estáveis, e repetir só atrasa a tela.
+  const cotacao = await comRetry(async () => {
+    const r = await calculatePriceDetailed(propertyId, checkin, checkout, guests);
+    return "failure" in r && r.failure.reason === "api-error" ? null : r;
+  });
+  const resposta =
+    cotacao ?? (await calculatePriceDetailed(propertyId, checkin, checkout, guests));
+  if ("failure" in resposta) {
+    return await diagnosticarSemPreco(input, resposta.failure);
   }
+  const quote = resposta.quote;
 
   // Itens inclusos (menos os removidos) + extras opcionais, a preço cheio de menu.
   const itens = montarItens({ pacote, propertySlug, checkin, checkout, removidos, selecao });
@@ -176,6 +183,14 @@ async function estadiaDisponivel(
   }
 }
 
+/** "2 de janeiro" — para mensagem, nunca para cálculo. */
+function formatarDia(iso: string): string {
+  return new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "long",
+  });
+}
+
 function linkDoPacote(
   slug: string,
   casa: string,
@@ -188,8 +203,34 @@ function linkDoPacote(
 
 async function diagnosticarSemPreco(
   input: EntradaPacoteServer,
+  falha?: HostawayPriceFailure,
 ): Promise<ResultadoPacoteServer> {
   const { pacote, propertySlug, checkin, checkout, guests } = input;
+
+  // Mínimo de noites da data de chegada: a estadia é válida para o pacote, mas
+  // curta demais para o que a tarifa daquela chegada exige. Dizer "erro técnico"
+  // aqui é o que impede a venda — o cliente só precisa saber quantas noites.
+  if (falha?.reason === "min-stay-not-met") {
+    const minimo = Number(falha.meta?.minimumStay ?? 0);
+    const alvo = minimo > 0 ? somarDias(checkin, minimo) : null;
+    const alvoElegivel =
+      alvo && datasElegiveis(pacote.slug, propertySlug, checkin, alvo).elegivel ? alvo : null;
+
+    return {
+      ok: false,
+      status: 200,
+      erro:
+        minimo > 0
+          ? `A chegada em ${formatarDia(checkin)} exige no mínimo ${minimo} noites.`
+          : falha.message,
+      alternativa: alvoElegivel
+        ? {
+            rotulo: `Ver com saída em ${formatarDia(alvoElegivel)}`,
+            href: linkDoPacote(pacote.slug, propertySlug, checkin, alvoElegivel, guests),
+          }
+        : undefined,
+    };
+  }
 
   const disp = await estadiaDisponivel(propertySlug, checkin, checkout);
   if (disp !== "ocupada") {
@@ -312,7 +353,7 @@ async function datasLivresDoPacote(
   // Uma semana a mais: o bônus de saída olha a noite seguinte ao check-out.
   const fim = new Date(inicio.getTime() + (dias + 8) * 86400000);
 
-  let noitesCal: Map<string, { livre: boolean; preco: number }>;
+  let noitesCal: Map<string, { livre: boolean; preco: number; minimo: number }>;
   try {
     const calendarios = await Promise.all(
       listings.map((id) => getCalendar(id, iso(inicio), iso(fim))),
@@ -332,6 +373,11 @@ async function datasLivresDoPacote(
 
     // MESMA elegibilidade do calendário e do draft.
     if (!datasElegiveis(slug, propertySlug, checkin, checkout).elegivel) continue;
+
+    // Mínimo de noites da chegada: sugerir data que a Hostaway recusa na hora de
+    // cotar é o mesmo que não sugerir nada.
+    const minimoDaChegada = noitesCal.get(checkin)?.minimo ?? 1;
+    if (noites < minimoDaChegada) continue;
 
     let hostawayTotal = 0;
     let completa = true;
@@ -411,9 +457,9 @@ async function calcularMinimo(slug: string, propertySlug: string): Promise<Minim
  * nas duas, e o preço é a soma. Casa individual passa direto.
  */
 function combinarCalendarios(
-  calendarios: { date: string; isAvailable: number; price: number }[][],
-): Map<string, { livre: boolean; preco: number }> {
-  const mapa = new Map<string, { livre: boolean; preco: number }>();
+  calendarios: { date: string; isAvailable: number; price: number; minimumStay?: number }[][],
+): Map<string, { livre: boolean; preco: number; minimo: number }> {
+  const mapa = new Map<string, { livre: boolean; preco: number; minimo: number }>();
 
   for (const dia of calendarios[0]) {
     const outras = calendarios.slice(1).map((c) => c.find((d) => d.date === dia.date));
@@ -424,7 +470,14 @@ function combinarCalendarios(
       (Number.isFinite(dia.price) ? dia.price : 0) +
       outras.reduce((soma, o) => soma + (Number.isFinite(o!.price) ? o!.price : 0), 0);
 
-    mapa.set(dia.date, { livre, preco });
+    // O mínimo de noites é o mais restritivo entre as listings — o Completo só
+    // fecha se as duas aceitarem.
+    const minimo = Math.max(
+      Number(dia.minimumStay ?? 1),
+      ...outras.map((o) => Number(o!.minimumStay ?? 1)),
+    );
+
+    mapa.set(dia.date, { livre, preco, minimo });
   }
   return mapa;
 }

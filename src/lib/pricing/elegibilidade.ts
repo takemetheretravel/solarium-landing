@@ -176,12 +176,12 @@ export function hospedesBase(slug: string): number {
  * e não em /pacotes, o mesmo problema que a rodada 7 eliminou no "a partir de".
  */
 export function pacotesVisiveis(hoje: string): string[] {
-  const v2 = PACOTES_V2.filter((p) => p.ativo && pacoteVisivelHoje(p, hoje))
+  // Lista inteiramente derivada do catálogo. O Meio de Semana e a Imersão eram
+  // acrescentados à mão porque viviam no motor antigo; migrados, entram pela
+  // mesma porta que os demais e passaram a ser cotáveis pela API.
+  return PACOTES_V2.filter((p) => p.ativo && pacoteVisivelHoje(p, hoje))
     .sort((a, b) => a.prioridadeHome - b.prioridadeHome)
     .map((p) => p.slug);
-
-  // Os dois pacotes do motor legado não são sazonais: sempre visíveis.
-  return [...v2, "meio-de-semana", "imersao-na-serra"];
 }
 
 

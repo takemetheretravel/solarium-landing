@@ -38,6 +38,7 @@ import {
   estadiaDeFimDeSemana,
 } from "./extras";
 import {
+  getExtra,
   taxaProgressiva,
   estadiaContemFeriado,
   feriadosNaEstadia,
@@ -453,9 +454,15 @@ describe("§1 — item incluso nunca é cobrado duas vezes", () => {
     ]);
   });
 
-  it("os dois pacotes antigos não têm inclusos no catálogo V2 — nada a duplicar", () => {
-    expect(getPacoteV2("meio-de-semana")).toBeUndefined();
-    expect(getPacoteV2("imersao-na-serra")).toBeUndefined();
+  it("os dois pacotes migrados também protegem os seus inclusos", () => {
+    // Migrados para o V2, passaram a ter inclusos de verdade — e com isso entram
+    // na mesma trava de duplicidade dos demais.
+    for (const slug of ["meio-de-semana", "imersao-na-serra"]) {
+      const p = getPacoteV2(slug)!;
+      const ids = p.inclusos.map((i) => i.extraId);
+      expect(ids).toContain("cesta_cafecafe");
+      expect(extrasDuplicados(p, [], ids)).toEqual(ids);
+    }
   });
 });
 
@@ -519,16 +526,18 @@ describe("§7 — o \"a partir de\" nao tem caminho proprio", () => {
     }
   });
 
-  it("preco do legado permanece o da formula antiga, sem migracao de motor", () => {
-    const pkg = getPackageBySlug("meio-de-semana")!;
+  it("o que sobrou no motor antigo continua com a formula antiga", () => {
+    // Meio de Semana e Imersao migraram (ver migracao-legado.test.ts). A Data
+    // Especial segue no motor legado, e o preco dela nao pode mudar por tabela.
+    const pkg = getPackageBySlug("data-especial")!;
     const esperado = packageTotalActive(pkg, 3000, null);
     const calc = totalDoPacote({
-      slug: "meio-de-semana",
+      slug: "data-especial",
       propertySlug: "solarium-1",
       checkin: "2026-09-14",
-      checkout: "2026-09-17",
+      checkout: "2026-09-16",
       hostawayTotal: 3000,
-      noites: 3,
+      noites: 2,
     });
     expect(calc!.total).toBe(esperado);
   });
@@ -1197,8 +1206,20 @@ describe("exibição de extras", () => {
   });
 
 
-  it("o catálogo tem os 13 itens: os 12 da especificação mais o espumante", () => {
-    expect(EXTRAS).toHaveLength(13);
+  it("o catálogo tem 14 itens: os 13 de antes mais o quadriciclo da Imersão", () => {
+    expect(EXTRAS).toHaveLength(14);
+  });
+
+  it("item que só existe dentro de pacote não aparece na lista avulsa", () => {
+    const lista = extrasExibiveis("solarium-1", {
+      checkin: "2026-09-14",
+      checkout: "2026-09-18",
+      hoje: "2026-08-20",
+      noitesLivres: { early_checkin: true, late_checkout: true },
+    });
+    expect(lista.some((e) => e.extra.id === "quadriciclo")).toBe(false);
+    // Mas o preço dele vem do mesmo catálogo de todo mundo.
+    expect(getExtra("quadriciclo")?.preco).toBe(300);
   });
 });
 

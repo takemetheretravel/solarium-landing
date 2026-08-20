@@ -168,3 +168,20 @@ export function trackPacoteSugeridoNaBusca(p: { pacoteId: string; clicou: boolea
     clicou: p.clicou,
   });
 }
+
+/**
+ * Pacote sugerido em datas VIZINHAS às pedidas, quando as pedidas não fecham
+ * nenhum. `deslocamento` é a distância em noites — sem ela não dá para saber se
+ * o cliente aceita mudar a data ou só ignora a sugestão.
+ */
+export function trackPacoteSugeridoDataProxima(p: {
+  pacoteId: string;
+  deslocamentoNoites: number;
+  clicou: boolean;
+}): void {
+  trackEvent("pacote_sugerido_data_proxima", {
+    pacote_id: p.pacoteId,
+    deslocamento_noites: p.deslocamentoNoites,
+    clicou: p.clicou,
+  });
+}

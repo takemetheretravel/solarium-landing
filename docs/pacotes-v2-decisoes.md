@@ -162,3 +162,42 @@ Ler contra:
 3. Ticket médio e anexação de extras, como contexto.
 
 Um pacote que aumenta ticket e não move ocupação falhou no que foi contratado para fazer.
+
+## 12. Migração do Meio de Semana e da Imersão para o motor V2 (rodada 20)
+
+Os dois viviam no motor antigo. A consequência não era estética: `/api/pacotes/preco`
+respondia 404 para eles e a busca não os sugeria — dois dos seis pacotes fora do canal de
+venda.
+
+A migração foi feita **sem alterar preço**, e isso é verificável: 24 totais foram gerados do
+motor antigo antes da mudança e travados em `migracao-legado.test.ts`. O motor V2 reproduz os
+24 exatamente. Bate porque as duas fórmulas coincidem quando a soma dos itens é múltipla de
+dez: o antigo arredondava a estadia e somava os itens; o novo soma tudo e arredonda no fim.
+
+Regras traduzidas, não reescritas:
+
+- "todas as noites de segunda a quinta" virou dia de chegada (`checkinDows`), que para uma
+  duração fixa diz exatamente a mesma coisa;
+- a lista de janelas bloqueadas saiu de `config/packages.ts` e virou `JANELAS_BLOQUEADAS` em
+  `precos-e-extras.ts`, com os mesmos intervalos e uma fonte só;
+- o quadriciclo entrou no catálogo de extras com `somenteEmPacote`, para o preço morar onde
+  moram todos os outros sem virar item de venda avulsa.
+
+O que sobrou no motor antigo é a Data Especial, que não está na grade.
+
+Link antigo com `?package=` para um pacote migrado continua valendo: o checkout converte para
+`?pacote=`. Sem isso, um link já enviado pelo atendimento abriria a preço cheio, em silêncio.
+
+## 13. O que impede a saída em 02/01 não é o nosso código
+
+A chegada em 28, 29 e 30/12 tem **mínimo de noites na Hostaway** de 6, 5 e 4 respectivamente.
+A saída no sábado 02/01 dá 5, 4 e 3 noites — abaixo do mínimo em todos os casos, e a Hostaway
+recusa a cotação. As regras do pacote aceitam as nove combinações; o teste
+`final-de-ano.test.ts` prova isso.
+
+Enquanto o mínimo estiver como está, a saída de sábado só volta a ser vendável mudando o
+`minimumStay` dessas três datas no PMS. É decisão de tarifa, não de código.
+
+O que o código passou a fazer: dizer a verdade. Antes qualquer recusa da Hostaway virava "erro
+técnico"; agora o mínimo de noites aparece com o número, e o varredor de datas livres não
+sugere data cujo mínimo a estadia não cumpre.

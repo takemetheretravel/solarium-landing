@@ -4,7 +4,7 @@ import { getPropertyBySlug } from "@/config/properties";
 import { pacotesV2Ativo } from "@/config/flags";
 import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
 import { alternativaPara } from "@/lib/pricing/elegibilidade";
-import { limitarPorIp, ipDaRequisicao } from "@/lib/rate-limit";
+import { limitarPorChave, identificarChamador } from "@/lib/rate-limit";
 import { validarDatasPacote, extrasExibiveis } from "@/lib/pricing/extras";
 import { listingsForProperty } from "@/config/operational-extras";
 import { getCalendar } from "@/lib/hostaway";
@@ -23,9 +23,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "indisponível" }, { status: 404 });
   }
 
-  // 60 cotações por minuto por IP. Um cliente indeciso faz ~10; a agente, algumas
-  // dezenas numa conversa. Raspar a tabela inteira exigiria milhares.
-  const limite = await limitarPorIp("pacotes-preco", ipDaRequisicao(req), 60, 60);
+  // Tráfego anônimo: 60 por minuto por IP — um cliente indeciso faz ~10, e
+  // raspar a tabela inteira exigiria milhares. Serviço autenticado: 600 por
+  // minuto na chave do token, porque o agente sai por poucos IPs e o limite de
+  // vizinhança recusaria atendimento legítimo.
+  const chamador = identificarChamador(req);
+  const maximo = chamador.tipo === "servico" ? 600 : 60;
+  const limite = await limitarPorChave("pacotes-preco", chamador.identidade, maximo, 60);
   if (!limite.permitido) {
     return NextResponse.json(
       { error: "Muitas consultas em pouco tempo. Aguarde alguns segundos." },

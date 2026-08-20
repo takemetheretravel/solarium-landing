@@ -14,6 +14,7 @@ import {
   JANELA_CANCELAMENTO_EXTRAS_DIAS,
   MAX_QTD_POR_EXTRA,
   PacoteV2,
+  estadiaEmJanelaBloqueada,
 } from "@/config/precos-e-extras";
 import { ItemPreco, diasAte, extraNaoReembolsavel } from "./pacotes";
 
@@ -135,6 +136,8 @@ export function extrasExibiveis(
       // Informativo não tem controle nem valor: o custo já aparece no resumo de
       // preço, e repetir aqui só confunde.
       if (extra.informativo) return false;
+      // Item que só existe dentro de um pacote não é oferecido à parte.
+      if (extra.somenteEmPacote) return false;
       // Antecedência mínima: aqui o item some mesmo — não há o que oferecer.
       if (
         extra.antecedenciaMinimaDias !== undefined &&
@@ -368,6 +371,15 @@ export function validarDatasPacote(
   if (pacote.checkoutDows && !pacote.checkoutDows.includes(dowOut)) {
     const dias = pacote.checkoutDows.map((d) => NOME_DOW[d]).join(" ou ");
     return { valido: false, motivo: `A saída deste pacote é ${dias}.`, alternativa: "outro-pacote" };
+  }
+
+  if (pacote.naoValeEmJanelaBloqueada && estadiaEmJanelaBloqueada(checkin, checkout)) {
+    return {
+      valido: false,
+      motivo:
+        "Este pacote não está disponível em feriados. Fale com o concierge para datas de feriado.",
+      alternativa: "outro-pacote",
+    };
   }
 
   if (pacote.exigeFeriado && !contemFeriado) {

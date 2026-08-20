@@ -15,7 +15,7 @@ Content-Type: application/json
 
 | Campo | Tipo | Obrigatório | O que é |
 |---|---|---|---|
-| `pacoteId` | texto | sim | Slug do pacote: `fim-de-semana-completo`, `feriado-na-serra`, `dois-casais`, `final-de-ano` |
+| `pacoteId` | texto | sim | Slug do pacote: `fim-de-semana-completo`, `dois-casais`, `feriado-na-serra`, `final-de-ano`, `meio-de-semana`, `imersao-na-serra` |
 | `propertySlug` | texto | sim | `solarium-1`, `solarium-2` ou `solarium-completo` |
 | `checkin` | texto | sim | `AAAA-MM-DD` |
 | `checkout` | texto | sim | `AAAA-MM-DD` |
@@ -97,10 +97,14 @@ São três respostas diferentes, e a diferença importa para o que dizer ao clie
 |---|---|---|
 | Ocupado nesta casa, livre na outra | `Estas datas já estão reservadas no Solarium 1.` | Link para a **outra casa nas mesmas datas** |
 | Ocupado nas duas casas | `Estas datas já estão reservadas nas duas casas.` | Link para a **próxima data livre** do mesmo pacote |
+| A chegada exige mais noites | `A chegada em 28 de dezembro exige no mínimo 6 noites.` | Link com a saída que cumpre o mínimo, quando o pacote aceita |
 | Hostaway fora do ar | `Não conseguimos calcular o preço agora…` | `null` — não existe alternativa a oferecer |
 
-As duas primeiras voltam com status `200`: são respostas, não erros. A terceira
-volta `502`. Se `alternativa` vier `null`, não improvise data — é o caso em que o
+O mínimo de noites é regra de tarifa da data de chegada, definida no PMS: não é
+recusa do pacote nem falha nossa.
+
+As três primeiras voltam com status `200` — são respostas, não erros. Só a última
+volta `502`. Se `alternativa` vier `null`, não improvise data: é o caso em que o
 sistema não sabe o que está livre.
 
 ## Erros
@@ -112,11 +116,32 @@ sistema não sabe o que está livre.
 | `429` | Limite de consultas atingido | Aguardar o `Retry-After` em segundos |
 | `502` | Hostaway indisponível | Tentar de novo em instantes; se persistir, avisar |
 
+## Autenticação de serviço
+
+A agente sai por poucos IPs. Sem token, um dia movimentado faz uma consulta
+legítima levar `429` por causa do vizinho. Com token, o limite passa a ser da
+agente e é dez vezes maior.
+
+Mande o token no header:
+
+```
+Authorization: Bearer SEU_TOKEN
+```
+
+`x-api-token: SEU_TOKEN` também funciona. O valor vive na variável de ambiente
+`PACOTES_API_TOKEN`, na Vercel — nunca em documento, nunca no repositório, que é
+público. Token errado não dá erro: a chamada é tratada como anônima e cai no
+limite menor.
+
 ## Limite de consultas
 
-**60 requisições por minuto por IP.** Um cliente indeciso faz cerca de 10 numa
-sessão; a agente, algumas dezenas numa conversa. Raspar a tabela de tarifas
-inteira exigiria milhares, e o limite torna isso inviável.
+| Chamador | Limite |
+|---|---|
+| Anônimo (por IP) | 60 por minuto |
+| Autenticado (por token) | 600 por minuto |
+
+Um cliente indeciso faz cerca de 10 numa sessão; a agente, algumas dezenas numa
+conversa. Raspar a tabela de tarifas inteira exigiria milhares.
 
 Excedeu, volta `429` com `Retry-After` em segundos. O contador vive no Upstash
 Redis. **Se o Redis estiver fora, o limite não bloqueia** — indisponibilidade de
