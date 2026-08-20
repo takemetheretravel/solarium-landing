@@ -3,6 +3,8 @@ import { getPacoteV2, estadiaContemFeriado } from "@/config/precos-e-extras";
 import { getPropertyBySlug } from "@/config/properties";
 import { pacotesV2Ativo } from "@/config/flags";
 import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
+import { alternativaPara } from "@/lib/pricing/elegibilidade";
+import { limitarPorIp, ipDaRequisicao } from "@/lib/rate-limit";
 import { validarDatasPacote, extrasExibiveis } from "@/lib/pricing/extras";
 import { listingsForProperty } from "@/config/operational-extras";
 import { getCalendar } from "@/lib/hostaway";
@@ -19,6 +21,16 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   if (!pacotesV2Ativo()) {
     return NextResponse.json({ error: "indisponível" }, { status: 404 });
+  }
+
+  // 60 cotações por minuto por IP. Um cliente indeciso faz ~10; a agente, algumas
+  // dezenas numa conversa. Raspar a tabela inteira exigiria milhares.
+  const limite = await limitarPorIp("pacotes-preco", ipDaRequisicao(req), 60, 60);
+  if (!limite.permitido) {
+    return NextResponse.json(
+      { error: "Muitas consultas em pouco tempo. Aguarde alguns segundos." },
+      { status: 429, headers: { "Retry-After": String(limite.esperaSegundos) } },
+    );
   }
 
   let body: {
@@ -51,7 +63,12 @@ export async function POST(req: NextRequest) {
   const v = validarDatasPacote(pacote, body.checkin, body.checkout, contemFeriado);
   if (!v.valido) {
     return NextResponse.json(
-      { compativel: false, motivo: v.motivo, alternativa: v.alternativa ?? null },
+      {
+        compativel: false,
+        motivo: v.motivo,
+        // URL real, nunca o tipo da alternativa. Ver `alternativaPara`.
+        alternativa: alternativaPara(pacote.slug, body.checkin),
+      },
       { status: 200 },
     );
   }
@@ -68,7 +85,20 @@ export async function POST(req: NextRequest) {
   });
 
   if (!calc.ok) {
-    return NextResponse.json({ compativel: false, motivo: calc.erro }, { status: calc.status });
+    // Três saídas distintas: ocupado nesta casa (a outra casa vem em
+    // `calc.alternativa`), ocupado nas duas (próxima data livre) e falha técnica
+    // (sem alternativa nenhuma — não há o que oferecer). Data não elegível
+    // continua caindo em `alternativaPara`.
+    return NextResponse.json(
+      {
+        compativel: false,
+        motivo: calc.erro,
+        alternativa:
+          calc.alternativa ??
+          (calc.status === 400 ? alternativaPara(pacote.slug, body.checkin!) : null),
+      },
+      { status: calc.status },
+    );
   }
 
   const noitesLivres = await checarNoitesAdjacentes(property.slug, body.checkin, body.checkout);

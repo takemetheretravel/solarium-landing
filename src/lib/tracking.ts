@@ -154,3 +154,17 @@ export function trackReservaConcluida(params: {
     listing: params.listing,
   });
 }
+
+
+/**
+ * Pacote sugerido na página de escolha da casa, com as datas já buscadas.
+ *
+ * `clicou` distingue exibição de interesse: sem isso não dá para julgar se o
+ * bloco vale o espaço que ocupa na página de escolha da casa.
+ */
+export function trackPacoteSugeridoNaBusca(p: { pacoteId: string; clicou: boolean }): void {
+  trackEvent("pacote_sugerido_na_busca", {
+    pacote_id: p.pacoteId,
+    clicou: p.clicou,
+  });
+}

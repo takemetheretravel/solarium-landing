@@ -108,6 +108,14 @@ export type ExtraExibivel = {
   /** Aviso de não reembolsável, exibido no item e no resumo. */
   naoReembolsavel: boolean;
   maxQtd: number;
+  /**
+   * Preenchido quando o item existe mas não pode ser contratado nestas datas.
+   *
+   * Antes esses itens sumiam da lista sem explicação — no Dois Casais, que exige
+   * a noite livre nas DUAS casas, o check-in antecipado desaparecia e ninguém
+   * sabia por quê. Sumir em silêncio parece bug; dizer o motivo é informação.
+   */
+  motivoIndisponivel?: string;
 };
 
 /**
@@ -127,7 +135,7 @@ export function extrasExibiveis(
       // Informativo não tem controle nem valor: o custo já aparece no resumo de
       // preço, e repetir aqui só confunde.
       if (extra.informativo) return false;
-      if (extra.exigeNoiteLivre && ctx.noitesLivres[extra.id] !== true) return false;
+      // Antecedência mínima: aqui o item some mesmo — não há o que oferecer.
       if (
         extra.antecedenciaMinimaDias !== undefined &&
         diasAteCheckin < extra.antecedenciaMinimaDias
@@ -141,6 +149,12 @@ export function extrasExibiveis(
       precoUnitario: precoUnitarioDe(extra, propertySlug, ctx),
       naoReembolsavel: extraNaoReembolsavel(ctx.checkin, JANELA_CANCELAMENTO_EXTRAS_DIAS, ctx.hoje),
       maxQtd: extra.controle === "on_off" ? 1 : MAX_QTD_POR_EXTRA,
+      motivoIndisponivel:
+        extra.exigeNoiteLivre && ctx.noitesLivres[extra.id] !== true
+          ? extra.exigeNoiteLivre === "anterior"
+            ? "A noite anterior à chegada já está reservada."
+            : "A noite seguinte à saída já está reservada."
+          : undefined,
     }));
 }
 

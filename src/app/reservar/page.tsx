@@ -6,6 +6,7 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import BookingPageClient from "@/components/booking/BookingPageClient";
+import PacotesCompativeis from "@/components/pacotes/PacotesCompativeis";
 import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
 import { getPackageBySlug, validatePackageDates, round10down, isExtraActive } from "@/config/packages";
 import { SERVICE_EXTRAS, CAFE_EXTRA_IDS, MAX_QTY_PER_EXTRA } from "@/config/service-extras";
@@ -61,7 +62,19 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
       results.forEach((r) => { prices[r.slug] = r.total; });
     }
 
-    return <ChooseProperty checkin={checkin} checkout={checkout} guests={guests} prices={prices} />;
+    return (
+      <ChooseProperty
+        checkin={checkin}
+        checkout={checkout}
+        guests={guests}
+        prices={prices}
+        pacotes={
+          checkin && checkout ? (
+            <PacotesCompativeis checkin={checkin} checkout={checkout} guests={guests} />
+          ) : null
+        }
+      />
+    );
   }
 
   const property = getPropertyBySlug(searchParams.propertyId);
@@ -262,11 +275,14 @@ function ChooseProperty({
   checkout,
   guests,
   prices,
+  pacotes,
 }: {
   checkin?: string;
   checkout?: string;
   guests?: number;
   prices?: Record<string, number | null>;
+  /** Bloco de pacotes compatíveis, renderizado ABAIXO dos cards de casa. */
+  pacotes?: React.ReactNode;
 }) {
   const hasDates = Boolean(checkin && checkout);
 
@@ -336,6 +352,7 @@ function ChooseProperty({
             );
           })}
         </div>
+        {pacotes}
       </Container>
     </main>
   );

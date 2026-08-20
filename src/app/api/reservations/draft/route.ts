@@ -10,7 +10,7 @@ import { OpExtraType, OP_EXTRA_TYPES, OP_EXTRA_LABELS, blockedNightFor, opExtraP
 import { getPacoteV2, getExtra, PacoteV2 } from "@/config/precos-e-extras";
 import { pacotesV2Ativo, reservaTeste } from "@/config/flags";
 import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
-import { resolverExtraServicoV2, extrasDuplicados, inclusosAtivos } from "@/lib/pricing/extras";
+import { resolverExtraServicoV2, extrasDuplicados, inclusosAtivos, noiteBloqueada } from "@/lib/pricing/extras";
 import { aplicarPix } from "@/lib/pricing/pacotes";
 import type { PropertyConfig } from "@/config/properties";
 
@@ -141,6 +141,25 @@ export async function POST(req: NextRequest) {
       ...(Array.isArray(body.serviceExtras) ? body.serviceExtras.map((e) => e?.id) : []),
       ...(Array.isArray(body.opExtras) ? body.opExtras : []),
     ].filter((id): id is string => Boolean(id));
+
+    // Item que exige noite adjacente livre so entra se ela estiver mesmo livre.
+    // A tela agora EXIBE o item indisponivel com o motivo, entao o servidor
+    // precisa recusar explicitamente em vez de confiar na interface.
+    const opsPedidos = idsPedidos.filter((id) => {
+      const cfg = getExtra(id);
+      return Boolean(cfg?.exigeNoiteLivre);
+    });
+    for (const id of opsPedidos) {
+      const cfg = getExtra(id)!;
+      const noite = noiteBloqueada(id as "early_checkin" | "late_checkout", body.checkin, body.checkout);
+      const livre = await noiteLivreEmTodasAsListings(property.slug, noite);
+      if (!livre) {
+        return NextResponse.json(
+          { error: `${cfg.nome} não está disponível nestas datas: a noite de ${noite} já está reservada.` },
+          { status: 400 },
+        );
+      }
+    }
 
     const duplicados = extrasDuplicados(pacote, removidos, idsPedidos);
     if (duplicados.length > 0) {
@@ -476,4 +495,18 @@ export async function GET(req: NextRequest) {
   const draft = await getDraft(id);
   if (!draft) return NextResponse.json({ draft: null }, { status: 404 });
   return NextResponse.json({ draft });
+}
+
+
+/** A noite está livre em TODAS as listings físicas da casa (Completo = as duas). */
+async function noiteLivreEmTodasAsListings(propertySlug: string, noite: string): Promise<boolean> {
+  const listings = listingsForProperty(propertySlug);
+  if (listings.length === 0) return false;
+  const checks = await Promise.all(
+    listings.map(async (id) => {
+      const dias = await getCalendar(id, noite, noite);
+      return dias.length > 0 && dias.every((d) => d.isAvailable === 1);
+    }),
+  );
+  return checks.every(Boolean);
 }

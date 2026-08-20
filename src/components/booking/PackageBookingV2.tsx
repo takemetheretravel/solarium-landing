@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Calendar, MessageCircle, X } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
@@ -26,7 +26,7 @@ type Resposta =
       subtotal: number;
       absorvido: number;
     }
-  | { compativel: false; motivo: string; alternativa?: string | null };
+  | { compativel: false; motivo: string; alternativa?: { rotulo: string; href: string } | null };
 
 function iso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -104,12 +104,34 @@ export default function PackageBookingV2({
   // Duração fixa: o check-out acompanha o check-in e não é editável.
   // Duração variável: sugere a saída pela REGRA do pacote — somar as noites
   // mínimas caía em dia que o próprio pacote recusa.
+  // Guarda a chegada anterior para saber quantas noites o cliente tinha escolhido.
+  const checkinAnteriorRef = useRef<string>("");
+
   useEffect(() => {
     if (!checkin) return;
+
     if (duracaoFixa) {
       setCheckout(somaDias(checkin, pacote.noitesMin));
+      checkinAnteriorRef.current = checkin;
       return;
     }
+
+    const anterior = checkinAnteriorRef.current;
+    checkinAnteriorRef.current = checkin;
+
+    // Duração variável: ao TROCAR a chegada, a saída acompanha mantendo o mesmo
+    // número de noites que o cliente já tinha escolhido. Antes a saída ficava
+    // parada e só era recalculada se tivesse ficado no passado — no Dois Casais
+    // isso dava a impressão de que a data não atualizava.
+    if (anterior && checkout && checkout > anterior) {
+      const noitesEscolhidas = Math.round(
+        (new Date(checkout + "T12:00:00").getTime() - new Date(anterior + "T12:00:00").getTime()) /
+          86400000,
+      );
+      setCheckout(somaDias(checkin, noitesEscolhidas));
+      return;
+    }
+
     if (!checkout || checkout <= checkin) {
       setCheckout(checkoutSugerido(pacote.slug, checkin) ?? somaDias(checkin, pacote.noitesMin));
     }
@@ -318,10 +340,10 @@ export default function PackageBookingV2({
           <p className="font-sans text-xs leading-relaxed text-charcoal">{incompativel.motivo}</p>
           {incompativel.alternativa && (
             <a
-              href={incompativel.alternativa}
+              href={incompativel.alternativa.href}
               className="mt-2 inline-block font-sans text-xs uppercase tracking-[0.2em] text-copper"
             >
-              Ver alternativa
+              {incompativel.alternativa.rotulo}
             </a>
           )}
         </div>

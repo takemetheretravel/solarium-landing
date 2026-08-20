@@ -209,3 +209,67 @@ export function checkoutSugerido(slug: string, checkin: string): string | null {
   }
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+
+// ---------------------------------------------------------------------------
+// ALTERNATIVA — sempre uma URL real, nunca um rótulo de tipo
+// ---------------------------------------------------------------------------
+
+export type Alternativa = { rotulo: string; href: string };
+
+/**
+ * Próxima data de check-in que o pacote aceita, a partir de uma data.
+ *
+ * Puro: não consulta calendário. Serve para montar o link — a disponibilidade é
+ * verificada quando a pessoa chega na página.
+ */
+export function proximaDataElegivel(
+  slug: string,
+  aPartirDe: string,
+  maxDias = 400,
+): { checkin: string; checkout: string } | null {
+  const noites = noitesDoPacote(slug);
+  const m = motorDoPacote(slug);
+  if (!noites || !m) return null;
+  const casa = m.motor === "v2" ? m.pacote.properties[0] : m.pacote.properties[0];
+
+  const base = new Date(aPartirDe + "T12:00:00");
+  for (let i = 1; i <= maxDias; i++) {
+    const d = new Date(base.getTime() + i * 86400000);
+    const checkin = iso(d);
+    const sugerido = checkoutSugerido(slug, checkin);
+    const candidatos = sugerido ? [sugerido] : [];
+    // Duração variável: tenta também o mínimo, caso o sugerido não feche.
+    candidatos.push(iso(new Date(d.getTime() + noites * 86400000)));
+    for (const checkout of candidatos) {
+      if (datasElegiveis(slug, casa, checkin, checkout).elegivel) {
+        return { checkin, checkout };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Link de alternativa quando as datas não fecham o pacote.
+ *
+ * SEMPRE uma URL real. Antes o campo carregava o TIPO da alternativa
+ * ("outro-pacote") e a tela usava esse valor direto como `href` — relativo à
+ * página do pacote, dava `/pacotes/outro-pacote`, que não existe. O bug voltou
+ * duas vezes porque as correções mexiam no valor, não no fato de um rótulo estar
+ * servindo de endereço.
+ */
+export function alternativaPara(slug: string, aPartirDe: string): Alternativa {
+  const prox = proximaDataElegivel(slug, aPartirDe);
+  if (prox) {
+    return {
+      rotulo: "Ver a próxima data que fecha este pacote",
+      href: `/pacotes/${slug}?checkin=${prox.checkin}&checkout=${prox.checkout}`,
+    };
+  }
+  return { rotulo: "Ver as casas livres no período", href: "/#busca" };
+}
+
+function iso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

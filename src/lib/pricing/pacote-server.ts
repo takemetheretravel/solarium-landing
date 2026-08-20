@@ -10,6 +10,7 @@ import { unstable_cache } from "next/cache";
 import { calculatePrice, getCalendar } from "@/lib/hostaway";
 import { datasElegiveis, totalDoPacote, noitesDoPacote, motorDoPacote } from "./elegibilidade";
 import { listingsForProperty } from "@/config/operational-extras";
+import { getPropertyBySlug } from "@/config/properties";
 import {
   PacoteV2,
   estadiaContemFeriado,
@@ -45,7 +46,13 @@ export type ResultadoPacoteServer =
       bonusMotivo: string;
       dataLimiteCancelamentoExtras: string;
     }
-  | { ok: false; erro: string; status: number };
+  | {
+      ok: false;
+      erro: string;
+      status: number;
+      /** Caminho concreto quando existe: outra casa livre ou a próxima data livre. */
+      alternativa?: { rotulo: string; href: string };
+    };
 
 /** Dia seguinte a uma data ISO. */
 function diaSeguinte(iso: string): string {
@@ -82,11 +89,10 @@ export async function calcularPacoteServer(
   // resolve a maioria; sem ela o hóspede via erro cru na tela do pacote.
   const quote = await comRetry(() => calculatePrice(propertyId, checkin, checkout, guests));
   if (!quote) {
-    return {
-      ok: false,
-      erro: "Não conseguimos calcular o preço agora. Tente de novo em instantes ou fale com o concierge.",
-      status: 502,
-    };
+    // Sem preço podem ser duas coisas MUITO diferentes: as noites já estão
+    // vendidas, ou a Hostaway falhou. Dizer "erro técnico" para quem só escolheu
+    // uma data ocupada é mandar a pessoa embora sem alternativa nenhuma.
+    return await diagnosticarSemPreco(input);
   }
 
   // Itens inclusos (menos os removidos) + extras opcionais, a preço cheio de menu.
@@ -131,6 +137,109 @@ export async function calcularPacoteServer(
 }
 
 // ---------------------------------------------------------------------------
+// SEM PREÇO: ocupado nesta casa, ocupado em todas, ou falha técnica
+// ---------------------------------------------------------------------------
+
+const FALHA_TECNICA =
+  "Não conseguimos calcular o preço agora. Tente de novo em instantes ou fale com o concierge.";
+
+type Disponibilidade = "livre" | "ocupada" | "desconhecida";
+
+/**
+ * O calendário é a autoridade sobre estar vendido ou não.
+ *
+ * `desconhecida` é resposta legítima: calendário vazio ou API fora. Nesse caso a
+ * tela volta a falar de erro técnico, que é a verdade.
+ */
+async function estadiaDisponivel(
+  propertySlug: string,
+  checkin: string,
+  checkout: string,
+): Promise<Disponibilidade> {
+  const listings = listingsForProperty(propertySlug);
+  if (listings.length === 0) return "desconhecida";
+
+  // O check-out não é noite; a última noite é a véspera.
+  const ultimaNoite = somarDias(checkout, -1);
+  if (ultimaNoite < checkin) return "desconhecida";
+
+  try {
+    const calendarios = await Promise.all(
+      listings.map((id) => getCalendar(id, checkin, ultimaNoite)),
+    );
+    if (calendarios.some((c) => c.length === 0)) return "desconhecida";
+    const livre = calendarios.every((c) => c.every((d) => d.isAvailable === 1));
+    return livre ? "livre" : "ocupada";
+  } catch (err) {
+    console.error("[pacote-server] calendário indisponível na checagem:", err);
+    return "desconhecida";
+  }
+}
+
+function linkDoPacote(
+  slug: string,
+  casa: string,
+  checkin: string,
+  checkout: string,
+  guests: number,
+): string {
+  return `/pacotes/${slug}?checkin=${checkin}&checkout=${checkout}&casa=${casa}&guests=${guests}`;
+}
+
+async function diagnosticarSemPreco(
+  input: EntradaPacoteServer,
+): Promise<ResultadoPacoteServer> {
+  const { pacote, propertySlug, checkin, checkout, guests } = input;
+
+  const disp = await estadiaDisponivel(propertySlug, checkin, checkout);
+  if (disp !== "ocupada") {
+    return { ok: false, erro: FALHA_TECNICA, status: 502 };
+  }
+
+  const nomeDaCasa = (slug: string) => getPropertyBySlug(slug)?.name ?? "esta casa";
+  const ocupada = `Estas datas já estão reservadas no ${nomeDaCasa(propertySlug)}.`;
+
+  // 1) A mesma data, na outra casa do pacote. É a troca mais barata para o
+  //    hóspede: nada de reescolher período.
+  for (const outra of pacote.properties) {
+    if (outra === propertySlug) continue;
+    if (!datasElegiveis(pacote.slug, outra, checkin, checkout).elegivel) continue;
+    if ((await estadiaDisponivel(outra, checkin, checkout)) !== "livre") continue;
+
+    return {
+      ok: false,
+      status: 200,
+      erro: ocupada,
+      alternativa: {
+        rotulo: `Ver no ${nomeDaCasa(outra)}`,
+        href: linkDoPacote(pacote.slug, outra, checkin, checkout, guests),
+      },
+    };
+  }
+
+  // 2) Nenhuma casa livre nessas datas: a próxima data que fecha o pacote E está
+  //    livre, com link pronto.
+  const prox = await proximaDataLivreDoPacote(pacote.slug, propertySlug, checkin);
+  if (prox) {
+    return {
+      ok: false,
+      status: 200,
+      erro: "Estas datas já estão reservadas nas duas casas.",
+      alternativa: {
+        rotulo: "Ver a próxima data livre deste pacote",
+        href: linkDoPacote(pacote.slug, propertySlug, prox.checkin, prox.checkout, guests),
+      },
+    };
+  }
+
+  return {
+    ok: false,
+    status: 200,
+    erro: `${ocupada} Fale com o concierge para procurarmos uma data.`,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // "A PARTIR DE" — mínimo dos próximos 90 dias, cacheado
 // ---------------------------------------------------------------------------
 
@@ -164,23 +273,40 @@ export function totalMinimoDoPacote(slug: string, propertySlug: string): Promise
   )();
 }
 
-async function calcularMinimo(slug: string, propertySlug: string): Promise<MinimoPacote> {
+type DataLivre = {
+  checkin: string;
+  checkout: string;
+  hostawayTotal: number;
+  noiteSeguinteLivre: boolean;
+};
+
+/**
+ * Todas as datas do pacote que são elegíveis E têm as noites livres, em ordem.
+ *
+ * Fonte única de "quando dá para reservar este pacote": o "a partir de" pega o
+ * menor preço desta lista e a mensagem de indisponibilidade pega a primeira
+ * data. Duas telas, um varredor — se divergirem, divergem no mesmo lugar.
+ */
+async function datasLivresDoPacote(
+  slug: string,
+  propertySlug: string,
+  aPartirDe: Date,
+): Promise<{ ok: true; datas: DataLivre[] } | { ok: false; motivo: string }> {
   const noites = noitesDoPacote(slug);
-  if (!noites) return { total: null, motivo: "pacote-desconhecido" };
+  if (!noites) return { ok: false, motivo: "pacote-desconhecido" };
 
   const listings = listingsForProperty(propertySlug);
-  if (listings.length === 0) return { total: null, motivo: "sem-listing" };
+  if (listings.length === 0) return { ok: false, motivo: "sem-listing" };
 
   const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const hoje = new Date();
 
   // A varredura percorre a janela do PRÓPRIO pacote, não 90 dias fixos.
   //
   // Um sazonal de dezembro não é alcançado por uma janela contada de hoje, e o
   // resultado era um valor vindo de data não elegível — barato e inalcançável,
   // justamente no produto de maior demanda do ano.
-  const janela = janelaDeVarredura(slug, hoje);
-  if (!janela) return { total: null, motivo: "fora-da-temporada" };
+  const janela = janelaDeVarredura(slug, aPartirDe);
+  if (!janela) return { ok: false, motivo: "fora-da-temporada" };
   const { inicio, dias } = janela;
 
   // Uma semana a mais: o bônus de saída olha a noite seguinte ao check-out.
@@ -191,16 +317,14 @@ async function calcularMinimo(slug: string, propertySlug: string): Promise<Minim
     const calendarios = await Promise.all(
       listings.map((id) => getCalendar(id, iso(inicio), iso(fim))),
     );
-    if (calendarios.some((c) => c.length === 0)) {
-      return { total: null, motivo: "calendario-vazio" };
-    }
+    if (calendarios.some((c) => c.length === 0)) return { ok: false, motivo: "calendario-vazio" };
     noitesCal = combinarCalendarios(calendarios);
   } catch (err) {
-    console.error("[totalMinimoDoPacote] calendário indisponível:", err);
-    return { total: null, motivo: "calendario-indisponivel" };
+    console.error("[datasLivresDoPacote] calendário indisponível:", err);
+    return { ok: false, motivo: "calendario-indisponivel" };
   }
 
-  let melhor: MinimoPacote = { total: null, motivo: "sem-data-elegivel-livre" };
+  const datas: DataLivre[] = [];
 
   for (let offset = 0; offset < dias; offset++) {
     const checkin = iso(new Date(inicio.getTime() + offset * 86400000));
@@ -221,20 +345,59 @@ async function calcularMinimo(slug: string, propertySlug: string): Promise<Minim
     }
     if (!completa) continue;
 
+    datas.push({
+      checkin,
+      checkout,
+      hostawayTotal,
+      noiteSeguinteLivre: noitesCal.get(checkout)?.livre ?? false,
+    });
+  }
+
+  return { ok: true, datas };
+}
+
+/**
+ * Primeira data DEPOIS de `aPartirDe` em que o pacote fecha e as noites estão
+ * livres. É o que a tela oferece quando as datas pedidas já foram vendidas.
+ */
+export async function proximaDataLivreDoPacote(
+  slug: string,
+  propertySlug: string,
+  aPartirDe: string,
+): Promise<{ checkin: string; checkout: string } | null> {
+  const inicio = new Date(aPartirDe + "T12:00:00");
+  inicio.setDate(inicio.getDate() + 1);
+
+  const r = await datasLivresDoPacote(slug, propertySlug, inicio);
+  if (!r.ok || r.datas.length === 0) return null;
+  const { checkin, checkout } = r.datas[0];
+  return { checkin, checkout };
+}
+
+async function calcularMinimo(slug: string, propertySlug: string): Promise<MinimoPacote> {
+  const noites = noitesDoPacote(slug);
+  if (!noites) return { total: null, motivo: "pacote-desconhecido" };
+
+  const r = await datasLivresDoPacote(slug, propertySlug, new Date());
+  if (!r.ok) return { total: null, motivo: r.motivo };
+
+  let melhor: MinimoPacote = { total: null, motivo: "sem-data-elegivel-livre" };
+
+  for (const d of r.datas) {
     // MESMO caminho de preço da página.
     const calc = totalDoPacote({
       slug,
       propertySlug,
-      checkin,
-      checkout,
-      hostawayTotal,
+      checkin: d.checkin,
+      checkout: d.checkout,
+      hostawayTotal: d.hostawayTotal,
       noites,
-      noiteSeguinteLivre: noitesCal.get(checkout)?.livre ?? false,
+      noiteSeguinteLivre: d.noiteSeguinteLivre,
     });
     if (!calc) continue;
 
     if (melhor.total === null || calc.total < melhor.total) {
-      melhor = { total: calc.total, checkin, checkout };
+      melhor = { total: calc.total, checkin: d.checkin, checkout: d.checkout };
     }
   }
 

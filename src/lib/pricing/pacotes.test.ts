@@ -17,8 +17,11 @@ import {
   motorDoPacote,
   pacotesVisiveis,
   checkoutSugerido,
+  alternativaPara,
+  proximaDataElegivel,
 } from "./elegibilidade";
 import { getPackageBySlug, packageTotalActive } from "@/config/packages";
+import { slugsDePacote } from "./vista-pacote";
 
 /** Soma dias a uma data ISO, sem depender de fuso. */
 function somaDiasISO(iso: string, dias: number): string {
@@ -800,6 +803,73 @@ describe("§1 rodada 18 — rotulo de incluso segue o calculo, nao o config", ()
   });
 });
 
+
+describe("§3.1 rodada 19 — 'Ver alternativa' nunca leva a 404", () => {
+  // Regrediu DUAS vezes porque o campo carregava o TIPO da alternativa
+  // ("outro-pacote") e a tela usava esse valor como href. Este teste segue o
+  // link gerado e exige que o destino seja uma rota que existe de verdade.
+  const ROTAS_VALIDAS = new Set(["/#busca", "/pacotes"]);
+
+  const DATAS_INVALIDAS = [
+    ["2026-09-15", "2026-09-17"], // terca -> quinta
+    ["2026-07-04", "2026-07-05"], // sabado, 1 noite
+    ["2026-03-11", "2026-03-30"], // 19 noites
+    ["2026-05-20", "2026-05-21"], // quarta, 1 noite
+  ];
+
+  it("todo pacote, com datas invalidas, gera um href que resolve", () => {
+    for (const slug of pacotesVisiveis("2026-08-19")) {
+      const m = motorDoPacote(slug);
+      if (!m || m.motor !== "v2") continue; // o legado nao usa este caminho
+      const casa = m.pacote.properties[0];
+
+      for (const [ci, co] of DATAS_INVALIDAS) {
+        const r = datasElegiveis(slug, casa, ci, co);
+        if (r.elegivel) continue;
+
+        const alt = alternativaPara(slug, ci);
+        expect(alt.href, `${slug} ${ci}`).toBeTruthy();
+        expect(alt.rotulo, `${slug} ${ci}`).toBeTruthy();
+
+        // href precisa ser rota conhecida OU pagina de pacote existente
+        if (ROTAS_VALIDAS.has(alt.href)) continue;
+        const m2 = alt.href.match(/^\/pacotes\/([a-z0-9-]+)\?checkin=(\d{4}-\d{2}-\d{2})&checkout=(\d{4}-\d{2}-\d{2})$/);
+        expect(m2, `href malformado em ${slug}: ${alt.href}`).toBeTruthy();
+
+        const [, destino, dci, dco] = m2!;
+        // O slug de destino TEM que existir
+        expect(motorDoPacote(destino), `destino inexistente: ${destino}`).not.toBeNull();
+        expect(slugsDePacote(true), `destino fora do roteamento: ${destino}`).toContain(destino);
+        // E as datas do link TEM que ser elegiveis — senao o cliente cai no mesmo erro
+        expect(datasElegiveis(destino, casa, dci, dco).elegivel, `${alt.href}`).toBe(true);
+      }
+    }
+  });
+
+  it("o href nunca e um rotulo de tipo", () => {
+    for (const slug of pacotesVisiveis("2026-08-19")) {
+      if (motorDoPacote(slug)?.motor !== "v2") continue;
+      const alt = alternativaPara(slug, "2026-09-15");
+      expect(alt.href).not.toBe("outro-pacote");
+      expect(alt.href).not.toBe("avulso");
+      expect(alt.href.startsWith("/"), `href relativo em ${slug}: ${alt.href}`).toBe(true);
+    }
+  });
+
+  it("proximaDataElegivel devolve datas que o proprio pacote aceita", () => {
+    for (const slug of pacotesVisiveis("2026-08-19")) {
+      const m = motorDoPacote(slug);
+      if (!m || m.motor !== "v2") continue;
+      const prox = proximaDataElegivel(slug, "2026-08-19");
+      if (!prox) continue; // sazonal fora de alcance e aceitavel
+      expect(
+        datasElegiveis(slug, m.pacote.properties[0], prox.checkin, prox.checkout).elegivel,
+        `${slug} ${prox.checkin} -> ${prox.checkout}`,
+      ).toBe(true);
+    }
+  });
+});
+
 describe("golden: extras fora da base", () => {
   it("tábua de frios aumenta o total em exatamente R$ 310 e não altera a linha de desconto", () => {
     const semTabua = calcularPacote(entrada(2, 3400, [late(), cafe()], BONUS));
@@ -1108,23 +1178,24 @@ describe("cancelamento de extras — janela de 7 dias a partir do check-in", () 
 // ---------------------------------------------------------------------------
 
 describe("exibição de extras", () => {
-  it("early e late só aparecem quando a noite adjacente está livre", () => {
-    const ctxLivre = {
-      checkin: "2026-09-11",
-      checkout: "2026-09-13",
-      hoje: "2026-08-01",
-      noitesLivres: { early_checkin: true, late_checkout: true },
+  it("early e late aparecem com MOTIVO quando a noite adjacente está ocupada", () => {
+    // Antes sumiam da lista sem explicação: no Dois Casais, que exige a noite
+    // livre nas DUAS casas, o item desaparecia e parecia bug.
+    const ctx = {
+      checkin: "2026-09-14",
+      checkout: "2026-09-16",
+      hoje: "2026-08-19",
+      noitesLivres: { early_checkin: false, late_checkout: true },
     };
-    const ctxOcupado = { ...ctxLivre, noitesLivres: { early_checkin: false, late_checkout: false } };
+    const lista = extrasExibiveis("solarium-completo", ctx);
+    const early = lista.find((e) => e.extra.id === "early_checkin");
+    const late = lista.find((e) => e.extra.id === "late_checkout");
 
-    const livres = extrasExibiveis("solarium-1", ctxLivre).map((v) => v.extra.id);
-    const ocupados = extrasExibiveis("solarium-1", ctxOcupado).map((v) => v.extra.id);
-
-    expect(livres).toContain("early_checkin");
-    expect(livres).toContain("late_checkout");
-    expect(ocupados).not.toContain("early_checkin");
-    expect(ocupados).not.toContain("late_checkout");
+    expect(early, "early deve continuar na lista").toBeTruthy();
+    expect(early!.motivoIndisponivel).toBe("A noite anterior à chegada já está reservada.");
+    expect(late!.motivoIndisponivel).toBeUndefined();
   });
+
 
   it("o catálogo tem os 13 itens: os 12 da especificação mais o espumante", () => {
     expect(EXTRAS).toHaveLength(13);

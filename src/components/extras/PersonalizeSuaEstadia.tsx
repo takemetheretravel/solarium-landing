@@ -74,7 +74,7 @@ export default function PersonalizeSuaEstadia({
 
       {aberto && (
         <div className="mt-5 space-y-1">
-          {disponiveis.map(({ extra, precoUnitario, naoReembolsavel, maxQtd }) => {
+          {disponiveis.map(({ extra, precoUnitario, naoReembolsavel, maxQtd, motivoIndisponivel }) => {
             const qtd = selecao[extra.id] ?? 0;
             const jaIncluso = inclusos.includes(extra.id);
             const informativo = extra.informativo === true;
@@ -86,12 +86,19 @@ export default function PersonalizeSuaEstadia({
                 className="flex items-start justify-between gap-3 border-b border-charcoal/5 py-3 last:border-b-0"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-sans text-sm text-charcoal">
+                  <p className={`font-sans text-sm ${motivoIndisponivel ? "text-charcoal/40" : "text-charcoal"}`}>
                     {extra.nome}
-                    {jaIncluso && (
+                    {jaIncluso && !motivoIndisponivel && (
                       <span className="ml-2 font-sans text-xs text-copper">incluso no pacote</span>
                     )}
+                    {motivoIndisponivel && (
+                      <span className="ml-2 font-sans text-xs text-charcoal/40">indisponível</span>
+                    )}
                   </p>
+                  {/* Diz POR QUE não dá, em vez de sumir da lista sem explicação. */}
+                  {motivoIndisponivel && (
+                    <p className="font-sans text-xs text-charcoal/45">{motivoIndisponivel}</p>
+                  )}
                   <p className="font-sans text-xs text-charcoal/45">
                     {informativo ? (
                       extra.observacao
@@ -119,7 +126,7 @@ export default function PersonalizeSuaEstadia({
                         {formatExtraPrice(precoUnitario * qtd)}
                       </span>
                     )}
-                    {onOff ? (
+                    {motivoIndisponivel ? null : onOff ? (
                       <button
                         type="button"
                         role="switch"
