@@ -361,6 +361,24 @@ export function validarDatasPacote(
     };
   }
 
+  // Noites proibidas ANTES do dia de chegada: é a regra mais restritiva e a que
+  // descreve o produto. Ver `noitesProibidasDow`.
+  if (pacote.noitesProibidasDow?.length) {
+    const proibidas = pacote.noitesProibidasDow;
+    const d = new Date(checkin + "T12:00:00");
+    const fim = new Date(checkout + "T12:00:00");
+    while (d < fim) {
+      if (proibidas.includes(d.getDay())) {
+        return {
+          valido: false,
+          motivo: "Este pacote é válido para noites de segunda a quinta.",
+          alternativa: "outro-pacote",
+        };
+      }
+      d.setDate(d.getDate() + 1);
+    }
+  }
+
   const dowIn = new Date(checkin + "T12:00:00").getDay();
   if (pacote.checkinDows && !pacote.checkinDows.includes(dowIn)) {
     const dias = pacote.checkinDows.map((d) => NOME_DOW[d]).join(" ou ");

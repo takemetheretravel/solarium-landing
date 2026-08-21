@@ -229,3 +229,24 @@ e o draft não. O teste da rodada 20 passava porque exercitava o varredor.
 
 Agora existe uma função só que monta itens, bônus e ajuste. O teste de paridade
 compara os dois caminhos nas nove combinações — se voltarem a divergir, quebra.
+
+## 16. Chegada no domingo: a regra é sobre as noites
+
+Migrar "todas as noites de segunda a quinta" para `checkinDows` foi errado, e o
+relatório da rodada 20 chamou a tradução de idêntica. Não é: a chegada de domingo
+é dia de semana e ocupa a noite de domingo.
+
+Ao corrigir, o motor antigo foi lido de novo. O `weekdaysOnly` dele testava
+**apenas sexta e sábado** — domingo passava no legado também, contra a própria
+copy do produto ("noites de segunda a quinta"). Ou seja: a chegada de domingo não
+nasceu na migração, ela é anterior; a migração a preservou junto com o preço.
+
+A regra agora é `noitesProibidasDow: [5, 6, 0]`, verificada noite a noite, e
+`checkinDows` desses dois pacotes é `null` — uma descrição só. Resultado:
+
+- Meio de Semana (3 noites): chegada segunda ou terça;
+- Imersão (4 noites): chegada segunda.
+
+Dez das 24 linhas da tabela de referência têm chegada no domingo. Continuam no
+teste, com o preço conferido e a elegibilidade afirmada como recusada: o valor
+delas nunca esteve errado, a data é que deixou de ser vendável.

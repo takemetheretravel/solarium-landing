@@ -446,6 +446,14 @@ export type PacoteV2 = {
   /** Recusa estadias com noite dentro de `JANELAS_BLOQUEADAS`. */
   naoValeEmJanelaBloqueada?: boolean;
   /**
+   * Dias da semana que NENHUMA noite da estadia pode ocupar (0=dom).
+   *
+   * Regra sobre as noites, não sobre a chegada. Traduzir uma para a outra é o que
+   * abriu a chegada no domingo: a chegada de domingo é dia de semana, mas ocupa a
+   * noite de domingo. O check-out não é noite e não entra na conta.
+   */
+  noitesProibidasDow?: number[];
+  /**
    * Vende abaixo do mínimo de noites configurado no PMS.
    *
    * O mínimo é regra de canal e continua valendo em todo o resto do site —
@@ -594,11 +602,11 @@ export const PACOTES_V2: PacoteV2[] = [
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 3,
     noitesMax: 3,
-    // Domingo, segunda ou terça: são as chegadas cujas três noites caem todas
-    // entre domingo e quinta. É a mesma regra do motor antigo, escrita como dia
-    // de chegada em vez de varredura das noites.
-    checkinDows: [0, 1, 2],
+    // A regra é sobre as NOITES: nenhuma pode cair em sexta, sábado ou domingo.
+    // Com três noites, sobram as chegadas de segunda e terça.
+    checkinDows: null,
     checkoutDows: null,
+    noitesProibidasDow: [5, 6, 0],
     exigeFeriado: false,
     naoValeEmJanelaBloqueada: true,
     sazonal: false,
@@ -617,10 +625,11 @@ export const PACOTES_V2: PacoteV2[] = [
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 4,
     noitesMax: 4,
-    // Quatro noites entre domingo e quinta só cabem começando no domingo ou na
-    // segunda.
-    checkinDows: [0, 1],
+    // Mesma regra por noite. Com quatro noites, só a chegada de segunda escapa
+    // do fim de semana nas duas pontas.
+    checkinDows: null,
     checkoutDows: null,
+    noitesProibidasDow: [5, 6, 0],
     exigeFeriado: false,
     naoValeEmJanelaBloqueada: true,
     sazonal: false,

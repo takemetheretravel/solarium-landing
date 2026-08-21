@@ -8,6 +8,14 @@ import { getPacoteV2 } from "@/config/precos-e-extras";
  * Cada linha é um total que o Meio de Semana ou a Imersão entregavam com o motor
  * legado. O motor V2 tem de reproduzir cada um exatamente. Divergir aqui
  * significa que a migração mudou preço, que é o que ela não pode fazer.
+ *
+ * DEZ DESTAS LINHAS TÊM CHEGADA NO DOMINGO e hoje são recusadas.
+ *
+ * Não é preço errado: o motor antigo aceitava domingo — o `weekdaysOnly` dele
+ * testava só sexta e sábado —, ainda que a copy do produto dissesse "noites de
+ * segunda a quinta". A tabela foi gerada com essa regra. O preço delas continua
+ * conferido; o que mudou é que a data deixou de ser vendável. Ver
+ * `noites-de-semana.test.ts`.
  */
 const REFERENCIA: {
   slug: string;
@@ -60,9 +68,13 @@ describe("§1 rodada 20 — a migração não pode mexer em preço", () => {
   });
 
   for (const r of REFERENCIA) {
+    const chegaNoDomingo = new Date(r.checkin + "T12:00:00").getDay() === 0;
+
     it(`${r.slug} ${r.checkin}→${r.checkout} com diária ${r.hostawayTotal}: ${r.total}`, () => {
       const e = datasElegiveis(r.slug, CASA, r.checkin, r.checkout);
-      expect(e.elegivel ? "" : e.motivo).toBe("");
+      // Chegada no domingo era aceita pelo motor antigo e não é mais. O preço
+      // segue sendo o mesmo — a linha continua valendo como referência de valor.
+      expect(e.elegivel).toBe(!chegaNoDomingo);
 
       const calc = totalDoPacote({
         slug: r.slug,
@@ -90,8 +102,10 @@ describe("§1 rodada 20 — as regras de data continuam as do motor antigo", () 
   });
 
   it("janela bloqueada continua recusada", () => {
-    // Noites de 14 a 16/02 caem no Carnaval.
-    const e = datasElegiveis("meio-de-semana", CASA, "2026-02-15", "2026-02-18");
+    // Segunda 16/02 a quinta 19/02: noites de dia de semana, mas 16 e 17/02 estão
+    // na janela do Carnaval. A chegada precisa ser válida para o teste medir a
+    // janela, e não a regra das noites.
+    const e = datasElegiveis("meio-de-semana", CASA, "2026-02-16", "2026-02-19");
     expect(e.elegivel).toBe(false);
     if (!e.elegivel) expect(e.motivo).toContain("feriados");
   });

@@ -8,7 +8,7 @@ import { PROPERTIES } from "@/config/properties";
 import { getExtra, type PacoteV2 } from "@/config/precos-e-extras";
 import PersonalizeSuaEstadia from "@/components/extras/PersonalizeSuaEstadia";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
-import { checkoutSugerido } from "@/lib/pricing/elegibilidade";
+import { checkoutSugerido, datasElegiveis, alternativaPara } from "@/lib/pricing/elegibilidade";
 import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/tracking";
 
 type ItemPrecoApi = { extraId: string; nome: string; total: number; qtd: number; incluso: boolean };
@@ -151,6 +151,28 @@ export default function PackageBookingV2({
       setResposta(null);
       return;
     }
+
+    // Recusa NA ORIGEM. A regra de datas é pura e já está aqui: esperar a rede
+    // para dizer que a chegada não serve deixa a tela alguns instantes num
+    // estado em que a data parece aceita.
+    const eleg = datasElegiveis(pacote.slug, propertySlug, checkin, checkout);
+    if (!eleg.elegivel) {
+      setCarregando(false);
+      setErro(null);
+      setResposta({
+        compativel: false,
+        motivo: eleg.motivo,
+        alternativa: alternativaPara(pacote.slug, checkin),
+      });
+      trackPacoteDatasSelecionadas({
+        pacoteId: pacote.id,
+        checkin,
+        checkout,
+        compativel: false,
+      });
+      return;
+    }
+
     setCarregando(true);
     setErro(null);
 
@@ -190,7 +212,7 @@ export default function PackageBookingV2({
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [pacote.id, propertySlug, checkin, checkout, guests, removidos, selecao]);
+  }, [pacote.id, pacote.slug, propertySlug, checkin, checkout, guests, removidos, selecao]);
 
   const ok = resposta?.compativel === true ? resposta : null;
   const incompativel = resposta?.compativel === false ? resposta : null;
