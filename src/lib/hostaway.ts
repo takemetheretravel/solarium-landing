@@ -291,11 +291,26 @@ export async function getCombinedCalendar(
  * (que já reflete pricing dinâmico) + cleaningFee + extra-guest fee da própria listing.
  * Diários do Hostaway costumam vir já líquidos de descontos por temporada.
  */
+export type OpcoesPreco = {
+  /**
+   * Ignora o mínimo de noites da data de chegada.
+   *
+   * O mínimo é regra de canal, configurada no PMS. Um pacote pode ter permissão
+   * explícita para vender abaixo dele no canal direto — nunca por padrão, e
+   * nunca para reserva avulsa. Ver `ignorarMinimoPMS` em `precos-e-extras.ts`.
+   *
+   * A tarifa continua vindo inteira do calendário: o que muda é a recusa, não o
+   * preço.
+   */
+  ignorarMinimoDeNoites?: boolean;
+};
+
 export async function calculatePriceDetailed(
   id: number,
   checkin: string,
   checkout: string,
   guests: number,
+  opcoes: OpcoesPreco = {},
 ): Promise<{ quote: HostawayPriceQuote } | { failure: HostawayPriceFailure }> {
   const nights = nightsBetween(checkin, checkout);
   if (nights <= 0) {
@@ -331,7 +346,7 @@ export async function calculatePriceDetailed(
   }
 
   const firstDayMin = days[0]?.minimumStay ?? 1;
-  if (nights < firstDayMin) {
+  if (nights < firstDayMin && !opcoes.ignorarMinimoDeNoites) {
     return {
       failure: {
         reason: "min-stay-not-met",
@@ -378,8 +393,9 @@ export async function calculatePrice(
   checkin: string,
   checkout: string,
   guests: number,
+  opcoes: OpcoesPreco = {},
 ): Promise<HostawayPriceQuote | null> {
-  const r = await calculatePriceDetailed(id, checkin, checkout, guests);
+  const r = await calculatePriceDetailed(id, checkin, checkout, guests, opcoes);
   return "quote" in r ? r.quote : null;
 }
 

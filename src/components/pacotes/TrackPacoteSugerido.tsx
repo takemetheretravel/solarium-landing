@@ -13,28 +13,44 @@ import {
  * Sem isto não há como saber se sugerir pacote na busca converte — e o bloco
  * ocupa espaço na página onde a pessoa escolhe a casa.
  */
+export type TipoSugestao = "exata" | "proxima" | "equivalente";
+
 export default function TrackPacoteSugerido({
   ids,
   deslocamentos,
+  tipos,
 }: {
   ids: string[];
   /** Noites de distância das datas pedidas, na mesma ordem de `ids`. 0 = exatas. */
   deslocamentos?: number[];
+  tipos?: TipoSugestao[];
 }) {
   useEffect(() => {
-    ids.forEach((id, i) => registrar(id, deslocamentos?.[i] ?? 0, false));
+    ids.forEach((id, i) =>
+      registrar(id, deslocamentos?.[i] ?? 0, tipos?.[i] ?? "exata", false),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ids.join(","), (deslocamentos ?? []).join(",")]);
+  }, [ids.join(","), (deslocamentos ?? []).join(","), (tipos ?? []).join(",")]);
   return null;
 }
 
-/** Data exata e data vizinha são perguntas diferentes, e eventos diferentes. */
-function registrar(pacoteId: string, deslocamento: number, clicou: boolean): void {
-  if (deslocamento > 0) {
-    trackPacoteSugeridoDataProxima({ pacoteId, deslocamentoNoites: deslocamento, clicou });
-  } else {
+/** Data exata e data diferente são perguntas diferentes, e eventos diferentes. */
+function registrar(
+  pacoteId: string,
+  deslocamento: number,
+  tipo: TipoSugestao,
+  clicou: boolean,
+): void {
+  if (tipo === "exata") {
     trackPacoteSugeridoNaBusca({ pacoteId, clicou });
+    return;
   }
+  trackPacoteSugeridoDataProxima({
+    pacoteId,
+    deslocamentoNoites: deslocamento,
+    tipo,
+    clicou,
+  });
 }
 
 /**
@@ -46,19 +62,21 @@ export function LinkPacoteSugerido({
   href,
   className,
   deslocamento = 0,
+  tipo = "exata",
   children,
 }: {
   pacoteId: string;
   href: string;
   className?: string;
   deslocamento?: number;
+  tipo?: TipoSugestao;
   children: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
       className={className}
-      onClick={() => registrar(pacoteId, deslocamento, true)}
+      onClick={() => registrar(pacoteId, deslocamento, tipo, true)}
     >
       {children}
     </Link>

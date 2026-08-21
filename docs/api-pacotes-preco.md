@@ -101,7 +101,9 @@ São três respostas diferentes, e a diferença importa para o que dizer ao clie
 | Hostaway fora do ar | `Não conseguimos calcular o preço agora…` | `null` — não existe alternativa a oferecer |
 
 O mínimo de noites é regra de tarifa da data de chegada, definida no PMS: não é
-recusa do pacote nem falha nossa.
+recusa do pacote nem falha nossa. **O Final de Ano é exceção e nunca cai nesse
+caso**: por decisão do dono, ele vende abaixo do mínimo no canal direto, então as
+nove combinações de chegada e saída cotam normalmente.
 
 As três primeiras voltam com status `200` — são respostas, não erros. Só a última
 volta `502`. Se `alternativa` vier `null`, não improvise data: é o caso em que o

@@ -177,11 +177,14 @@ export function trackPacoteSugeridoNaBusca(p: { pacoteId: string; clicou: boolea
 export function trackPacoteSugeridoDataProxima(p: {
   pacoteId: string;
   deslocamentoNoites: number;
+  /** "proxima" = a poucas noites das pedidas; "equivalente" = próximo período do mesmo tipo. */
+  tipo: "proxima" | "equivalente";
   clicou: boolean;
 }): void {
   trackEvent("pacote_sugerido_data_proxima", {
     pacote_id: p.pacoteId,
     deslocamento_noites: p.deslocamentoNoites,
+    tipo: p.tipo,
     clicou: p.clicou,
   });
 }

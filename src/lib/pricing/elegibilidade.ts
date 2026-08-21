@@ -23,7 +23,12 @@ import {
   type PackageConfig,
 } from "@/config/packages";
 import { validarDatasPacote, montarItens, lateCheckoutAtivo } from "./extras";
-import { calcularPacote, avaliarBonusSaida, type ResultadoMotor } from "./pacotes";
+import {
+  calcularPacote,
+  avaliarBonusSaida,
+  type ResultadoMotor,
+  type EntradaMotor,
+} from "./pacotes";
 import { bonusSaidaPara } from "@/config/precos-e-extras";
 
 export type MotorDoPacote =
@@ -87,6 +92,10 @@ export type TotalDoPacote = {
   total: number;
   /** Presente só no motor V2 — o legado não tem linhas detalhadas. */
   resultado?: ResultadoMotor;
+  /** A entrada exata que gerou o resultado, para quem precisa registrar. */
+  entrada?: EntradaMotor;
+  /** Por que o bônus de saída entrou ou não. */
+  bonusMotivo?: string;
 };
 
 /**
@@ -136,16 +145,17 @@ export function totalDoPacote(params: {
     valorBonus: bonusSaidaPara(params.propertySlug),
   });
 
-  const resultado = calcularPacote({
+  const entrada: EntradaMotor = {
     noites: params.noites,
     hostawayTotal: params.hostawayTotal,
     itens,
     bonusSaida: bonus.valor,
     absorvido: params.absorvido ?? 0,
     ajusteTaxa: ajusteTaxaDoCheckout(m.pacote, params.checkout),
-  });
+  };
+  const resultado = calcularPacote(entrada);
 
-  return { total: resultado.total, resultado };
+  return { total: resultado.total, resultado, entrada, bonusMotivo: bonus.motivo };
 }
 
 /** Ajuste de taxa configurado para o dia da semana do check-out. */

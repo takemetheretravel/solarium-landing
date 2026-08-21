@@ -128,8 +128,33 @@ incômodo por um risco.
 
 ---
 
-## Reservas de teste ainda pendentes de estorno
+## Reservas de teste — estornos concluídos
 
-`64795274`, `64795452`, `64812668` — todas na **Cielo**, não na Braspag. Detalhes
-em `reservas-teste-pacotes-v2.md`. Resolver isso não bloqueia o lançamento, mas
-não pode ser esquecido.
+`64795274`, `64795452`, `64812668` (Cielo) e `64857537` (Braspag) foram estornadas.
+Nada pendente aqui.
+
+## Campos personalizados da Hostaway — a criar
+
+Enquanto não existirem, o registro do pacote viaja no `hostNote`, que a equipe
+consegue ler mas nenhum relatório consegue filtrar. A conta tem hoje quatro campos
+(CPF, RG, Senha de acesso ×2) e nenhum deles serve.
+
+Criar em **Reservas** (`objectType: reservation`), não em anúncios:
+
+| Nome exato | Tipo | Uso |
+|---|---|---|
+| `Pacote` | Texto | Nome do pacote vendido, ex.: `Final de Ano` |
+| `Extras` | Texto (longo) | Uma linha por item, com quantidade e valor |
+| `Cancelamento de extras` | Texto ou Data | Data-limite de cancelamento com reembolso, `AAAA-MM-DD` |
+
+O nome precisa bater exatamente — o código procura por nome. `Package`,
+`Extras a providenciar` e `Data limite cancelamento extras` também são aceitos,
+como alternativas. Criados os campos, as reservas seguintes passam a preenchê-los
+sozinhas; nada mais precisa mudar no código.
+
+## Reserva de teste da rodada 21
+
+`65058605` e `65058672` — criadas para verificar se a Hostaway aceita reserva
+abaixo do `minimumStay` (28/12 → 02/01, mínimo 6). **Ambas canceladas na mesma
+sessão**, calendário conferido livre depois. Não houve cobrança: nenhuma passou
+por gateway.

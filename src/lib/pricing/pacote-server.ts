@@ -11,19 +11,8 @@ import { calculatePriceDetailed, getCalendar, type HostawayPriceFailure } from "
 import { datasElegiveis, totalDoPacote, noitesDoPacote, motorDoPacote } from "./elegibilidade";
 import { listingsForProperty } from "@/config/operational-extras";
 import { getPropertyBySlug } from "@/config/properties";
-import {
-  PacoteV2,
-  estadiaContemFeriado,
-  bonusSaidaPara,
-  JANELA_CANCELAMENTO_EXTRAS_DIAS,
-} from "@/config/precos-e-extras";
-import {
-  calcularPacote,
-  avaliarBonusSaida,
-  dataLimiteCancelamentoExtras,
-  EntradaMotor,
-  ResultadoMotor,
-} from "./pacotes";
+import { PacoteV2, JANELA_CANCELAMENTO_EXTRAS_DIAS } from "@/config/precos-e-extras";
+import { dataLimiteCancelamentoExtras, EntradaMotor, ResultadoMotor } from "./pacotes";
 import { montarItens, lateCheckoutAtivo, validarDatasPacote, SelecaoExtras } from "./extras";
 
 export type EntradaPacoteServer = {
@@ -83,59 +72,62 @@ export async function calcularPacoteServer(
   const eleg = datasElegiveis(pacote.slug, propertySlug, checkin, checkout);
   if (!eleg.elegivel) return { ok: false, erro: eleg.motivo, status: 400 };
 
-  const contemFeriado = estadiaContemFeriado(checkin, checkout);
-
   // A Hostaway responde 502/timeout de vez em quando. Uma segunda tentativa
   // resolve a maioria; sem ela o hóspede via erro cru na tela do pacote.
   // `Detailed` porque o MOTIVO importa: noite vendida, mínimo de noites da data
   // e falha de API pedem respostas diferentes. Antes tudo virava "erro técnico".
   // Só falha de API merece segunda tentativa: noite vendida e mínimo de noites
   // são respostas estáveis, e repetir só atrasa a tela.
+  const opcoes = { ignorarMinimoDeNoites: pacote.ignorarMinimoPMS === true };
   const cotacao = await comRetry(async () => {
-    const r = await calculatePriceDetailed(propertyId, checkin, checkout, guests);
+    const r = await calculatePriceDetailed(propertyId, checkin, checkout, guests, opcoes);
     return "failure" in r && r.failure.reason === "api-error" ? null : r;
   });
   const resposta =
-    cotacao ?? (await calculatePriceDetailed(propertyId, checkin, checkout, guests));
+    cotacao ?? (await calculatePriceDetailed(propertyId, checkin, checkout, guests, opcoes));
   if ("failure" in resposta) {
     return await diagnosticarSemPreco(input, resposta.failure);
   }
   const quote = resposta.quote;
 
-  // Itens inclusos (menos os removidos) + extras opcionais, a preço cheio de menu.
-  const itens = montarItens({ pacote, propertySlug, checkin, checkout, removidos, selecao });
-
-  // O bônus depende do late estar ativo E da noite seguinte estar livre. Só
-  // consultamos o calendário quando o late sobreviveu à remoção.
-  const lateAtivo = lateCheckoutAtivo(itens);
+  // Itens só para saber se o late sobreviveu: é ele que decide se vale consultar
+  // o calendário da noite seguinte. O preço em si é montado uma única vez, em
+  // `totalDoPacote`.
+  const lateAtivo = lateCheckoutAtivo(
+    montarItens({ pacote, propertySlug, checkin, checkout, removidos, selecao }),
+  );
   const noiteSeguinteLivre = lateAtivo ? await noiteLivre(propertySlug, diaSeguinte(checkout)) : false;
 
-  const bonus = avaliarBonusSaida({
-    lateAtivo,
-    noiteSeguinteLivre,
+  // MESMA função de preço que o varredor do "a partir de" usa.
+  //
+  // Aqui existia uma segunda montagem do resultado, e ela esquecia o ajuste de
+  // taxa por dia de saída: a saída de sábado do Final de Ano saía com a taxa
+  // cheia na tela e no draft, enquanto o varredor aplicava o ajuste. Preço não
+  // pode ter dois donos.
+  const calc = totalDoPacote({
+    slug: pacote.slug,
+    propertySlug,
+    checkin,
     checkout,
-    contemFeriado,
-    valorBonus: bonusSaidaPara(propertySlug),
+    hostawayTotal: quote.totalPrice,
+    noites: quote.nights,
+    noiteSeguinteLivre,
+    removidos,
+    selecao,
+    absorvido: valorAbsorvido(pacote, quote, guests),
   });
 
-  const entrada: EntradaMotor = {
-    noites: quote.nights,
-    hostawayTotal: quote.totalPrice,
-    itens,
-    bonusSaida: bonus.valor,
-    absorvido: valorAbsorvido(pacote, quote, guests),
-  };
-
-  const resultado = calcularPacote(entrada);
+  if (!calc?.resultado || !calc.entrada) {
+    return { ok: false, erro: FALHA_TECNICA, status: 502 };
+  }
 
   return {
     ok: true,
-    resultado,
-    entrada,
+    resultado: calc.resultado,
+    entrada: calc.entrada,
     // Economia = Valor total riscado − TOTAL. Fonte única: o motor.
-    // A formula antiga (recompor o avulso com progressivo embutido) foi deletada.
-    economia: resultado.economia,
-    bonusMotivo: bonus.motivo,
+    economia: calc.resultado.economia,
+    bonusMotivo: calc.bonusMotivo ?? "",
     dataLimiteCancelamentoExtras: dataLimiteCancelamentoExtras(
       checkin,
       JANELA_CANCELAMENTO_EXTRAS_DIAS,
@@ -336,6 +328,9 @@ async function datasLivresDoPacote(
   const noites = noitesDoPacote(slug);
   if (!noites) return { ok: false, motivo: "pacote-desconhecido" };
 
+  const m = motorDoPacote(slug);
+  const ignoraMinimo = m?.motor === "v2" && m.pacote.ignorarMinimoPMS === true;
+
   const listings = listingsForProperty(propertySlug);
   if (listings.length === 0) return { ok: false, motivo: "sem-listing" };
 
@@ -375,9 +370,10 @@ async function datasLivresDoPacote(
     if (!datasElegiveis(slug, propertySlug, checkin, checkout).elegivel) continue;
 
     // Mínimo de noites da chegada: sugerir data que a Hostaway recusa na hora de
-    // cotar é o mesmo que não sugerir nada.
+    // cotar é o mesmo que não sugerir nada. O pacote com `ignorarMinimoPMS` não
+    // é recusado, então também não é filtrado aqui.
     const minimoDaChegada = noitesCal.get(checkin)?.minimo ?? 1;
-    if (noites < minimoDaChegada) continue;
+    if (noites < minimoDaChegada && !ignoraMinimo) continue;
 
     let hostawayTotal = 0;
     let completa = true;
@@ -411,13 +407,31 @@ export async function proximaDataLivreDoPacote(
   propertySlug: string,
   aPartirDe: string,
 ): Promise<{ checkin: string; checkout: string } | null> {
+  const datas = await datasLivresProximas(slug, propertySlug, aPartirDe, 1);
+  if (datas.length === 0) return null;
+  const { checkin, checkout } = datas[0];
+  return { checkin, checkout };
+}
+
+/**
+ * Próximas datas em que o pacote fecha E está livre, em ordem, a partir do dia
+ * seguinte a `aPartirDe`.
+ *
+ * Um varredor só para as três perguntas: o menor preço do card, a próxima data
+ * quando as pedidas estão vendidas, e o próximo período equivalente na busca.
+ */
+export async function datasLivresProximas(
+  slug: string,
+  propertySlug: string,
+  aPartirDe: string,
+  limite: number,
+): Promise<{ checkin: string; checkout: string }[]> {
   const inicio = new Date(aPartirDe + "T12:00:00");
   inicio.setDate(inicio.getDate() + 1);
 
   const r = await datasLivresDoPacote(slug, propertySlug, inicio);
-  if (!r.ok || r.datas.length === 0) return null;
-  const { checkin, checkout } = r.datas[0];
-  return { checkin, checkout };
+  if (!r.ok) return [];
+  return r.datas.slice(0, limite).map(({ checkin, checkout }) => ({ checkin, checkout }));
 }
 
 async function calcularMinimo(slug: string, propertySlug: string): Promise<MinimoPacote> {

@@ -445,6 +445,14 @@ export type PacoteV2 = {
   exigeFeriado: boolean;
   /** Recusa estadias com noite dentro de `JANELAS_BLOQUEADAS`. */
   naoValeEmJanelaBloqueada?: boolean;
+  /**
+   * Vende abaixo do mínimo de noites configurado no PMS.
+   *
+   * O mínimo é regra de canal e continua valendo em todo o resto do site —
+   * reserva avulsa e demais pacotes. Só o pacote que traz esta marca ignora, e
+   * apenas no canal direto. A tarifa segue vindo do calendário da Hostaway.
+   */
+  ignorarMinimoPMS?: boolean;
   /** Sazonal: só visível dentro da janela de feriado. */
   sazonal: boolean;
   inclusos: ItemIncluso[];
@@ -561,6 +569,9 @@ export const PACOTES_V2: PacoteV2[] = [
     // de destaque é que muda quando o dono quiser promovê-lo.
     sazonal: false,
     janelaCheckin: { de: "12-21", ate: "12-30" },
+    // Verificado com reserva real na Hostaway (65058672, 28/12 → 02/01, mínimo
+    // 6): a API cria abaixo do mínimo e a estadia bloqueia o calendário.
+    ignorarMinimoPMS: true,
     ajusteTaxaPorCheckoutDow: { 6: -0.05 },
   /** Saída sugerida: o domingo da semana seguinte à chegada. */
   checkoutSugeridoDow: 0,

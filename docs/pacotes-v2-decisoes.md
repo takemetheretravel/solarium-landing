@@ -201,3 +201,31 @@ Enquanto o mínimo estiver como está, a saída de sábado só volta a ser vend�
 O que o código passou a fazer: dizer a verdade. Antes qualquer recusa da Hostaway virava "erro
 técnico"; agora o mínimo de noites aparece com o número, e o varredor de datas livres não
 sugere data cujo mínimo a estadia não cumpre.
+
+## 14. Vender abaixo do mínimo de noites do PMS (rodada 21)
+
+O mínimo de noites é regra de canal, configurada por data no PMS. Decisão do dono:
+no canal direto, dentro do pacote Final de Ano, ele não se aplica.
+
+Antes de ligar, foi verificado na API real — não por leitura de documentação. Uma
+reserva de teste (`65058672`, 28/12 → 02/01, mínimo 6 noites na chegada) foi
+criada, **aceita**, bloqueou as cinco noites no calendário, e depois cancelada
+com o calendário voltando a livre. Se a criação tivesse sido recusada, o bypass
+seria inviável: o cliente pagaria e a reserva falharia.
+
+O bypass é `ignorarMinimoPMS`, por pacote, e está ligado **só** no Final de Ano.
+Reserva avulsa e os outros cinco pacotes continuam respeitando o mínimo. A tarifa
+segue vindo inteira do calendário da Hostaway — o que muda é a recusa, não o preço.
+
+## 15. O preço tinha dois donos, e um deles esquecia o sábado
+
+Ao conferir as nove combinações do Final de Ano contra a API real, a saída de
+sábado 30/12 → 02/01 saiu por 8.590 quando a regra do pacote dá 9.060.
+
+Causa: `calcularPacoteServer` montava o resultado por conta própria em vez de
+chamar `totalDoPacote`, e nessa montagem não passava o ajuste de taxa por dia de
+saída. O varredor do "a partir de" aplicava os 5 pontos; a tela do pacote, a API
+e o draft não. O teste da rodada 20 passava porque exercitava o varredor.
+
+Agora existe uma função só que monta itens, bônus e ajuste. O teste de paridade
+compara os dois caminhos nas nove combinações — se voltarem a divergir, quebra.

@@ -124,7 +124,13 @@
       "Bash(curl -s \"http://localhost:3122/reservar?checkin=2026-09-05&checkout=2026-09-07&guests=2\" -o /tmp/b.html -w \"%{http_code}\\\\n\")",
       "Bash(curl -s \"http://localhost:3122/reservar?checkin=2026-09-14&checkout=2026-09-17&guests=2\")",
       "Bash(grep -o \"Meio de Semana na Serra\\\\|Estas datas também fecham um pacote\\\\|R\\\\$ [0-9.]*\")",
-      "Bash(curl -s \"http://localhost:3122/reservar?checkin=2026-09-13&checkout=2026-09-17&guests=2\")"
+      "Bash(curl -s \"http://localhost:3122/reservar?checkin=2026-09-13&checkout=2026-09-17&guests=2\")",
+      "Bash(powershell -NoProfile -Command \"winget install --id GitHub.cli --accept-source-agreements --accept-package-agreements --silent 2>&1 | Select-Object -Last 6\")",
+      "Bash(curl -s -X POST http://localhost:3123/api/pacotes/preco -H \"Content-Type: application/json\" -d '{\"pacoteId\":\"final-de-ano\",\"propertySlug\":\"solarium-1\",\"checkin\":\"2026-12-30\",\"checkout\":\"2027-01-02\",\"guests\":2}')",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('hostaway',d['hostawayTotal'],'subtotal',d['subtotal'],'total',d['total'],'economia',d['economia']\\);print\\([ \\(i['extraId'],i['total']\\) for i in d['itens']]\\)\")",
+      "Bash(curl -s -X POST http://localhost:3123/api/pacotes/preco -H \"Content-Type: application/json\" -d '{\"pacoteId\":\"feriado-na-serra\",\"propertySlug\":\"solarium-1\",\"checkin\":\"2026-12-24\",\"checkout\":\"2026-12-27\",\"guests\":2}')",
+      "Bash(curl -s \"http://localhost:3123/reservar?checkin=2026-08-21&checkout=2026-08-22&guests=2\" -o /tmp/eq.html -w \"%{http_code}\\\\n\")",
+      "Bash(grep -o \"Nas datas que você pediu[^\\\\\\\\\\\\\\\\\\\\\"<]*\\\\|o próximo período livre é este\\\\|O próximo fim de semana livre fecha um pacote\\\\|R\\\\$ [0-9.]*\" /tmp/eq.html)"
     ]
   }
 }

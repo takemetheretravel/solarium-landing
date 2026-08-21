@@ -1,11 +1,14 @@
 import { ArrowRight } from "lucide-react";
 import { formatBRL } from "@/lib/cn";
 import { pacotesVisiveis, datasElegiveis, motorDoPacote } from "@/lib/pricing/elegibilidade";
-import { calcularPacoteServer } from "@/lib/pricing/pacote-server";
+import { calcularPacoteServer, datasLivresProximas } from "@/lib/pricing/pacote-server";
 import { getPropertyBySlug } from "@/config/properties";
 import { vistaPacote } from "@/lib/pricing/vista-pacote";
 import { pacotesV2Ativo } from "@/config/flags";
-import TrackPacoteSugerido, { LinkPacoteSugerido } from "./TrackPacoteSugerido";
+import TrackPacoteSugerido, {
+  LinkPacoteSugerido,
+  type TipoSugestao,
+} from "./TrackPacoteSugerido";
 
 /**
  * Pacotes para as datas que a pessoa acabou de buscar.
@@ -14,10 +17,13 @@ import TrackPacoteSugerido, { LinkPacoteSugerido } from "./TrackPacoteSugerido";
  * página do pacote:
  *
  *  - as datas fecham um pacote: mostra com o preço real;
- *  - não fecham nenhum: procura pacotes a até duas noites de distância e mostra
- *    o deslocamento em palavras. Nunca trocar a data em silêncio.
+ *  - não fecham nenhum: procura pacotes a até duas noites de distância;
+ *  - nem isso: procura o próximo período EQUIVALENTE livre — quem pediu fim de
+ *    semana recebe fim de semana, quem pediu meio de semana recebe meio de
+ *    semana — dentro de 60 dias.
  *
- * Nada compatível e nada por perto, o bloco não aparece.
+ * As datas diferentes das pedidas vêm sempre escritas. Nunca trocar a data em
+ * silêncio. Nada compatível e nada por perto, o bloco não aparece.
  */
 export default async function PacotesCompativeis({
   checkin,
@@ -36,20 +42,27 @@ export default async function PacotesCompativeis({
   const hoje = new Date().toISOString().slice(0, 10);
 
   const exatos = await pacotesNasDatas(checkin, checkout, guests, hoje);
-  const proximos = exatos.length > 0 ? [] : await pacotesEmDatasProximas(checkin, checkout, guests, hoje);
+  let cards = exatos;
 
-  if (exatos.length === 0 && proximos.length === 0) return null;
+  if (cards.length === 0) cards = await pacotesEmDatasProximas(checkin, checkout, guests, hoje);
+  if (cards.length === 0) {
+    cards = await pacotesEmPeriodoEquivalente(checkin, checkout, guests, hoje);
+  }
+  if (cards.length === 0) return null;
 
+  const tipo = cards[0].tipo;
   const titulo =
-    exatos.length > 0
+    tipo === "exata"
       ? variante === "acima"
         ? "As casas estão ocupadas, mas estas datas fecham um pacote"
         : "Estas datas também fecham um pacote"
-      : variante === "acima"
-        ? "Nestas datas as casas estão ocupadas — há pacote em datas vizinhas"
-        : "Datas vizinhas fecham um pacote";
-
-  const cards = exatos.length > 0 ? exatos : proximos;
+      : tipo === "proxima"
+        ? variante === "acima"
+          ? "Nestas datas as casas estão ocupadas — há pacote em datas vizinhas"
+          : "Datas vizinhas fecham um pacote"
+        : variante === "acima"
+          ? "Nestas datas as casas estão ocupadas — o próximo período livre é este"
+          : `O próximo ${rotuloTipoEstadia(checkin)} livre fecha um pacote`;
 
   return (
     <section
@@ -62,13 +75,14 @@ export default async function PacotesCompativeis({
       <TrackPacoteSugerido
         ids={cards.map((c) => c.slug)}
         deslocamentos={cards.map((c) => c.deslocamento)}
+        tipos={cards.map((c) => c.tipo)}
       />
 
       <h2 className="font-serif text-2xl text-charcoal">{titulo}</h2>
       <p className="mt-2 font-sans text-sm leading-relaxed text-charcoal/70">
-        {exatos.length > 0
+        {tipo === "exata"
           ? "Mesmas noites, com os itens que a maioria dos hóspedes acaba pedindo já organizados."
-          : "Datas diferentes das que você pediu — o deslocamento está dito em cada card."}
+          : "Datas diferentes das que você pediu — cada card diz quais são."}
       </p>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -77,6 +91,7 @@ export default async function PacotesCompativeis({
             key={`${p.slug}-${p.checkin}`}
             pacoteId={p.slug}
             deslocamento={p.deslocamento}
+            tipo={p.tipo}
             // A casa vai no link: o preço exibido é o DESTA casa, e sem o
             // parâmetro a página do pacote abriria na casa padrão — que pode
             // estar justamente ocupada nestas datas.
@@ -88,13 +103,11 @@ export default async function PacotesCompativeis({
             </span>
             <h3 className="mt-2 font-serif text-xl text-charcoal">{p.nome}</h3>
 
-            {p.deslocamento > 0 && (
-              <p className="mt-2 font-sans text-xs leading-relaxed text-charcoal">
-                {frase(p)}
-              </p>
+            {p.tipo !== "exata" && (
+              <p className="mt-2 font-sans text-xs leading-relaxed text-charcoal">{frase(p)}</p>
             )}
             <p className="mt-2 flex-1 font-sans text-xs leading-relaxed text-charcoal/60">
-              {p.deslocamento > 0 ? `Com ${p.inclusos}.` : p.tagline}
+              {p.tipo === "exata" ? p.tagline : `Com ${p.inclusos}.`}
             </p>
 
             <p className="mt-4 font-serif text-2xl text-charcoal">{formatBRL(p.total)}</p>
@@ -128,6 +141,7 @@ type Sugestao = {
   checkout: string;
   /** Noites de diferença entre o pedido e o oferecido. 0 = datas exatas. */
   deslocamento: number;
+  tipo: TipoSugestao;
   diasChegada: number;
   diasSaida: number;
   inclusos: string;
@@ -224,6 +238,93 @@ async function pacotesEmDatasProximas(
   return sugestoes;
 }
 
+/** Dias de chegada que caracterizam fim de semana. */
+const CHEGADA_DE_FIM_DE_SEMANA = [5, 6];
+/** Até onde olhar para a frente, em dias. */
+const JANELA_EQUIVALENTE_DIAS = 60;
+
+function ehFimDeSemana(checkin: string): boolean {
+  return CHEGADA_DE_FIM_DE_SEMANA.includes(new Date(checkin + "T12:00:00").getDay());
+}
+
+export function rotuloTipoEstadia(checkin: string): string {
+  return ehFimDeSemana(checkin) ? "fim de semana" : "meio de semana";
+}
+
+/**
+ * Próximo período EQUIVALENTE livre, em até 60 dias.
+ *
+ * Equivalente é pelo tipo de chegada: quem pediu sexta ou sábado recebe fim de
+ * semana; quem pediu meio de semana recebe meio de semana. Oferecer um meio de
+ * semana a quem pediu sábado não é sugestão, é ruído.
+ */
+async function pacotesEmPeriodoEquivalente(
+  checkin: string,
+  checkout: string,
+  guests: number,
+  hoje: string,
+): Promise<Sugestao[]> {
+  const limite = somaDias(checkin, JANELA_EQUIVALENTE_DIAS);
+  const querFimDeSemana = ehFimDeSemana(checkin);
+  const noitesPedidas = Math.round(
+    (new Date(checkout + "T12:00:00").getTime() - new Date(checkin + "T12:00:00").getTime()) /
+      86400000,
+  );
+
+  const achados: Sugestao[] = [];
+
+  for (const slug of pacotesVisiveis(hoje)) {
+    if (achados.length >= 2) break;
+
+    for (const casa of casasDoPacote(slug)) {
+      // Algumas datas livres por pacote: a primeira pode não ser do tipo pedido.
+      const datas = await datasLivresProximas(slug, casa, checkin, 6);
+      const alvo = datas.find(
+        (d) => d.checkin <= limite && ehFimDeSemana(d.checkin) === querFimDeSemana,
+      );
+      if (!alvo) continue;
+
+      const s = await cotar(
+        slug,
+        casa,
+        alvo.checkin,
+        alvo.checkout,
+        guests,
+        diasEntre(checkin, alvo.checkin),
+        diasEntre(checkout, alvo.checkout),
+        "equivalente",
+      );
+      if (!s) continue;
+
+      achados.push(s);
+      break;
+    }
+  }
+
+  // Data mais próxima primeiro; a duração diferente da pedida não desqualifica,
+  // mas empata para trás.
+  return achados
+    .sort(
+      (a, b) =>
+        a.checkin.localeCompare(b.checkin) ||
+        Math.abs(noitesDe(a) - noitesPedidas) - Math.abs(noitesDe(b) - noitesPedidas),
+    )
+    .slice(0, 2);
+}
+
+function noitesDe(s: Sugestao): number {
+  return Math.round(
+    (new Date(s.checkout + "T12:00:00").getTime() - new Date(s.checkin + "T12:00:00").getTime()) /
+      86400000,
+  );
+}
+
+function diasEntre(de: string, ate: string): number {
+  return Math.round(
+    (new Date(ate + "T12:00:00").getTime() - new Date(de + "T12:00:00").getTime()) / 86400000,
+  );
+}
+
 function casasDoPacote(slug: string): string[] {
   const m = motorDoPacote(slug);
   return m?.motor === "v2" ? m.pacote.properties : [];
@@ -238,6 +339,7 @@ async function cotar(
   guests: number,
   dCheckin: number,
   dCheckout: number,
+  tipo: TipoSugestao = dCheckin === 0 && dCheckout === 0 ? "exata" : "proxima",
 ): Promise<Sugestao | null> {
   const m = motorDoPacote(slug);
   if (!m || m.motor !== "v2") return null;
@@ -268,6 +370,7 @@ async function cotar(
     checkin,
     checkout,
     deslocamento: Math.abs(dCheckin) + Math.abs(dCheckout),
+    tipo,
     diasChegada: dCheckin,
     diasSaida: dCheckout,
     // Nome do item como ele é vendido, sem minusculizar: "cesta café café" não é
@@ -285,8 +388,17 @@ async function cotar(
 // COPY
 // ---------------------------------------------------------------------------
 
-/** "Chegando um dia antes, 4 a 7 de setembro, estas datas fecham o pacote." */
+/**
+ * "Chegando um dia antes, 4 a 7 de setembro, estas datas fecham o pacote."
+ *
+ * A data oferecida sempre aparece por extenso: a pessoa precisa ver que não é a
+ * que ela pediu.
+ */
 function frase(s: Sugestao): string {
+  if (s.tipo === "equivalente") {
+    return `Nas datas que você pediu não fecha pacote. O próximo ${rotuloTipoEstadia(s.checkin)} livre é ${intervalo(s.checkin, s.checkout)}, e fecha o ${s.nome}.`;
+  }
+
   const partes: string[] = [];
   if (s.diasChegada !== 0) partes.push(`Chegando ${quantosDias(s.diasChegada)}`);
   if (s.diasSaida !== 0) partes.push(`${partes.length ? "saindo" : "Saindo"} ${quantosDias(s.diasSaida)}`);
