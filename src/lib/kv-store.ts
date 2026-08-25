@@ -412,30 +412,6 @@ export async function scanReconciliationPending(): Promise<ReconciliationPending
   }
 }
 
-// ---------------------------------------------------------------------------
-// Deduplicação de eventos de webhook (a mesma notificação chega/reprocessa 2x).
-// claimWebhookEventOnce: atômico via SET NX. Retorna true se é a PRIMEIRA vez
-// (deve processar); false se já visto na janela de TTL (ignorar). Em falha de
-// Redis, "fail-open" (retorna true) — melhor processar que perder um pagamento.
-// releaseWebhookEvent: libera a claim (chamar no catch, p/ o retry reprocessar).
-const WEBHOOK_SEEN_PREFIX = "braspag:webhook-seen:";
-export async function claimWebhookEventOnce(key: string, ttlSeconds = 600): Promise<boolean> {
-  try {
-    const res = await getRedis().set(`${WEBHOOK_SEEN_PREFIX}${key}`, "1", { nx: true, ex: ttlSeconds });
-    return res !== null; // "OK" quando setou (novo); null quando já existia
-  } catch (err) {
-    console.error("[kv-store:claimWebhookEventOnce] Failed (fail-open):", err);
-    return true;
-  }
-}
-export async function releaseWebhookEvent(key: string): Promise<void> {
-  try {
-    await getRedis().del(`${WEBHOOK_SEEN_PREFIX}${key}`);
-  } catch (err) {
-    console.error("[kv-store:releaseWebhookEvent] Failed:", err);
-  }
-}
-
 // Varredura genérica de chaves por padrão (SCAN). Usada por reconcile e authlog.
 async function scanKeys(match: string): Promise<string[]> {
   const redis = getRedis();
