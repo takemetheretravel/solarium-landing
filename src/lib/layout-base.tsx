@@ -1,32 +1,36 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
-import { analyticsAtivo } from "@/config/flags";
-import AnalyticsScripts from "@/lib/analytics/AnalyticsScripts";
-import "./globals.css";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
-import FloatingWhatsApp from "@/components/ui/FloatingWhatsApp";
 
-const serif = Cormorant_Garamond({
+/**
+ * Peças comuns aos dois layouts raiz do App Router.
+ *
+ * Existem dois porque a rota de pagamento precisa ficar FORA do GTM de forma
+ * estrutural: um layout que carrega o container e outro que não. Fonte,
+ * metadata e classes do `<html>`/`<body>` são idênticas nos dois e moram aqui,
+ * para não divergirem com o tempo.
+ */
+
+export const serif = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-serif",
   display: "swap",
 });
 
-const sans = Inter({
+export const sans = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://solariummantiqueira.com";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://solariummantiqueira.com";
+
 const siteTitle = "Solarium Mantiqueira | Refúgio de Design na Serra";
 const siteDescription =
   "Refúgio de design e experiência na Serra da Mantiqueira. Duas casas exclusivas, pensadas para casais que buscam imersão em natureza com tecnologia e conforto.";
 const ogImage = `https://drive.google.com/thumbnail?id=1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8&sz=w1600`;
 
-export const metadata: Metadata = {
+export const metadataBase: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: siteTitle, template: "%s | Solarium Mantiqueira" },
   description: siteDescription,
@@ -49,22 +53,4 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="pt-BR" className={`${serif.variable} ${sans.variable}`}>
-      <body className="bg-cream text-charcoal">
-        <Header />
-        {children}
-        <Footer />
-        <FloatingWhatsApp />
-        {/* O gate de AMBIENTE é aqui (só o servidor lê VERCEL_ENV); o gate de
-            ROTA é dentro do componente, que precisa do pathname do cliente. */}
-        {analyticsAtivo() && <AnalyticsScripts />}
-      </body>
-    </html>
-  );
-}
+export const classesHtml = `${serif.variable} ${sans.variable}`;

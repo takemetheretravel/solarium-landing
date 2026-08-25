@@ -3,9 +3,14 @@
 /**
  * Camada única de escrita no `window.dataLayer`.
  *
- * Nenhuma função daqui dispara pixel, gtag ou fbq. Elas só empurram o evento; o
- * GTM decide o que fazer com ele. Isso mantém um ponto único onde o identificador
- * de conversão é definido, e permite trocar as tags sem tocar em componente.
+ * Nenhuma função daqui dispara pixel, gtag ou fbq — o site não carrega nenhum
+ * dos dois. Elas só empurram o evento; quem decide o que fazer com ele é o GTM.
+ *
+ * NÃO EXISTE push de compra aqui, e não é omissão. `purchase` é enviado
+ * exclusivamente server-side (ver `server-conversions.ts`), depois de o
+ * pagamento estar confirmado e a reserva existir no Hostaway. Uma função de
+ * compra neste módulo seria código morto convidando a ser reativado, e
+ * conversão contada duas vezes.
  */
 
 declare global {
@@ -24,28 +29,23 @@ export type DataLayerItem = {
   item_category?: string;
 };
 
-export type DataLayerEvent = {
+type EventoDataLayer = {
   event: string;
-  transaction_id: string;
-  value: number;
-  currency: typeof CURRENCY;
-  items: DataLayerItem[];
-  [extra: string]: unknown;
+  [campo: string]: unknown;
 };
 
-function push(evento: DataLayerEvent): void {
+function push(evento: EventoDataLayer): void {
   if (typeof window === "undefined") return;
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push(evento);
 }
 
 /**
- * Identificador canônico da conversão.
+ * Identificador canônico da conversão: o número da reserva no Hostaway quando
+ * já existe; enquanto é rascunho, o UUID do draft (o mesmo de `/reservar/{uuid}/...`).
  *
- * A regra é uma só: o número da reserva no Hostaway quando ele já existe;
- * enquanto a reserva é rascunho, o UUID do draft (o mesmo que aparece na URL
- * `/reservar/{uuid}/...`). Assim o mesmo valor percorre o funil inteiro e a
- * conversão do navegador casa com a enviada server-side.
+ * Só faz sentido a partir do `begin_checkout` — antes disso não há reserva nem
+ * draft, e os eventos de visualização não carregam o campo.
  */
 export function transactionId(params: {
   reservationId?: number | string | null;
@@ -58,29 +58,119 @@ export function transactionId(params: {
   return String(params.draftId ?? "");
 }
 
-export function pushViewPackage(params: {
-  transactionId: string;
-  value: number;
-  items: DataLayerItem[];
-  /** Contexto de origem, quando conhecido — não afeta a identidade do evento. */
-  origem?: string;
-}): void {
+// ---------------------------------------------------------------------------
+// Guarda de idempotência por sessão.
+//
+// Vale só para os eventos que marcam INTENÇÃO única (`begin_checkout`,
+// `generate_lead`): sem ela, um clique duplo ou um efeito que roda duas vezes
+// contam duas intenções onde houve uma. Visualização não entra — ver a mesma
+// página de novo é um evento novo, legítimo.
+//
+// Escopo de aba (`sessionStorage`), nunca `localStorage`: nada persiste entre
+// sessões, e uma segunda reserva amanhã não é barrada pela de hoje.
+const empurradosNoModulo = new Set<string>();
+const PREFIXO_SESSAO = "solarium:dl:";
+
+function jaEmpurrado(chave: string): boolean {
+  if (empurradosNoModulo.has(chave)) return true;
+  try {
+    return window.sessionStorage.getItem(PREFIXO_SESSAO + chave) === "1";
+  } catch {
+    // sessionStorage bloqueado: sobra a guarda de módulo.
+    return false;
+  }
+}
+
+function marcarEmpurrado(chave: string): void {
+  empurradosNoModulo.add(chave);
+  try {
+    window.sessionStorage.setItem(PREFIXO_SESSAO + chave, "1");
+  } catch {
+    // sem persistência: segue só com a guarda de módulo.
+  }
+}
+
+/** Só para teste: zera as guardas. */
+export function _resetGuardas(): void {
+  empurradosNoModulo.clear();
+  try {
+    const chaves: string[] = [];
+    for (let i = 0; i < window.sessionStorage.length; i++) {
+      const k = window.sessionStorage.key(i);
+      if (k?.startsWith(PREFIXO_SESSAO)) chaves.push(k);
+    }
+    for (const k of chaves) window.sessionStorage.removeItem(k);
+  } catch {
+    // sem sessionStorage: nada a limpar.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Eventos
+
+/**
+ * `value` só existe quando o preço veio da Hostaway. Um evento de receita
+ * montado sobre preço aproximado contabiliza dinheiro que ninguém cotou, então
+ * `value` ausente ou não-finito derruba o push inteiro.
+ */
+function precoUtilizavel(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+export function pushViewItem(params: {
+  itemId: string;
+  itemName: string;
+  value: number | null;
+}): boolean {
+  if (!precoUtilizavel(params.value)) return false;
   push({
-    event: "view_package",
-    transaction_id: params.transactionId,
+    event: "view_item",
+    // Sem `transaction_id`: nesta etapa não existe reserva nem draft, e mandar
+    // string vazia criaria um identificador falso no relatório.
     value: params.value,
     currency: CURRENCY,
-    items: params.items,
-    ...(params.origem ? { origem: params.origem } : {}),
+    items: [{ item_id: params.itemId, item_name: params.itemName, price: params.value, quantity: 1 }],
   });
+  return true;
+}
+
+export function pushViewPackage(params: {
+  itemId: string;
+  itemName: string;
+  value: number | null;
+}): boolean {
+  if (!precoUtilizavel(params.value)) return false;
+  push({
+    event: "view_item",
+    value: params.value,
+    currency: CURRENCY,
+    items: [
+      {
+        item_id: params.itemId,
+        item_name: params.itemName,
+        price: params.value,
+        quantity: 1,
+        item_category: "pacote",
+      },
+    ],
+  });
+  return true;
 }
 
 export function pushBeginCheckout(params: {
   transactionId: string;
-  value: number;
+  value: number | null;
   items: DataLayerItem[];
   paymentMethod?: "card" | "pix";
-}): void {
+}): boolean {
+  if (typeof window === "undefined") return false;
+  if (!params.transactionId) return false;
+  if (!precoUtilizavel(params.value)) return false;
+
+  const chave = `begin_checkout:${params.transactionId}`;
+  if (jaEmpurrado(chave)) return false;
+  marcarEmpurrado(chave);
+
   push({
     event: "begin_checkout",
     transaction_id: params.transactionId,
@@ -89,78 +179,23 @@ export function pushBeginCheckout(params: {
     items: params.items,
     ...(params.paymentMethod ? { payment_method: params.paymentMethod } : {}),
   });
-}
-
-/**
- * Guarda de idempotência do `purchase`, em duas camadas.
- *
- * (1) Memória de módulo: mata o disparo repetido dentro do MESMO documento —
- *     double-invoke do StrictMode, re-render, efeito que roda duas vezes.
- * (2) sessionStorage: a memória de módulo é zerada a cada recarregamento, e a
- *     confirmação recarregada é justamente o caso que duplica conversão. O
- *     escopo é a aba, não o navegador: nada persiste entre sessões (por isso
- *     sessionStorage, nunca localStorage) e uma reserva nova em outra aba não
- *     é afetada — a chave é o próprio `transaction_id`.
- */
-const purchasesEmpurrados = new Set<string>();
-const CHAVE_SESSAO = "solarium:purchase:";
-
-function jaEmpurrado(id: string): boolean {
-  if (purchasesEmpurrados.has(id)) return true;
-  try {
-    return window.sessionStorage.getItem(CHAVE_SESSAO + id) === "1";
-  } catch {
-    // sessionStorage bloqueado (modo restrito): sobra a camada de módulo.
-    return false;
-  }
-}
-
-function marcarEmpurrado(id: string): void {
-  purchasesEmpurrados.add(id);
-  try {
-    window.sessionStorage.setItem(CHAVE_SESSAO + id, "1");
-  } catch {
-    // sem persistência: segue só com a guarda de módulo.
-  }
-}
-
-export function pushPurchase(params: {
-  transactionId: string;
-  value: number;
-  items: DataLayerItem[];
-  /** Repassados ao GTM para casar com o evento server-side. */
-  paymentMethod?: "card" | "pix";
-  nights?: number;
-}): boolean {
-  if (typeof window === "undefined") return false;
-  const id = params.transactionId;
-  if (!id) return false;
-  if (jaEmpurrado(id)) return false;
-  marcarEmpurrado(id);
-
-  push({
-    event: "purchase",
-    transaction_id: id,
-    value: params.value,
-    currency: CURRENCY,
-    items: params.items,
-    ...(params.paymentMethod ? { payment_method: params.paymentMethod } : {}),
-    ...(params.nights !== undefined ? { nights: params.nights } : {}),
-  });
   return true;
 }
 
-/** Só para teste: zera a guarda de idempotência. */
-export function _resetPurchaseGuard(): void {
-  purchasesEmpurrados.clear();
-  try {
-    const chaves: string[] = [];
-    for (let i = 0; i < window.sessionStorage.length; i++) {
-      const k = window.sessionStorage.key(i);
-      if (k?.startsWith(CHAVE_SESSAO)) chaves.push(k);
-    }
-    for (const k of chaves) window.sessionStorage.removeItem(k);
-  } catch {
-    // sem sessionStorage: nada a limpar.
-  }
+export function pushGenerateLead(params: { leadSource: string }): boolean {
+  if (typeof window === "undefined") return false;
+  const chave = `generate_lead:${params.leadSource}`;
+  if (jaEmpurrado(chave)) return false;
+  marcarEmpurrado(chave);
+
+  push({ event: "generate_lead", lead_source: params.leadSource });
+  return true;
+}
+
+/**
+ * Clique em WhatsApp. Sem guarda de sessão de propósito: o hóspede que volta ao
+ * WhatsApp depois de olhar mais uma casa fez um contato novo, não um repetido.
+ */
+export function pushWhatsAppClick(params: { origem: string }): void {
+  push({ event: "whatsapp_click", origem: params.origem });
 }

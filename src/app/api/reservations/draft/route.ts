@@ -42,6 +42,19 @@ type Body = {
     phone: string;
     notes?: string;
   };
+  /** Identificador da tentativa de checkout, aberto no clique do CTA. */
+  checkoutId?: string;
+  /** gclid/utm da sessão, capturados na primeira página. */
+  atribuicao?: {
+    gclid?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_term?: string;
+    utm_content?: string;
+    landing_page?: string;
+    capturado_em?: string;
+  } | null;
 };
 
 function validEmail(s: string): boolean {
@@ -91,17 +104,52 @@ function validPhone(raw: string): boolean {
  * O cookie `_ga` vem como `GA1.1.<client_id>` — o client_id do GA4 são os dois
  * últimos segmentos.
  */
-function lerIdsDeMedicao(req: NextRequest): { gaClientId?: string; fbp?: string; fbc?: string } {
+function lerIdsDeMedicao(
+  req: NextRequest,
+  body: Body,
+): {
+  gaClientId?: string;
+  gaSessionId?: string;
+  fbp?: string;
+  fbc?: string;
+  checkoutId?: string;
+  atribuicao?: Body["atribuicao"];
+} {
+  // `_ga` chega como `GA1.1.XXXXXXX.YYYYYYY`; o client_id do GA4 são os dois
+  // últimos segmentos. Formato inesperado resolve para ausente, nunca para lixo.
   const ga = req.cookies.get("_ga")?.value;
   let gaClientId: string | undefined;
   if (ga) {
     const partes = ga.split(".");
-    if (partes.length >= 4) gaClientId = `${partes[partes.length - 2]}.${partes[partes.length - 1]}`;
+    if (partes.length >= 4) {
+      const candidato = `${partes[partes.length - 2]}.${partes[partes.length - 1]}`;
+      if (/^\d+\.\d+$/.test(candidato)) gaClientId = candidato;
+    }
   }
+
+  // `_ga_<CONTAINER>` guarda a sessão. O sufixo é o id do stream, que muda —
+  // varremos por prefixo em vez de fixar o nome do cookie.
+  let gaSessionId: string | undefined;
+  for (const cookie of req.cookies.getAll()) {
+    if (!cookie.name.startsWith("_ga_")) continue;
+    // Formato `GS1.1.<session_id>.<n>....`
+    const partes = (cookie.value || "").split(".");
+    if (partes.length >= 3 && /^\d+$/.test(partes[2])) {
+      gaSessionId = partes[2];
+      break;
+    }
+  }
+
   return {
     gaClientId,
+    gaSessionId,
     fbp: req.cookies.get("_fbp")?.value || undefined,
     fbc: req.cookies.get("_fbc")?.value || undefined,
+    // Vêm do corpo: são de sessionStorage, que o servidor não enxerga.
+    // Qualquer um deles ausente persiste como indefinido e NUNCA bloqueia a
+    // criação do draft — medição não recusa reserva.
+    checkoutId: typeof body.checkoutId === "string" ? body.checkoutId.slice(0, 64) : undefined,
+    atribuicao: body.atribuicao ?? undefined,
   };
 }
 
@@ -371,7 +419,7 @@ export async function POST(req: NextRequest) {
     guestPhone: normalizePhone(guest.phone),
     guestCpf: digitsOnly(guest.cpf),
     guestNotes: guest.notes?.trim() || undefined,
-    ...lerIdsDeMedicao(req),
+    ...lerIdsDeMedicao(req, body),
     status: "pending" as const,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
@@ -478,7 +526,7 @@ async function criarDraftPacote(args: {
     guestPhone: normalizePhone(guest.phone),
     guestCpf: digitsOnly(guest.cpf),
     guestNotes: guest.notes?.trim() || undefined,
-    ...lerIdsDeMedicao(req),
+    ...lerIdsDeMedicao(req, body),
     status: "pending" as const,
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),

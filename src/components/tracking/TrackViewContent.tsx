@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { trackViewContent } from "@/lib/analytics/tracking";
+import { pushViewItem } from "@/lib/analytics/dataLayer";
 
 type Props = {
   propertySlug: string;
@@ -10,12 +10,12 @@ type Props = {
 
 export default function TrackViewContent({ propertySlug, propertyName, fromPriceNightly }: Props) {
   useEffect(() => {
-    trackViewContent({
+    pushViewItem({
+      itemId: propertySlug,
+      itemName: propertyName,
       value: fromPriceNightly,
-      currency: "BRL",
-      contentName: propertyName,
-      contentIds: [propertySlug],
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
 }

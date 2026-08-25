@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { conversionAlreadySent, markConversionSent } from "@/lib/kv-store";
 
 /**
  * Envio de conversão server-side (GA4 Measurement Protocol + Meta CAPI).
@@ -7,8 +8,10 @@ import crypto from "crypto";
  *  - Variável de ambiente ausente → pula em silêncio, com aviso em nível warn.
  *  - Qualquer falha (rede, token, 4xx) é engolida: analytics jamais derruba uma
  *    reserva já paga.
- *  - A idempotência NÃO mora aqui. Quem chama já passou pela guarda do
- *    webhook_events; este módulo só executa o envio.
+ *  - Idempotência em duas camadas: quem chama já passou pela guarda de
+ *    `webhook_events` (30 dias), e aqui `conversions_sent` (24 meses) barra o
+ *    par (transaction_id, destino) já enviado. A segunda existe para a
+ *    reentrega tardia e o reprocessamento manual, que escapam da primeira.
  */
 
 const TIMEOUT_MS = 8000;
@@ -28,6 +31,7 @@ export type ConversaoParams = {
   items: ConversaoItem[];
   /** Persistidos no draft quando o cliente ainda estava no site. */
   gaClientId?: string;
+  gaSessionId?: string;
   fbp?: string;
   fbc?: string;
   /** Usados só como dado hasheado no Meta CAPI (nunca em claro no log). */
@@ -57,7 +61,13 @@ async function postJson(url: string, body: unknown): Promise<{ ok: boolean; stat
   }
 }
 
-/** GA4 purchase via Measurement Protocol. */
+/**
+ * GA4 `purchase` via Measurement Protocol.
+ *
+ * O measurement id vem de `GA4_MEASUREMENT_ID` e precisa ser o stream DO SITE.
+ * Mandar para o stream do motor de reservas duplicaria a conversão em duas
+ * propriedades e nenhuma das duas fecharia com a outra.
+ */
 async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "falhou"> {
   const measurementId = process.env.GA4_MEASUREMENT_ID;
   const apiSecret = process.env.GA4_API_SECRET;
@@ -65,6 +75,14 @@ async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "fa
     console.warn("[Conversao:GA4] pulado — GA4_MEASUREMENT_ID/GA4_API_SECRET não definidos.");
     return "pulado";
   }
+
+  // Guarda de reenvio. A do webhook cobre a reentrega dentro da janela dela;
+  // esta cobre reprocessamento manual e reentrega tardia, por 24 meses.
+  if (await conversionAlreadySent(p.transactionId, "ga4")) {
+    console.log(`[Conversao:GA4] já enviado antes, pulando transaction_id=${p.transactionId}`);
+    return "pulado";
+  }
+
   // Sem client_id o GA4 aceita o hit mas não o liga a nenhuma sessão. Um valor
   // derivado do transaction_id mantém o evento contável e estável entre reenvios.
   const clientId = p.gaClientId || `server.${sha256(p.transactionId).slice(0, 16)}`;
@@ -83,6 +101,7 @@ async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "fa
             transaction_id: p.transactionId,
             value: p.value,
             currency: p.currency,
+            ...(p.gaSessionId ? { session_id: p.gaSessionId } : {}),
             items: p.items.map((i) => ({
               item_id: i.item_id,
               item_name: i.item_name,
@@ -93,6 +112,9 @@ async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "fa
         },
       ],
     });
+    // Registrado mesmo em não-2xx: o hit saiu, e repetir sem saber se o GA4 o
+    // aceitou é o caminho para contar a mesma reserva duas vezes.
+    await markConversionSent({ transactionId: p.transactionId, destino: "ga4", httpStatus: r.status });
     if (!r.ok) {
       console.error(`[Conversao:GA4] falhou http=${r.status} transaction_id=${p.transactionId}`);
       return "falhou";
@@ -100,6 +122,8 @@ async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "fa
     console.log(`[Conversao:GA4] purchase enviado transaction_id=${p.transactionId}`);
     return "enviado";
   } catch (err) {
+    // Sem resposta do servidor: NÃO marca. Erro de rede pode significar que o
+    // hit nunca chegou, e aí a próxima tentativa precisa poder acontecer.
     console.error("[Conversao:GA4] falhou:", (err as Error)?.message);
     return "falhou";
   }
@@ -111,6 +135,11 @@ async function enviarMeta(p: ConversaoParams): Promise<"enviado" | "pulado" | "f
   const token = process.env.META_CAPI_ACCESS_TOKEN;
   if (!pixelId || !token) {
     console.warn("[Conversao:Meta] pulado — META_PIXEL_ID/META_CAPI_ACCESS_TOKEN não definidos.");
+    return "pulado";
+  }
+
+  if (await conversionAlreadySent(p.transactionId, "meta")) {
+    console.log(`[Conversao:Meta] já enviado antes, pulando event_id=${p.transactionId}`);
     return "pulado";
   }
 
@@ -149,6 +178,7 @@ async function enviarMeta(p: ConversaoParams): Promise<"enviado" | "pulado" | "f
         },
       ],
     });
+    await markConversionSent({ transactionId: p.transactionId, destino: "meta", httpStatus: r.status });
     if (!r.ok) {
       console.error(`[Conversao:Meta] falhou http=${r.status} event_id=${p.transactionId}`);
       return "falhou";

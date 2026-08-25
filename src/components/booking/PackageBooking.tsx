@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Calendar, MessageCircle, X } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
-import { pushViewPackage } from "@/lib/analytics/dataLayer";
+import { pushViewPackage, pushBeginCheckout } from "@/lib/analytics/dataLayer";
+import { iniciarCheckoutId } from "@/lib/analytics/checkout-id";
 import {
   PackageConfig,
   validatePackageDates,
@@ -207,25 +208,27 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
     extrasOpcionaisTotal;
   const pixValue = Math.floor((totalPacote * 0.97) / 10) * 10;
 
-  // view_package só sai com preço REAL na mão. Um evento com `value` derivado do
+  // view_item só sai com preço REAL na mão. Um evento com `value` derivado do
   // proxy contaria receita que ninguém cotou.
   const viewEnviadoRef = useRef(false);
   useEffect(() => {
     if (viewEnviadoRef.current) return;
     if (precoIndisponivel || hostawayTotal == null) return;
     viewEnviadoRef.current = true;
-    pushViewPackage({
-      // Ainda não existe reserva nem draft nesta etapa: o identificador canônico
-      // só nasce quando o draft é criado, no envio do formulário de hóspede.
-      transactionId: "",
-      value: totalPacote,
-      items: [{ item_id: pkg.slug, item_name: pkg.name, price: totalPacote, quantity: 1 }],
-      origem: "pacote",
-    });
+    pushViewPackage({ itemId: pkg.slug, itemName: pkg.name, value: totalPacote });
   }, [precoIndisponivel, hostawayTotal, totalPacote, pkg.slug, pkg.name]);
 
   function handleReserve() {
     if (!canReserve || !checkin) return;
+
+    // begin_checkout no CLIQUE. `canReserve` já garante preço real da Hostaway:
+    // com o preço indisponível o botão nem chega aqui.
+    pushBeginCheckout({
+      transactionId: iniciarCheckoutId(),
+      value: totalPacote,
+      items: [{ item_id: pkg.slug, item_name: pkg.name, price: totalPacote, quantity: 1 }],
+    });
+
     const params = new URLSearchParams({
       propertyId: propertySlug,
       checkin,

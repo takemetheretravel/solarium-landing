@@ -1,61 +1,48 @@
-"use client";
-
 import Script from "next/script";
-import { usePathname } from "next/navigation";
 
 /**
- * Carregador dos scripts de medição.
+ * Carregador de tags do navegador.
  *
- * A regra que este componente existe para garantir: NENHUM script de terceiro
- * na rota de pagamento. Ela renderiza os campos `bpmpi_*` do 3DS com dados de
- * cartão no DOM, e um script de analytics, tag manager, chat ou gravação de
- * sessão carregado ali tem acesso a esse DOM.
+ * Um container de GTM, e nada mais. Não há `gtag.js`, snippet de Meta Pixel nem
+ * inicialização de Google Ads no código do site: toda tag de navegador é
+ * publicada e versionada no GTM, o que permite pausar ou trocar uma tag sem
+ * deploy.
  *
- * A checagem por rota só é suficiente porque a entrada na rota de pagamento é
- * uma navegação DURA (ver GuestForm): num `router.push` o documento seria o
- * mesmo da página anterior, e os scripts já carregados continuariam vivos.
- *
- * O gate de ambiente fica no layout (server), que é quem enxerga `VERCEL_ENV`.
+ * ONDE NÃO CARREGA. Só o layout raiz de `(site)` renderiza este componente. As
+ * rotas que exibem campos `bpmpi_*` do 3DS vivem no grupo `(checkout)`, cujo
+ * layout raiz não tem como herdá-lo. A exclusão é estrutural — não é checagem
+ * de rota em runtime, que qualquer refactor poderia contornar sem alarde.
  */
 
-/** Prefixos e padrões de rota onde nenhum script de terceiro pode carregar. */
-const ROTAS_SEM_TERCEIROS = [
-  /^\/reservar\/[^/]+\/pagamento\/?$/,
-  /^\/braspag-3ds-test\/?$/,
-];
+export const GTM_ID = "GTM-MRV2KVJF";
 
-export function rotaIsoladaDeTerceiros(pathname: string): boolean {
-  return ROTAS_SEM_TERCEIROS.some((re) => re.test(pathname));
+/**
+ * Vai no `<head>`. Cria o `dataLayer` ANTES do container, senão os eventos
+ * empurrados por componentes que montam cedo se perdem.
+ */
+export default function AnalyticsScripts() {
+  return (
+    <Script id="gtm" strategy="afterInteractive">{`
+      window.dataLayer = window.dataLayer || [];
+      (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
+      var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';
+      j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+      f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_ID}');
+    `}</Script>
+  );
 }
 
-const GA4_ID = "G-9J8F6Q1Y2M";
-const META_PIXEL_ID = "1029814882379214";
-
-export default function AnalyticsScripts() {
-  const pathname = usePathname() || "";
-  if (rotaIsoladaDeTerceiros(pathname)) return null;
-
+/** Fallback do GTM. Vai logo após a abertura do `<body>`. */
+export function GtmNoScript() {
   return (
-    <>
-      {/* TAREFA 9 (bloqueada): este gtag.js hardcoded sai do código só depois de
-          as tags equivalentes estarem validadas no GTM Preview. Removê-lo antes
-          deixaria o site sem medição de Purchase durante a janela. */}
-      <Script
-        id="ga4"
-        strategy="afterInteractive"
-        src={`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`}
+    <noscript>
+      <iframe
+        src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+        height="0"
+        width="0"
+        style={{ display: "none", visibility: "hidden" }}
+        title="Google Tag Manager"
       />
-      <Script id="ga4-init" strategy="afterInteractive">{`
-        window.dataLayer=window.dataLayer||[];
-        function gtag(){dataLayer.push(arguments)}
-        gtag('js',new Date());
-        gtag('config','${GA4_ID}');
-      `}</Script>
-      <Script id="meta-pixel" strategy="afterInteractive">{`
-        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init','${META_PIXEL_ID}');
-        fbq('track','PageView');
-      `}</Script>
-    </>
+    </noscript>
   );
 }

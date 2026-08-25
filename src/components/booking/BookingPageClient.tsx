@@ -11,7 +11,6 @@ import { MAX_QTY_PER_EXTRA } from "@/config/service-extras";
 import { pacotesV2Ativo } from "@/config/flags";
 import { OP_EXTRA_TYPES } from "@/config/operational-extras";
 import { formatBRLPrecise, formatExtraPrice } from "@/lib/cn";
-import { trackInitiateCheckout } from "@/lib/analytics/tracking";
 import { useFetchDeduplicado, chaveDe } from "@/lib/client-fetch";
 
 type Quote = {
@@ -105,9 +104,10 @@ export default function BookingPageClient({
     return validateCoupon(initialCouponCode, { nights: quote.nights, subtotal: quote.totalPrice });
   });
 
-  useEffect(() => {
-    if (quote) trackInitiateCheckout({ value: quote.totalPrice, currency: "BRL" });
-  }, []);
+  // Sem evento de conversão em /reservar.
+  //
+  // `begin_checkout` é disparado no CLIQUE do CTA "Reservar", uma etapa antes —
+  // marcar de novo aqui contaria duas intenções onde houve uma.
 
   useEffect(() => {
     if (!appliedCoupon || !quote) return;

@@ -7,6 +7,8 @@ import { formatBRLPrecise } from "@/lib/cn";
 import ExtrasNaCasa, { serializarSelecao } from "@/components/extras/ExtrasNaCasa";
 import { pacotesV2Ativo } from "@/config/flags";
 import { useFetchDeduplicado, chaveDe } from "@/lib/client-fetch";
+import { pushBeginCheckout } from "@/lib/analytics/dataLayer";
+import { iniciarCheckoutId } from "@/lib/analytics/checkout-id";
 
 type PriceFailure = {
   reason: "missing-data" | "unavailable-day" | "min-stay-not-met" | "max-stay-exceeded" | "api-error";
@@ -173,6 +175,18 @@ export default function BookingForm({
 
   async function handleContinue() {
     if (!checkin || !checkout || !response || response.ok !== true || checkinError) return;
+
+    // begin_checkout no CLIQUE, antes de qualquer navegação: é aqui que o
+    // hóspede declara intenção. O valor é o total já calculado pelo servidor —
+    // nunca recomposto aqui.
+    pushBeginCheckout({
+      transactionId: iniciarCheckoutId(),
+      value: response.finalTotal,
+      items: [
+        { item_id: propertySlug, item_name: propertySlug, price: response.finalTotal, quantity: 1 },
+      ],
+      paymentMethod,
+    });
 
     setIsValidating(true);
     setValidationError(null);

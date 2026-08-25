@@ -478,6 +478,7 @@ export async function POST(req: Request) {
           currency: "BRL",
           items: itensDaReserva(draft),
           gaClientId: draft.gaClientId,
+          gaSessionId: draft.gaSessionId,
           fbp: draft.fbp,
           fbc: draft.fbc,
           email: draft.guestEmail,

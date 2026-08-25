@@ -2,7 +2,8 @@
 
 import { useState, FormEvent, useMemo } from "react";
 import { ArrowRight } from "lucide-react";
-import { pushBeginCheckout, transactionId } from "@/lib/analytics/dataLayer";
+import { lerCheckoutId } from "@/lib/analytics/checkout-id";
+import { lerAtribuicao } from "@/lib/analytics/atribuicao";
 
 type Props = {
   propertySlug: string;
@@ -102,6 +103,12 @@ export default function GuestForm(props: Props) {
           serviceExtras: props.serviceExtras?.length ? props.serviceExtras : undefined,
           opExtras: props.opExtras?.length ? props.opExtras : undefined,
           guest: { name, email, cpf, phone, notes },
+          // Identificadores de medição capturados AQUI, antes da navegação dura.
+          // Depois dela a rota de pagamento não tem GTM nem cookie de sessão de
+          // anúncio ao alcance, e o envio server-side da conversão acontece
+          // quando o navegador do hóspede já não existe mais.
+          checkoutId: lerCheckoutId(),
+          atribuicao: lerAtribuicao(),
         }),
       });
       if (!res.ok) {
@@ -110,28 +117,11 @@ export default function GuestForm(props: Props) {
         setSubmitting(false);
         return;
       }
-      const data = (await res.json()) as {
-        draftId: string;
-        finalTotal?: number;
-        itemId?: string;
-        itemName?: string;
-      };
+      const data = (await res.json()) as { draftId: string };
 
-      // begin_checkout sai daqui, e não da página de pagamento: é o último ponto
-      // do funil com GTM carregado E com o identificador da reserva já existindo.
-      pushBeginCheckout({
-        transactionId: transactionId({ draftId: data.draftId }),
-        value: data.finalTotal ?? 0,
-        items: [
-          {
-            item_id: data.itemId || props.propertySlug,
-            item_name: data.itemName || props.propertySlug,
-            price: data.finalTotal,
-            quantity: 1,
-          },
-        ],
-        paymentMethod,
-      });
+      // Nenhum evento é empurrado aqui: `begin_checkout` já saiu no clique do
+      // CTA "Reservar", uma etapa antes. Marcar de novo contaria duas intenções
+      // onde houve uma.
 
       // Navegação DURA para a rota de pagamento (não router.push).
       //

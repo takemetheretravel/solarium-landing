@@ -83,6 +83,21 @@ export type ReservationDraft = {
   fbp?: string;
   /** Cookie _fbc do Meta Pixel (clique de anúncio). */
   fbc?: string;
+  /** session_id do GA4 (cookie _ga_<STREAM>). */
+  gaSessionId?: string;
+  /** Id da tentativa de checkout, aberto no clique do CTA "Reservar". */
+  checkoutId?: string;
+  /** Origem da sessão: gclid e utm_*, capturados na primeira página. */
+  atribuicao?: {
+    gclid?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_term?: string;
+    utm_content?: string;
+    landing_page?: string;
+    capturado_em?: string;
+  } | null;
   status: "pending" | "paid" | "failed" | "expired";
   cieloPaymentId?: string;
   braspagPaymentId?: string;
@@ -502,4 +517,151 @@ export function draftIdDeOrderId(orderId: string): string {
   if (i <= 0) return orderId;
   // UUID do draft tem 36 caracteres; o sufixo de tentativa vem depois dele.
   return orderId.length > 36 ? orderId.slice(0, 36) : orderId;
+}
+
+// ---------------------------------------------------------------------------
+// csp_violations — relatórios de violação da CSP da rota de pagamento.
+//
+// Enquanto a política roda em Report-Only, cada entrada aqui é um domínio que
+// SERIA bloqueado. É a lista de origens legítimas que faltam na política — a
+// fonte para completá-la antes de promover a bloqueio.
+//
+// Deduplicado por (blocked_uri, violated_directive): uma campanha com tráfego
+// gera milhares de relatórios idênticos, e o que interessa é o conjunto de
+// origens distintas mais a contagem.
+const CSP_PREFIX = "csp_violations:";
+const CSP_TTL = 60 * 60 * 24 * 90; // 90 dias
+
+export type CspViolation = {
+  blocked_uri: string;
+  violated_directive: string;
+  document_uri: string;
+  user_agent: string;
+  occurred_at: string;
+  /** Quantas vezes esta combinação já chegou. */
+  count: number;
+  first_seen: string;
+  last_seen: string;
+};
+
+/** Chave estável e curta para o par (origem bloqueada, diretiva). */
+function chaveViolacao(blockedUri: string, directive: string): string {
+  const bruto = `${blockedUri}|${directive}`;
+  let hash = 0;
+  for (let i = 0; i < bruto.length; i++) {
+    hash = (hash * 31 + bruto.charCodeAt(i)) | 0;
+  }
+  return `${CSP_PREFIX}${(hash >>> 0).toString(36)}`;
+}
+
+export async function recordCspViolation(v: {
+  blocked_uri: string;
+  violated_directive: string;
+  document_uri: string;
+  user_agent: string;
+}): Promise<void> {
+  try {
+    const redis = getRedis();
+    const chave = chaveViolacao(v.blocked_uri, v.violated_directive);
+    const agora = new Date().toISOString();
+    const bruto = await redis.get<string>(chave);
+    const existente = bruto
+      ? ((typeof bruto === "string" ? JSON.parse(bruto) : bruto) as CspViolation)
+      : null;
+
+    const registro: CspViolation = existente
+      ? { ...existente, count: existente.count + 1, last_seen: agora, occurred_at: agora }
+      : {
+          ...v,
+          occurred_at: agora,
+          count: 1,
+          first_seen: agora,
+          last_seen: agora,
+        };
+    await redis.set(chave, JSON.stringify(registro), { ex: CSP_TTL });
+  } catch (err) {
+    console.error("[kv-store:recordCspViolation] Failed:", err);
+  }
+}
+
+export async function scanCspViolations(): Promise<CspViolation[]> {
+  try {
+    const keys = await scanKeys(`${CSP_PREFIX}*`);
+    if (keys.length === 0) return [];
+    const values = await getRedis().mget<(string | CspViolation | null)[]>(...keys);
+    const out: CspViolation[] = [];
+    for (const raw of values) {
+      if (!raw) continue;
+      try {
+        out.push(typeof raw === "string" ? (JSON.parse(raw) as CspViolation) : (raw as CspViolation));
+      } catch {
+        // ignora corrompido
+      }
+    }
+    return out.sort((a, b) => b.count - a.count);
+  } catch (err) {
+    console.error("[kv-store:scanCspViolations] Failed:", err);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// conversions_sent — par (transaction_id, destino) já enviado.
+//
+// TTL de 24 meses, deliberadamente MUITO acima dos 30 dias de webhook_events.
+// A guarda do webhook cobre a reentrega dentro da janela dele; este registro é
+// o que impede uma reentrega tardia, ou um reprocessamento manual, de contar a
+// mesma reserva duas vezes no GA4 e no Meta.
+const CONVERSION_PREFIX = "conversions_sent:";
+const CONVERSION_TTL = 60 * 60 * 24 * 730; // 24 meses
+
+export type ConversionSent = {
+  transaction_id: string;
+  destino: "ga4" | "meta";
+  sent_at: string;
+  http_status: number | null;
+};
+
+function chaveConversao(transactionId: string, destino: "ga4" | "meta"): string {
+  return `${CONVERSION_PREFIX}${destino}:${transactionId}`;
+}
+
+/** true = já enviado antes; o chamador deve pular. */
+export async function conversionAlreadySent(
+  transactionId: string,
+  destino: "ga4" | "meta",
+): Promise<boolean> {
+  if (!transactionId) return false;
+  try {
+    const raw = await getRedis().get<string>(chaveConversao(transactionId, destino));
+    return Boolean(raw);
+  } catch (err) {
+    // Fail-open: perder uma conversão é pior que contar duas. O `event_id`
+    // igual em GA4 e Meta ainda permite a deduplicação do lado deles.
+    console.error("[kv-store:conversionAlreadySent] Failed (fail-open):", err);
+    return false;
+  }
+}
+
+export async function markConversionSent(entry: {
+  transactionId: string;
+  destino: "ga4" | "meta";
+  httpStatus: number | null;
+}): Promise<void> {
+  if (!entry.transactionId) return;
+  try {
+    const registro: ConversionSent = {
+      transaction_id: entry.transactionId,
+      destino: entry.destino,
+      sent_at: new Date().toISOString(),
+      http_status: entry.httpStatus,
+    };
+    await getRedis().set(
+      chaveConversao(entry.transactionId, entry.destino),
+      JSON.stringify(registro),
+      { ex: CONVERSION_TTL },
+    );
+  } catch (err) {
+    console.error("[kv-store:markConversionSent] Failed:", err);
+  }
 }

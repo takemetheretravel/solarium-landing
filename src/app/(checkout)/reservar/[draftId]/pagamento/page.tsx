@@ -23,6 +23,10 @@ const MSG_3DS_FALHOU =
 
 const TAXA_MENSAL = 1.99; // estimativa típica Cielo (% ao mês)
 
+// Prazo máximo de espera pelo callback do 3DS. Cobre challenge com senha, app
+// do banco e SMS; passou disso, tratamos como falha e devolvemos o botão.
+const TIMEOUT_3DS_MS = 5 * 60 * 1000;
+
 function calcTotalComJuros(valor: number, n: number): number {
   if (n <= 1) return valor;
   const i = TAXA_MENSAL / 100;
@@ -99,6 +103,13 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   // vista os dois coincidiam; num pacote em 6x, nao. Cavv gerado para um par
   // (valor, parcelas) e usado para outro.
   const braspagInitRef = useRef<string>("");
+  // Reexecuta o efeito de init do 3DS.
+  //
+  // Zerar `braspagInitRef` e chamar `setBraspagReady(false)` NÃO fazia o efeito
+  // rodar de novo: um ref não é dependência e nenhuma das deps mudava. Depois de
+  // um 3DS malsucedido a sessão nunca era recriada e o botão de pagar ficava
+  // desabilitado até o hóspede recarregar a página — a trava relatada.
+  const [reinit3ds, setReinit3ds] = useState(0);
   // Fingerprint efetivamente coletado. Sem ele, nao enviamos transacao.
   const [fingerprintPronto, setFingerprintPronto] = useState(false);
   const threeDSResultRef = useRef<ThreeDSResult | null>(null);
@@ -208,14 +219,14 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         // Libera a chave: sem isso, a falha trava o botao para sempre e so
         // recarregar a pagina resolve — foi o sintoma relatado.
         braspagInitRef.current = "";
-        setCardError("Não foi possível preparar o pagamento seguro. Recarregue a página ou pague via Pix.");
+        setCardError("Não foi possível preparar o pagamento seguro. Tente novamente ou pague via Pix.");
       }
     })();
 
     return () => {
       cancelado = true;
     };
-  }, [provider, draft, params.draftId, valorACobrar, installments]);
+  }, [provider, draft, params.draftId, valorACobrar, installments, reinit3ds]);
 
   useEffect(() => {
     if (!draft || draft.paymentMethod !== "pix" || pixStarted) return;
@@ -411,12 +422,27 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   }
 
   // Espera o resultado do 3DS (um dos callbacks do SDK) após authenticate.
+  //
+  // COM PRAZO. Se a SDK não chamar nenhum callback — script barrado, rede caída,
+  // erro interno dela — a promessa ficaria pendente para sempre e o botão de
+  // pagar nunca destravaria. O estouro do prazo resolve como falha, que é o
+  // caminho que exibe a mensagem e libera nova tentativa.
   function aguardarResultado3ds(): Promise<ThreeDSResult> {
     return new Promise((resolve) => {
-      threeDSResolverRef.current = (r) => {
+      let resolvido = false;
+      const concluir = (r: ThreeDSResult) => {
+        if (resolvido) return;
+        resolvido = true;
+        clearTimeout(prazo);
         threeDSResolverRef.current = null;
         resolve(r);
       };
+      // Folga generosa: o challenge do emissor pode exigir senha, app e SMS.
+      const prazo = setTimeout(() => {
+        console.warn("[Braspag:checkout] 3DS sem resposta dentro do prazo");
+        concluir({ event: "onError", ReturnMessage: "timeout" });
+      }, TIMEOUT_3DS_MS);
+      threeDSResolverRef.current = concluir;
     });
   }
 
@@ -453,51 +479,52 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       return;
     }
 
+    // A partir daqui o botão fica travado. TODA saída passa pelo `finally`, que
+    // o devolve: uma ramificação de erro que esqueça de destravar deixa o
+    // hóspede sem conseguir tentar de novo, com a reserva parada.
     setCardProcessing(true);
-
-    const billing = {
-      street: billStreet,
-      number: billNumber,
-      complement: billComplement,
-      neighborhood: billNeighborhood,
-      city: billCity,
-      state: billUf,
-      zipCode: billCep.replace(/\D/g, ""),
-    };
-
-    // 1) Autenticação 3DS no navegador.
-    const resultadoPromise = aguardarResultado3ds();
-    const disparou = authenticate3ds({
-      card: { number: cardNumber, holder: cardHolder, expirationMMYYYY: normalizedExpiration },
-      amountCentavos: Math.round(valorACobrar * 100),
-      orderNumber: params.draftId,
-      installments,
-      billing: { zipcode: billing.zipCode, street1: billStreet, city: billCity, state: billUf },
-    });
-    if (!disparou) {
-      setCardError("Pagamento seguro ainda não pronto. Aguarde e tente novamente.");
-      setCardProcessing(false);
-      return;
-    }
-    const r3ds = await resultadoPromise;
-
-    // 2) Só o onSuccess segue para a cobrança. Demais = falha amigável + retry.
-    if (r3ds.event !== "onSuccess") {
-      console.warn("[Braspag:checkout] 3DS não-sucesso:", r3ds.event, r3ds.ReturnCode);
-      setCardError(MSG_3DS_FALHOU);
-      setCardProcessing(false);
-      // Novo token para a próxima tentativa.
-      // Limpar a chave faz o efeito de init rodar de novo, com o valor e as
-      // parcelas ATUAIS. Antes havia uma segunda init aqui, com `installments: 1`
-      // e o total do draft — reintroduzindo a divergencia que causou o problema.
-      resetBraspag3ds();
-      setBraspagReady(false);
-      braspagInitRef.current = "";
-      return;
-    }
-
-    // 3) Cobrança real (autoriza + antifraude + captura separada no servidor).
     try {
+      const billing = {
+        street: billStreet,
+        number: billNumber,
+        complement: billComplement,
+        neighborhood: billNeighborhood,
+        city: billCity,
+        state: billUf,
+        zipCode: billCep.replace(/\D/g, ""),
+      };
+
+      // 1) Autenticação 3DS no navegador.
+      const resultadoPromise = aguardarResultado3ds();
+      const disparou = authenticate3ds({
+        card: { number: cardNumber, holder: cardHolder, expirationMMYYYY: normalizedExpiration },
+        amountCentavos: Math.round(valorACobrar * 100),
+        orderNumber: params.draftId,
+        installments,
+        billing: { zipcode: billing.zipCode, street1: billStreet, city: billCity, state: billUf },
+      });
+      if (!disparou) {
+        setCardError("Pagamento seguro ainda não pronto. Aguarde e tente novamente.");
+        return;
+      }
+      const r3ds = await resultadoPromise;
+
+      // 2) Só o onSuccess segue para a cobrança. Demais = falha amigável + retry.
+      if (r3ds.event !== "onSuccess") {
+        console.warn("[Braspag:checkout] 3DS não-sucesso:", r3ds.event, r3ds.ReturnCode);
+        setCardError(MSG_3DS_FALHOU);
+        // Novo token para a próxima tentativa.
+        // Limpar a chave faz o efeito de init rodar de novo, com o valor e as
+        // parcelas ATUAIS. Antes havia uma segunda init aqui, com `installments: 1`
+        // e o total do draft — reintroduzindo a divergencia que causou o problema.
+        resetBraspag3ds();
+        setBraspagReady(false);
+        braspagInitRef.current = "";
+        setReinit3ds((n) => n + 1);
+        return;
+      }
+
+      // 3) Cobrança real (autoriza + antifraude + captura separada no servidor).
       const res = await fetch("/api/payments/braspag/credit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -527,10 +554,12 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         router.push(`/reservar/${params.draftId}/confirmacao`);
       } else {
         setCardError(data.returnMessage || data.error || "Pagamento não aprovado. Verifique os dados e tente novamente.");
-        setCardProcessing(false);
       }
     } catch (err) {
       setCardError((err as Error)?.message || "Erro de conexão. Verifique sua internet e tente novamente.");
+    } finally {
+      // Único ponto que destrava o botão. Vale inclusive no caminho aprovado:
+      // a navegação já saiu, e destravar não tem efeito colateral.
       setCardProcessing(false);
     }
   }

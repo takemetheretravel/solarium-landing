@@ -130,14 +130,16 @@ function linhasQueCasam(conteudo, regex) {
 // Um import de analytics ali é um script de terceiro com acesso a esse DOM.
 // ---------------------------------------------------------------------------
 {
+  // Todo o grupo (checkout) — é ele que renderiza campos bpmpi_* — mais as
+  // rotas de API de pagamento.
   const ROTAS_PAGAMENTO = [
-    /^src\/app\/reservar\/\[draftId\]\/pagamento\//,
+    /^src\/app\/\(checkout\)\//,
     /^src\/app\/api\/payments\//,
-    /^src\/app\/braspag-3ds-test\//,
   ];
   // O envio server-side de conversão é o único módulo de analytics permitido
   // nas rotas de API de pagamento: ele roda no servidor, sem DOM.
-  const IMPORT_ANALYTICS = /from\s+["']@\/lib\/analytics\/(?!server-conversions)[^"']+["']/;
+  const IMPORT_ANALYTICS =
+    /from\s+["'](@\/lib\/analytics\/(?!server-conversions)[^"']+|@\/components\/tracking\/[^"']+)["']/;
   const infratores = [];
   for (const f of FONTES) {
     if (!ROTAS_PAGAMENTO.some((re) => re.test(f.rel))) continue;
@@ -148,6 +150,101 @@ function linhasQueCasam(conteudo, regex) {
     reprovar("rota de pagamento importando módulo de analytics", infratores);
   } else {
     aprovar("rotas de pagamento sem import de analytics de navegador");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. Nenhuma ocorrência do measurement id antigo no código da aplicação.
+//
+// `G-9J8F6Q1Y2M` é o stream do motor de reservas. O funil do site mede numa
+// propriedade só; o id antigo voltando ao código divide a conversão em duas
+// propriedades e nenhuma fecha com a outra.
+// ---------------------------------------------------------------------------
+{
+  const ID_ANTIGO = "G-9J8F6Q1Y2M";
+  const infratores = [];
+  for (const f of FONTES) {
+    const achados = linhasQueCasam(f.conteudo, new RegExp(ID_ANTIGO));
+    if (achados.length) infratores.push(`${f.rel} — ${achados.join(" | ")}`);
+  }
+  if (infratores.length) {
+    reprovar(`measurement id antigo (${ID_ANTIGO}) presente no código`, infratores);
+  } else {
+    aprovar(`nenhuma ocorrência de ${ID_ANTIGO} no código`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 6. A CSP da rota de pagamento não contém tag manager nem analytics.
+//
+// GTM aparecendo no checkout se corrige no layout — nunca afrouxando a política.
+// Esta checagem existe para que "só liberar o domínio" não seja um atalho.
+// ---------------------------------------------------------------------------
+{
+  const PROIBIDOS = [
+    "googletagmanager.com",
+    "google-analytics.com",
+    "connect.facebook.net",
+    "facebook.com",
+    "doubleclick.net",
+    "googleadservices.com",
+  ];
+  const middleware = FONTES.find((f) => f.rel === "src/middleware.ts");
+  if (!middleware) {
+    reprovar("src/middleware.ts não encontrado", ["a CSP da rota de pagamento mora nele"]);
+  } else {
+    const achados = PROIBIDOS.filter((d) => middleware.conteudo.includes(d));
+    if (achados.length) {
+      reprovar("domínio de analytics/tag manager na CSP da rota de pagamento", [
+        `encontrados: ${achados.join(", ")}`,
+        "Corrija no layout do grupo (checkout), não na política.",
+      ]);
+    } else {
+      aprovar("CSP da rota de pagamento sem domínio de analytics/tag manager");
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 7. dataLayer.ts não exporta função de compra.
+//
+// `purchase` é exclusivamente server-side. Uma função de compra no módulo do
+// navegador é convite a reativar o disparo duplo.
+// ---------------------------------------------------------------------------
+{
+  const dl = FONTES.find((f) => f.rel === "src/lib/analytics/dataLayer.ts");
+  if (!dl) {
+    reprovar("src/lib/analytics/dataLayer.ts não encontrado", []);
+  } else {
+    const achados = linhasQueCasam(dl.conteudo, /export\s+(async\s+)?function\s+\w*[Pp]urchase\w*/);
+    if (achados.length) {
+      reprovar("dataLayer.ts exporta função de compra", achados);
+    } else {
+      aprovar("dataLayer.ts não exporta função de compra");
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 8. CSP_MODE ausente resolve para report-only.
+//
+// O 3DS só é exercitável em produção. Um default que bloqueia recusaria cartão
+// legítimo no primeiro deploy que esquecesse a variável.
+// ---------------------------------------------------------------------------
+{
+  const middleware = FONTES.find((f) => f.rel === "src/middleware.ts");
+  if (!middleware) {
+    reprovar("src/middleware.ts não encontrado", ["o modo da CSP mora nele"]);
+  } else if (!/process\.env\.CSP_MODE\s*\|\|\s*["']report-only["']/.test(middleware.conteudo)) {
+    reprovar("CSP_MODE não tem default explícito 'report-only'", [
+      'esperado algo como: process.env.CSP_MODE || "report-only"',
+    ]);
+  } else if (!middleware.conteudo.includes("Content-Security-Policy-Report-Only")) {
+    reprovar("middleware não emite o header Report-Only", [
+      "com CSP_MODE ausente o header precisa ser Content-Security-Policy-Report-Only",
+    ]);
+  } else {
+    aprovar("CSP_MODE ausente resolve para report-only");
   }
 }
 
