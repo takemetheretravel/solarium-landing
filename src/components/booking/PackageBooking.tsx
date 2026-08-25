@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Calendar, MessageCircle, X } from "lucide-react";
 import { formatBRLPrecise } from "@/lib/cn";
+import { pushViewPackage } from "@/lib/analytics/dataLayer";
 import {
   PackageConfig,
   validatePackageDates,
@@ -178,6 +179,15 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
   const hasDates = hostawayTotal != null;
   const canReserve = Boolean(hasDates && !loading && !dateError && !availError && !priceError);
 
+  // Preço que não pôde ser obtido NÃO vira preço aproximado.
+  //
+  // A queda da API deixava `hostawayTotal` nulo, o cálculo caía no proxy
+  // (diária "a partir de" × noites) e a página exibia esse número como se
+  // fosse o total real — com a página respondendo 200. Aqui a indisponibilidade
+  // é explícita: nenhum valor numérico é renderizado e o cliente vai para o
+  // WhatsApp.
+  const precoIndisponivel = Boolean(priceError);
+
   // Componentes pelo valor CHEIO; o desconto aparece só na diferença riscado → total.
   // Sem datas, usa fromPriceNightly × noites como proxy da estadia.
   const selectedProperty =
@@ -196,6 +206,23 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
     extrasAtivosTotal +
     extrasOpcionaisTotal;
   const pixValue = Math.floor((totalPacote * 0.97) / 10) * 10;
+
+  // view_package só sai com preço REAL na mão. Um evento com `value` derivado do
+  // proxy contaria receita que ninguém cotou.
+  const viewEnviadoRef = useRef(false);
+  useEffect(() => {
+    if (viewEnviadoRef.current) return;
+    if (precoIndisponivel || hostawayTotal == null) return;
+    viewEnviadoRef.current = true;
+    pushViewPackage({
+      // Ainda não existe reserva nem draft nesta etapa: o identificador canônico
+      // só nasce quando o draft é criado, no envio do formulário de hóspede.
+      transactionId: "",
+      value: totalPacote,
+      items: [{ item_id: pkg.slug, item_name: pkg.name, price: totalPacote, quantity: 1 }],
+      origem: "pacote",
+    });
+  }, [precoIndisponivel, hostawayTotal, totalPacote, pkg.slug, pkg.name]);
 
   function handleReserve() {
     if (!canReserve || !checkin) return;
@@ -347,7 +374,22 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
           <p className="font-sans text-xs text-charcoal">{availError}</p>
         </div>
       )}
-      {priceError && <p className="mt-3 font-sans text-xs text-copper">{priceError}</p>}
+      {precoIndisponivel && (
+        <div className="mt-3 border border-copper/30 bg-copper/5 p-3">
+          <p className="font-sans text-xs text-charcoal">
+            Não conseguimos calcular o valor destas datas agora. Nosso concierge confirma o preço e a
+            disponibilidade para você em instantes.
+          </p>
+          <a
+            href={`https://wa.me/5535984075652?text=${encodeURIComponent(`Olá! Quero o pacote ${pkg.name}${checkin ? ` a partir de ${checkin}` : ""} e o site não conseguiu calcular o valor. Pode me passar o preço?`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-block font-sans text-xs text-copper underline"
+          >
+            Falar com o concierge no WhatsApp
+          </a>
+        </div>
+      )}
       {loading && <p className="mt-3 font-sans text-xs text-charcoal/50">Verificando datas e calculando…</p>}
 
       {/* PERSONALIZE SUA ESTADIA — mesmo componente e mesma posição dos demais */}
@@ -372,7 +414,13 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
         {/* Componentes pelo valor CHEIO (sem desconto) */}
         <div className="flex justify-between text-charcoal/70">
           <span>Estadia ({pkg.nights} noites)</span>
-          <span>{hasDates ? formatBRLPrecise(estadiaCheia) : "conforme as datas"}</span>
+          <span>
+            {precoIndisponivel
+              ? "sob consulta"
+              : hasDates
+                ? formatBRLPrecise(estadiaCheia)
+                : "conforme as datas"}
+          </span>
         </div>
         {extrasAtivos.map((e) => (
           <div key={e.label} className="flex items-center justify-between gap-2 text-charcoal/70">
@@ -416,17 +464,26 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
             </div>
           ))}
 
-        <div className="flex justify-between border-t border-charcoal/10 pt-3 text-charcoal/50">
-          <span>Valor total</span>
-          <span className="line-through">{formatBRLPrecise(valorALaCarte)}</span>
-        </div>
-        <div className="flex items-baseline justify-between pt-1">
-          <span className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Total do pacote</span>
-          <span className="font-serif text-3xl text-charcoal">{formatBRLPrecise(totalPacote)}</span>
-        </div>
-        <p className="text-right font-sans text-xs text-charcoal/50">
-          em até 6x sem juros · ou {formatBRLPrecise(pixValue)} no Pix
-        </p>
+        {precoIndisponivel ? (
+          <div className="flex justify-between border-t border-charcoal/10 pt-3 text-charcoal/60">
+            <span>Total do pacote</span>
+            <span className="font-serif">valor sob consulta</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between border-t border-charcoal/10 pt-3 text-charcoal/50">
+              <span>Valor total</span>
+              <span className="line-through">{formatBRLPrecise(valorALaCarte)}</span>
+            </div>
+            <div className="flex items-baseline justify-between pt-1">
+              <span className="font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">Total do pacote</span>
+              <span className="font-serif text-3xl text-charcoal">{formatBRLPrecise(totalPacote)}</span>
+            </div>
+            <p className="text-right font-sans text-xs text-charcoal/50">
+              em até 6x sem juros · ou {formatBRLPrecise(pixValue)} no Pix
+            </p>
+          </>
+        )}
       </div>
 
       <button

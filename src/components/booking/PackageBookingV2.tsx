@@ -9,7 +9,7 @@ import { getExtra, type PacoteV2 } from "@/config/precos-e-extras";
 import PersonalizeSuaEstadia from "@/components/extras/PersonalizeSuaEstadia";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
 import { checkoutSugerido, datasElegiveis, alternativaPara } from "@/lib/pricing/elegibilidade";
-import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/tracking";
+import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/analytics/tracking";
 
 type ItemPrecoApi = { extraId: string; nome: string; total: number; qtd: number; incluso: boolean };
 

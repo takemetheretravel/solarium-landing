@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { formatExtraPrice } from "@/lib/cn";
 import { ROTULO_UNIDADE, JANELA_CANCELAMENTO_EXTRAS_DIAS } from "@/config/precos-e-extras";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
-import { trackExtraSelecionado, trackExtraRemovido, type ContextoExtra } from "@/lib/tracking";
+import { trackExtraSelecionado, trackExtraRemovido, type ContextoExtra } from "@/lib/analytics/tracking";
 
 export type PersonalizeProps = {
   /** Onde o bloco está renderizado — muda o rótulo e o evento de analytics. */

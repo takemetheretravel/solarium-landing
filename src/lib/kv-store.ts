@@ -73,6 +73,16 @@ export type ReservationDraft = {
   guestPhone: string;
   guestCpf: string;
   guestNotes?: string;
+  // --- Identificadores de medição, capturados na criação do draft ---
+  // O envio de conversão server-side acontece depois do webhook, quando o
+  // navegador do cliente já não está por perto. Sem estes campos gravados aqui,
+  // GA4 e Meta não conseguem atribuir a conversão à sessão que a originou.
+  /** client_id do GA4 (cookie _ga). */
+  gaClientId?: string;
+  /** Cookie _fbp do Meta Pixel. */
+  fbp?: string;
+  /** Cookie _fbc do Meta Pixel (clique de anúncio). */
+  fbc?: string;
   status: "pending" | "paid" | "failed" | "expired";
   cieloPaymentId?: string;
   braspagPaymentId?: string;
@@ -185,6 +195,220 @@ export async function deleteOrphanReservation(paymentId: string): Promise<void> 
     await getRedis().del(`${ORPHAN_PREFIX}${paymentId}`);
   } catch (err) {
     console.error("[kv-store:deleteOrphanReservation] Failed:", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// webhook_events — registro único por (payment_id, change_type).
+//
+// A janela precisa cobrir reentregas TARDIAS: houve caso de a mesma notificação
+// voltar 109 minutos depois. O TTL de 30 dias cobre com folga, ao custo de uma
+// chave curta por evento.
+const WEBHOOK_EVENT_PREFIX = "webhook_events:";
+const WEBHOOK_EVENT_TTL = 60 * 60 * 24 * 30; // 30 dias
+
+export type WebhookEvent = {
+  payment_id: string;
+  change_type: string;
+  source: string;
+  received_at: string;
+  processed_at: string | null;
+};
+
+function chaveEvento(paymentId: string, changeType: string | number): string {
+  return `${WEBHOOK_EVENT_PREFIX}${paymentId}:${changeType}`;
+}
+
+/**
+ * Tenta inserir o evento. `inserted: true` = é a PRIMEIRA vez e o chamador deve
+ * processar; `false` = duplicata, ignorar sem nenhum efeito colateral.
+ *
+ * Falha de Redis é fail-open (`inserted: true`): perder um pagamento é pior que
+ * processá-lo duas vezes, e os efeitos a jusante têm suas próprias guardas.
+ */
+export async function insertWebhookEvent(params: {
+  paymentId: string;
+  changeType: string | number;
+  source: string;
+}): Promise<{ inserted: boolean; event: WebhookEvent }> {
+  const event: WebhookEvent = {
+    payment_id: params.paymentId,
+    change_type: String(params.changeType),
+    source: params.source,
+    received_at: new Date().toISOString(),
+    processed_at: null,
+  };
+  try {
+    const res = await getRedis().set(
+      chaveEvento(params.paymentId, params.changeType),
+      JSON.stringify(event),
+      { nx: true, ex: WEBHOOK_EVENT_TTL },
+    );
+    return { inserted: res !== null, event };
+  } catch (err) {
+    console.error("[kv-store:insertWebhookEvent] Failed (fail-open):", err);
+    return { inserted: true, event };
+  }
+}
+
+/** Fecha o evento gravando `processed_at`. Só depois da lógica de negócio. */
+export async function markWebhookEventProcessed(
+  paymentId: string,
+  changeType: string | number,
+): Promise<void> {
+  try {
+    const chave = chaveEvento(paymentId, changeType);
+    const raw = await getRedis().get<string>(chave);
+    if (!raw) return;
+    const event = (typeof raw === "string" ? JSON.parse(raw) : raw) as WebhookEvent;
+    event.processed_at = new Date().toISOString();
+    await getRedis().set(chave, JSON.stringify(event), { ex: WEBHOOK_EVENT_TTL });
+  } catch (err) {
+    console.error("[kv-store:markWebhookEventProcessed] Failed:", err);
+  }
+}
+
+/**
+ * Apaga o registro do evento para que a reentrega do gateway o reprocesse.
+ * Chamar só no catch — um evento que falhou no meio não pode ficar bloqueado.
+ */
+export async function deleteWebhookEvent(
+  paymentId: string,
+  changeType: string | number,
+): Promise<void> {
+  try {
+    await getRedis().del(chaveEvento(paymentId, changeType));
+  } catch (err) {
+    console.error("[kv-store:deleteWebhookEvent] Failed:", err);
+  }
+}
+
+export async function getWebhookEvent(
+  paymentId: string,
+  changeType: string | number,
+): Promise<WebhookEvent | null> {
+  try {
+    const raw = await getRedis().get<string>(chaveEvento(paymentId, changeType));
+    if (!raw) return null;
+    return (typeof raw === "string" ? JSON.parse(raw) : raw) as WebhookEvent;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// payment_index — payment_id ↔ merchant_order_id ↔ draft_id ↔ reservation_id.
+//
+// Gravado NO MOMENTO DA AUTORIZAÇÃO, não no webhook. O webhook do gateway não
+// carrega MerchantOrderId no corpo; com este índice ele resolve a reserva por
+// consulta local, sem depender do payload nem de uma ida à API do gateway.
+const PAYMENT_INDEX_PREFIX = "payment_index:";
+const PAYMENT_INDEX_TTL = 60 * 60 * 24 * 30; // 30 dias
+
+export type PaymentIndex = {
+  payment_id: string;
+  merchant_order_id: string;
+  draft_id: string;
+  reservation_id?: number;
+  provider: "cielo" | "braspag";
+  method: "card" | "pix";
+  created_at: string;
+};
+
+export async function savePaymentIndex(entry: Omit<PaymentIndex, "created_at">): Promise<void> {
+  if (!entry.payment_id) return;
+  try {
+    const record: PaymentIndex = { ...entry, created_at: new Date().toISOString() };
+    await getRedis().set(`${PAYMENT_INDEX_PREFIX}${entry.payment_id}`, JSON.stringify(record), {
+      ex: PAYMENT_INDEX_TTL,
+    });
+  } catch (err) {
+    console.error("[kv-store:savePaymentIndex] Failed:", err);
+  }
+}
+
+export async function getPaymentIndex(paymentId: string): Promise<PaymentIndex | null> {
+  const id = (paymentId || "").trim();
+  if (!id) return null;
+  try {
+    const raw = await getRedis().get<string>(`${PAYMENT_INDEX_PREFIX}${id}`);
+    if (!raw) return null;
+    return (typeof raw === "string" ? JSON.parse(raw) : raw) as PaymentIndex;
+  } catch (err) {
+    console.error("[kv-store:getPaymentIndex] Failed:", err);
+    return null;
+  }
+}
+
+/** Completa o índice com o número da reserva assim que ele existe. */
+export async function attachReservationToPaymentIndex(
+  paymentId: string,
+  reservationId: number,
+): Promise<void> {
+  const existing = await getPaymentIndex(paymentId);
+  if (!existing) return;
+  try {
+    await getRedis().set(
+      `${PAYMENT_INDEX_PREFIX}${paymentId}`,
+      JSON.stringify({ ...existing, reservation_id: reservationId }),
+      { ex: PAYMENT_INDEX_TTL },
+    );
+  } catch (err) {
+    console.error("[kv-store:attachReservationToPaymentIndex] Failed:", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// reconciliation_queue — webhook que chegou e NÃO conseguiu identificar a
+// reserva. Responder 200 sem registro nenhum é como perder o evento: ninguém
+// descobre depois. Cada entrada aqui é uma pendência humana.
+const RECONCILE_PREFIX = "reconciliation_pending:";
+const RECONCILE_TTL = 60 * 60 * 24 * 90; // 90 dias
+
+export type ReconciliationPending = {
+  payment_id: string;
+  change_type?: string;
+  source: string;
+  reason: string;
+  payload?: unknown;
+  created_at: string;
+};
+
+export async function pushReconciliationPending(
+  entry: Omit<ReconciliationPending, "created_at">,
+): Promise<void> {
+  try {
+    const record: ReconciliationPending = { ...entry, created_at: new Date().toISOString() };
+    await getRedis().set(
+      `${RECONCILE_PREFIX}${entry.payment_id || Date.now()}`,
+      JSON.stringify(record),
+      { ex: RECONCILE_TTL },
+    );
+  } catch (err) {
+    console.error("[kv-store:pushReconciliationPending] Failed:", err);
+  }
+}
+
+export async function scanReconciliationPending(): Promise<ReconciliationPending[]> {
+  try {
+    const keys = await scanKeys(`${RECONCILE_PREFIX}*`);
+    if (keys.length === 0) return [];
+    const values = await getRedis().mget<(string | ReconciliationPending | null)[]>(...keys);
+    const out: ReconciliationPending[] = [];
+    for (const raw of values) {
+      if (!raw) continue;
+      try {
+        out.push(
+          typeof raw === "string" ? (JSON.parse(raw) as ReconciliationPending) : (raw as ReconciliationPending),
+        );
+      } catch {
+        // ignora corrompido
+      }
+    }
+    return out;
+  } catch (err) {
+    console.error("[kv-store:scanReconciliationPending] Failed:", err);
+    return [];
   }
 }
 

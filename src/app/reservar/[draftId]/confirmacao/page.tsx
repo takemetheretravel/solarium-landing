@@ -27,7 +27,15 @@ export default async function ConfirmacaoPage({ params }: { params: { draftId: s
       <TrackPurchase
         total={draft.finalTotal}
         draftId={params.draftId}
-        pacoteId={draft.pacoteId}
+        // Já existindo a reserva, ela é o identificador canônico — o mesmo que
+        // o envio server-side usa como transaction_id/event_id.
+        reservationId={
+          typeof draft.hostawayReservationId === "number" && draft.hostawayReservationId > 0
+            ? draft.hostawayReservationId
+            : undefined
+        }
+        pacoteId={draft.pacoteId || draft.packageSlug}
+        pacoteNome={draft.pacoteNome || draft.packageName}
         noites={draft.nights}
         valorExtras={
           (draft.pacoteItens ?? []).reduce((s, i) => s + i.total, 0) +
@@ -35,6 +43,8 @@ export default async function ConfirmacaoPage({ params }: { params: { draftId: s
           (draft.opExtras ?? []).reduce((s, e) => s + e.price, 0)
         }
         listing={draft.propertyId}
+        listingNome={draft.propertyName}
+        paymentMethod={draft.paymentMethod}
       />
       <Container>
         <div className="mx-auto max-w-2xl">

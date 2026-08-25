@@ -89,16 +89,6 @@ export async function getBraspag3dsAccessToken(): Promise<string> {
   };
 
   const url = `${BRASPAG_URLS.mpi3ds}/v2/auth/token`;
-  // Log seguro (sem valores de segredo): só comprimentos e formato.
-  console.log(
-    "[Braspag:3DS auth] env=%s url=%s clientIdLen=%d secretLen=%d secretEndsWithEq=%s establishmentCode=%s",
-    ENV,
-    url,
-    clientId.length,
-    clientSecret.length,
-    String(clientSecret.endsWith("=")),
-    establishmentCode,
-  );
 
   const res = await fetch(url, {
     method: "POST",
@@ -114,11 +104,14 @@ export async function getBraspag3dsAccessToken(): Promise<string> {
     parsed = raw;
   }
 
+  // Rastreamento sem superfície: nem comprimento de credencial, nem código de
+  // estabelecimento, nem corpo da resposta (que pode ecoar o que foi enviado).
   const accessToken = (parsed as Record<string, unknown>)?.access_token;
   if (!res.ok || !accessToken) {
-    console.error("[Braspag:3DS auth] FALHA", res.status, raw.slice(0, 500));
+    console.error(`[Braspag:3DS] session created fail (http ${res.status})`);
     throw new Braspag3dsAuthError(res.status, parsed);
   }
+  console.log("[Braspag:3DS] session created ok");
   return accessToken as string;
 }
 

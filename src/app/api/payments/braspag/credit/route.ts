@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
-import { getDraft, updateDraft, pushAuthLog } from "@/lib/kv-store";
+import {
+  getDraft,
+  updateDraft,
+  pushAuthLog,
+  savePaymentIndex,
+  attachReservationToPaymentIndex,
+} from "@/lib/kv-store";
+import { enviarConversaoServidor, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { redact } from "@/lib/log/redact";
 import {
   createBraspagAuthorization,
   captureBraspagPayment,
   voidBraspagPayment,
   mensagemRecusaBraspag,
-  maskIfSecretLike,
   BRASPAG_URLS,
   type BraspagAddress,
 } from "@/lib/braspag";
@@ -201,36 +208,56 @@ export async function POST(req: Request) {
     });
 
     const authDigits = authCardNumber.replace(/\D/g, "");
-    const binLog = authDigits.slice(0, 6);
+    const cardLast4 = authDigits.slice(-4);
 
-    // Resumo estruturado do response (identificadores do lado da Braspag +
-    // ambiente) para a Braspag localizar a transação. Vale para TODOS os
-    // desfechos (aprovado, recusado, AF-bloqueio). Sem dados de cartão além de
-    // BIN/últimos 4. auth.raw carrega Tid/ProofOfSale/AuthorizationCode.
-    // Além do console.log, PERSISTE no KV (últimos 20, 7 dias) para leitura via
-    // /api/payments/braspag/authlog — não dependemos mais dos logs da Vercel.
+    // Dois destinos, dois recortes:
+    //
+    //  - console.log ([Braspag:authorize-result]): apenas o mínimo para
+    //    correlacionar a transação. O log de produção é exportável, então nada
+    //    de BIN, credencial, código de estabelecimento ou identificador de
+    //    antifraude passa por aqui.
+    //  - pushAuthLog (KV, 7 dias, leitura só com segredo): guarda também os
+    //    identificadores do antifraude, que a Braspag pede no suporte. Nem lá
+    //    entram BIN, MerchantId ou EstablishmentCode.
     let diagnostico: Record<string, unknown> | undefined;
     {
       const rawPayment = ((auth.raw ?? {}) as { Payment?: Record<string, unknown> }).Payment ?? {};
       const rawFa = (rawPayment.FraudAnalysis ?? {}) as Record<string, unknown>;
-      const authResultLog = {
+      const paymentIdResolvido = rawPayment.PaymentId ?? auth.paymentId ?? null;
+      const statusResolvido = rawPayment.Status ?? auth.statusCode ?? null;
+      const providerReturnCode = rawPayment.ProviderReturnCode ?? null;
+
+      console.log(
+        "[Braspag:authorize-result] " +
+          JSON.stringify(
+            redact({
+              merchantOrderId: tentativaId,
+              PaymentId: paymentIdResolvido,
+              Status: statusResolvido,
+              ProviderReturnCode: providerReturnCode,
+              providerUsed: auth.providerUsed ?? null,
+              httpStatus: auth.status,
+              cardLast4,
+            }),
+          ),
+      );
+
+      const diagnosticoCompleto = {
         env: process.env.BRASPAG_ENVIRONMENT === "production" ? "production" : "sandbox",
         baseUrl: BRASPAG_URLS.transactional,
-        merchantId: maskIfSecretLike(process.env.BRASPAG_MERCHANT_ID || ""),
         providerUsed: auth.providerUsed ?? null,
         merchantOrderId: tentativaId,
         httpStatus: auth.status,
-        cardBin: binLog,
-        cardLast4: authDigits.slice(-4),
+        cardLast4,
         testAuthCardOverride: useTestAuthCard,
-        PaymentId: rawPayment.PaymentId ?? auth.paymentId ?? null,
+        PaymentId: paymentIdResolvido,
         Tid: rawPayment.Tid ?? null,
         ProofOfSale: rawPayment.ProofOfSale ?? null,
         AuthorizationCode: rawPayment.AuthorizationCode ?? null,
-        Status: rawPayment.Status ?? auth.statusCode ?? null,
+        Status: statusResolvido,
         ReturnCode: rawPayment.ReturnCode ?? auth.returnCode ?? null,
         ReturnMessage: rawPayment.ReturnMessage ?? auth.returnMessage ?? null,
-        ProviderReturnCode: rawPayment.ProviderReturnCode ?? null,
+        ProviderReturnCode: providerReturnCode,
         ProviderReturnMessage: rawPayment.ProviderReturnMessage ?? null,
         FraudAnalysisId: rawFa.Id ?? null,
         FraudAnalysisStatus: rawFa.Status ?? auth.fraudStatus ?? null,
@@ -239,9 +266,21 @@ export async function POST(req: Request) {
         // Corpo cru do erro da Braspag quando não-2xx (ex.: [{Code,Message}]).
         errorBody: auth.errorBody ?? null,
       };
-      console.log("[Braspag:authorize-result] " + JSON.stringify(authResultLog));
-      await pushAuthLog(authResultLog);
-      diagnostico = authResultLog;
+      await pushAuthLog(diagnosticoCompleto);
+      diagnostico = diagnosticoCompleto;
+    }
+
+    // Índice de correlação gravado NA AUTORIZAÇÃO. O webhook do gateway não
+    // carrega MerchantOrderId no corpo; com este registro ele resolve a reserva
+    // por consulta local, sem depender do payload nem de ida à API.
+    if (auth.paymentId) {
+      await savePaymentIndex({
+        payment_id: auth.paymentId,
+        merchant_order_id: tentativaId,
+        draft_id: draftId,
+        provider: "braspag",
+        method: "card",
+      });
     }
 
     // ============ DECISÃO (fluxo AuthorizeFirst) ============
@@ -266,13 +305,13 @@ export async function POST(req: Request) {
             providerUsed: auth.providerUsed,
             returnCode: auth.returnCode ?? null,
             errorBody: auth.errorBody ?? null,
-            bin: binLog,
+            cardLast4,
           }),
         );
       } else {
         console.error(
           "[Braspag:Recusa]",
-          JSON.stringify({ draftId, valor: valorACobrar, returnCode: auth.returnCode, returnMessage: auth.returnMessage, bin: binLog }),
+          JSON.stringify({ draftId, valor: valorACobrar, returnCode: auth.returnCode, returnMessage: auth.returnMessage, cardLast4 }),
         );
       }
       const motivoInterno = httpOk
@@ -305,7 +344,8 @@ export async function POST(req: Request) {
       }
       const afLabel =
         auth.fraudStatus === 2 ? "Reject" : auth.fraudStatus === 3 ? "Review" : "sem retorno (undefined)";
-      console.error("[Braspag:AF-bloqueio]", JSON.stringify({ draftId, paymentId: auth.paymentId, fraudStatus: auth.fraudStatus, score: auth.fraudScore, bin: binLog }));
+      // Sem score nem id do antifraude: os dois ficam só no authlog do KV.
+      console.error("[Braspag:AF-bloqueio]", JSON.stringify({ draftId, paymentId: auth.paymentId, fraudStatus: auth.fraudStatus }));
       await enviarAlertaRecusa({
         hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
         propriedade: draft.propertyName,
@@ -424,6 +464,26 @@ export async function POST(req: Request) {
           shortNotice: draft.shortNotice,
           serviceExtras: enrichServiceExtras(draft.serviceExtras),
           opExtras: opExtrasForEmail,
+        });
+        if (auth.paymentId) {
+          await attachReservationToPaymentIndex(auth.paymentId, reservation.reservationId);
+        }
+        // Conversão server-side. O cartão é resolvido SINCRONAMENTE aqui (o
+        // webhook não age sobre ele), então este é o único ponto de disparo do
+        // fluxo de cartão. Roda uma vez: a rota só chega aqui quando a reserva
+        // acabou de ser criada.
+        await enviarConversaoServidor({
+          transactionId: String(reservation.reservationId),
+          value: valorACobrar,
+          currency: "BRL",
+          items: itensDaReserva(draft),
+          gaClientId: draft.gaClientId,
+          fbp: draft.fbp,
+          fbc: draft.fbc,
+          email: draft.guestEmail,
+          phone: draft.guestPhone,
+          clientIpAddress: ipAddress,
+          clientUserAgent: req.headers.get("user-agent") || undefined,
         });
       } else {
         // SALVAGUARDA: capturou (pago) mas Hostaway falhou → alerta imediato +

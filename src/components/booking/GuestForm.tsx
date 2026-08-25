@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, FormEvent, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import { pushBeginCheckout, transactionId } from "@/lib/analytics/dataLayer";
 
 type Props = {
   propertySlug: string;
@@ -55,7 +55,6 @@ function validPhone(raw: string): boolean {
 }
 
 export default function GuestForm(props: Props) {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
@@ -111,8 +110,37 @@ export default function GuestForm(props: Props) {
         setSubmitting(false);
         return;
       }
-      const data = (await res.json()) as { draftId: string };
-      router.push(`/reservar/${data.draftId}/pagamento`);
+      const data = (await res.json()) as {
+        draftId: string;
+        finalTotal?: number;
+        itemId?: string;
+        itemName?: string;
+      };
+
+      // begin_checkout sai daqui, e não da página de pagamento: é o último ponto
+      // do funil com GTM carregado E com o identificador da reserva já existindo.
+      pushBeginCheckout({
+        transactionId: transactionId({ draftId: data.draftId }),
+        value: data.finalTotal ?? 0,
+        items: [
+          {
+            item_id: data.itemId || props.propertySlug,
+            item_name: data.itemName || props.propertySlug,
+            price: data.finalTotal,
+            quantity: 1,
+          },
+        ],
+        paymentMethod,
+      });
+
+      // Navegação DURA para a rota de pagamento (não router.push).
+      //
+      // A rota de pagamento é isolada de scripts de terceiro e recebe uma CSP
+      // própria. Nenhuma das duas coisas vale numa navegação de cliente: o
+      // documento continua sendo o da página anterior, com os scripts que ela
+      // já carregou e a CSP que ela já recebeu. Só um carregamento novo isola
+      // de verdade.
+      window.location.assign(`/reservar/${data.draftId}/pagamento`);
     } catch {
       setErrorMsg("Falha de conexão. Tente novamente.");
       setSubmitting(false);

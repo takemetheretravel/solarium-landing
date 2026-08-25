@@ -10,7 +10,6 @@ import { formatBRLPrecise } from "@/lib/cn";
 import { PROPERTIES } from "@/config/properties";
 import { COUPONS } from "@/config/coupons";
 import type { ReservationDraft } from "@/lib/kv-store";
-import { trackAddPaymentInfo } from "@/lib/tracking";
 import {
   initBraspagFingerprint,
   initBraspag3ds,
@@ -125,14 +124,12 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       .catch(() => setLoadError("Erro ao carregar reserva."));
   }, [params.draftId]);
 
-  useEffect(() => {
-    if (!draft) return;
-    trackAddPaymentInfo({
-      value: draft.finalTotal,
-      currency: "BRL",
-      paymentMethod: draft.paymentMethod as "card" | "pix",
-    });
-  }, [draft]);
+  // add_payment_info NÃO é disparado aqui.
+  //
+  // Esta rota é isolada de scripts de terceiro (ver AnalyticsScripts e a CSP do
+  // middleware): ela renderiza os campos bpmpi_* com dados de cartão no DOM.
+  // O método de pagamento já viaja no `begin_checkout` empurrado no GuestForm,
+  // que é a etapa imediatamente anterior e tem o GTM carregado.
 
   // Descobre o provider (flag). Default "cielo" até responder → sem efeito no
   // modo cielo. NENHUM script Braspag é tocado aqui.

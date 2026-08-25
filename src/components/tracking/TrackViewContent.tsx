@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { trackViewContent } from "@/lib/tracking";
+import { trackViewContent } from "@/lib/analytics/tracking";
 
 type Props = {
   propertySlug: string;

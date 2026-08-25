@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   trackPacoteSugeridoNaBusca,
   trackPacoteSugeridoDataProxima,
-} from "@/lib/tracking";
+} from "@/lib/analytics/tracking";
 
 /**
  * Dispara `pacote_sugerido_na_busca` uma vez por exibição do bloco.

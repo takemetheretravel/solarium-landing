@@ -66,7 +66,8 @@ export async function POST(req: Request) {
       const motivoInterno = result.returnMessage ? `${result.returnMessage} (código ${result.returnCode})` : `código ${result.returnCode}`;
       console.error("[Cielo:Recusa]", JSON.stringify({
         draftId, valor: valorACobrar, returnCode: result.returnCode,
-        returnMessage: result.returnMessage, bin: cardNumber?.replace(/\s/g,"").slice(0,6),
+        returnMessage: result.returnMessage,
+        cardLast4: cardNumber?.replace(/\s/g, "").slice(-4),
       }));
       await enviarAlertaRecusa({
         hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
