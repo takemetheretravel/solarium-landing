@@ -249,6 +249,61 @@ function linhasQueCasam(conteudo, regex) {
 }
 
 // ---------------------------------------------------------------------------
+// 9. O GTM continua carregado no site.
+//
+// As checagens 3 e 6 garantem que o container NAO aparece no checkout. Faltava
+// a metade oposta: nada verificava que ele AINDA aparece no site. O smoke passou
+// verde num deployment em que o container estava invisivel, e o buraco so foi
+// descoberto olhando a aba Network.
+//
+// Verificacao estatica de codigo — o smoke nao sobe servidor. Ela nao substitui
+// conferir a tag em producao: `analyticsAtivo()` restringe o carregamento a
+// VERCEL_ENV === "production", entao um preview verde aqui continua sem GTM.
+// ---------------------------------------------------------------------------
+{
+  const GTM_ESPERADO = "GTM-MRV2KVJF";
+  const LAYOUT_SITE = "src/app/(site)/layout.tsx";
+  const CARREGADOR = "src/lib/analytics/AnalyticsScripts.tsx";
+  const problemas = [];
+
+  const layout = FONTES.find((f) => f.rel === LAYOUT_SITE);
+  if (!layout) {
+    problemas.push(`${LAYOUT_SITE} nao encontrado — o layout raiz do site sumiu ou mudou de lugar`);
+  } else {
+    // Precisa ser IMPORT de verdade: a mencao em comentario nao conta.
+    const importa = /^\s*import\s+AnalyticsScripts.*from\s+["']@\/lib\/analytics\/AnalyticsScripts["']/m.test(
+      layout.conteudo,
+    );
+    if (!importa) problemas.push(`${LAYOUT_SITE} nao importa AnalyticsScripts`);
+    // E precisa RENDERIZAR o componente, nao so importar.
+    if (!/<AnalyticsScripts\s*\/>/.test(layout.conteudo)) {
+      problemas.push(`${LAYOUT_SITE} importa mas nao renderiza <AnalyticsScripts />`);
+    }
+  }
+
+  const carregador = FONTES.find((f) => f.rel === CARREGADOR);
+  if (!carregador) {
+    problemas.push(`${CARREGADOR} nao encontrado`);
+  } else {
+    const m = carregador.conteudo.match(/export\s+const\s+GTM_ID\s*=\s*["']([^"']+)["']/);
+    if (!m) {
+      problemas.push(`${CARREGADOR} nao exporta GTM_ID`);
+    } else if (m[1] !== GTM_ESPERADO) {
+      problemas.push(`GTM_ID mudou: esperado ${GTM_ESPERADO}, encontrado ${m[1]}`);
+    }
+    if (!carregador.conteudo.includes("googletagmanager.com/gtm.js")) {
+      problemas.push(`${CARREGADOR} nao carrega mais o gtm.js`);
+    }
+  }
+
+  if (problemas.length) {
+    reprovar("GTM deixou de ser carregado no site", problemas);
+  } else {
+    aprovar(`GTM (${GTM_ESPERADO}) carregado pelo layout do site`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 4. Os quatro totais golden continuam corretos.
 //
 // São o contrato de preço do motor de pacotes. Se um deles mudar, o valor

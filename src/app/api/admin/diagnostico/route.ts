@@ -25,15 +25,20 @@ function tokenConfere(recebido: string, esperado: string): boolean {
 }
 
 export async function GET(req: Request) {
-  const esperado = process.env.ADMIN_API_TOKEN || "";
+  // `.trim()` nos DOIS lados. A comparação é byte-a-byte, e um valor colado no
+  // painel da Vercel costuma carregar quebra de linha ou espaço invisível na
+  // ponta — isso derrubava um token correto em 401. Só as extremidades são
+  // normalizadas: aspas e qualquer outro caractere continuam significativos.
+  const esperado = (process.env.ADMIN_API_TOKEN || "").trim();
   // Sem token configurado o endpoint fica FECHADO, nunca aberto.
   if (!esperado) {
     return NextResponse.json({ error: "ADMIN_API_TOKEN não configurado" }, { status: 503 });
   }
 
-  const recebido =
+  const recebido = (
     req.headers.get("x-admin-token") ||
-    (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "")
+  ).trim();
   if (!recebido || !tokenConfere(recebido, esperado)) {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }

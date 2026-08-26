@@ -25,6 +25,38 @@ ou `fbq(` reaparecerem.
 O container só carrega quando `VERCEL_ENV === "production"` (`analyticsAtivo()`
 em `src/config/flags.ts`): preview não emite medição.
 
+### O GTM não é validável em preview
+
+A restrição acima é **decisão de projeto, não defeito**. Tráfego de preview —
+build de teste, reserva forjada, clique de quem está conferindo layout — entraria
+na mesma propriedade que o tráfego real e contaminaria a base do experimento.
+Um deployment de preview com zero requisições a `googletagmanager.com` está
+correto.
+
+A consequência é que a conferência do container (Tag Assistant, `page_view`
+chegando em `G-6LG42C5DDM`) **só acontece em produção**. Isso junta a validação
+do GTM à do 3DS da Braspag, que já tinha exatamente a mesma restrição por outro
+motivo — o MPI só autentica no domínio de produção. As duas verificações caem na
+mesma janela de deploy.
+
+O smoke cobre a parte estática dessa lacuna: falha o build se o layout do site
+deixar de importar ou renderizar `AnalyticsScripts`, se `GTM_ID` sumir ou mudar
+de valor, ou se o snippet parar de carregar o `gtm.js`. O que ele **não** cobre é
+a tag chegando ao navegador — isso continua sendo verificação humana em produção.
+
+### A flag é congelada no build para páginas estáticas
+
+A home é prerenderizada (`○ Static`), então `analyticsAtivo()` é avaliada **no
+momento do build**, não a cada requisição. Trocar `VERCEL_ENV` (ou qualquer
+variável que a alimente) sem **rebuildar** não muda o comportamento dela.
+
+Isso produz um sintoma que engana: no mesmo deployment, uma rota dinâmica como
+`/reservar` pode mostrar o GTM enquanto a home não mostra. Ao conferir, teste a
+home — é ela que reflete o estado do build.
+
+Vale para qualquer variável de ambiente lida em página estática: alterar o valor
+no painel da Vercel exige redeploy para ter efeito.
+
 ### Onde o GTM NÃO carrega
 
 Rotas que renderizam campos `bpmpi_*` do 3DS (dados de cartão no DOM):
