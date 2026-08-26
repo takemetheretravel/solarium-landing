@@ -1,4 +1,10 @@
-import { getDraft, updateDraft, type ReservationDraft } from "@/lib/kv-store";
+import {
+  getDraft,
+  updateDraft,
+  attachReservationToPaymentIndex,
+  type ReservationDraft,
+} from "@/lib/kv-store";
+import { enviarConversaoServidor, itensDaReserva } from "@/lib/analytics/server-conversions";
 import { consultBraspagPayment } from "@/lib/braspag";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
@@ -183,6 +189,24 @@ async function criarReservaSeNecessario(draftId: string, draftSnapshot: Reservat
       shortNotice: draft.shortNotice,
       serviceExtras: enrichServiceExtras(draft.serviceExtras),
       opExtras: opExtrasForEmail,
+    });
+    if (draft.braspagPaymentId) {
+      await attachReservationToPaymentIndex(draft.braspagPaymentId, reservation.reservationId);
+    }
+    // Conversão server-side. Este ponto só é alcançado uma vez por draft: o
+    // caminho está guardado pelo `hostawayReservationId` já gravado acima e, a
+    // montante, pela idempotência do webhook_events.
+    await enviarConversaoServidor({
+      transactionId: String(reservation.reservationId),
+      value: draft.finalTotal,
+      currency: "BRL",
+      items: itensDaReserva(draft),
+      gaClientId: draft.gaClientId,
+      gaSessionId: draft.gaSessionId,
+      fbp: draft.fbp,
+      fbc: draft.fbc,
+      email: draft.guestEmail,
+      phone: draft.guestPhone,
     });
   } else {
     // DEFESA (item 4): antes de tratar como órfão, re-lê o draft. Se a reserva

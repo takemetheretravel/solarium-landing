@@ -11,7 +11,7 @@ import { MAX_QTY_PER_EXTRA } from "@/config/service-extras";
 import { pacotesV2Ativo } from "@/config/flags";
 import { OP_EXTRA_TYPES } from "@/config/operational-extras";
 import { formatBRLPrecise, formatExtraPrice } from "@/lib/cn";
-import { trackInitiateCheckout } from "@/lib/tracking";
+import { useFetchDeduplicado, chaveDe } from "@/lib/client-fetch";
 
 type Quote = {
   totalPrice: number;
@@ -104,9 +104,10 @@ export default function BookingPageClient({
     return validateCoupon(initialCouponCode, { nights: quote.nights, subtotal: quote.totalPrice });
   });
 
-  useEffect(() => {
-    if (quote) trackInitiateCheckout({ value: quote.totalPrice, currency: "BRL" });
-  }, []);
+  // Sem evento de conversão em /reservar.
+  //
+  // `begin_checkout` é disparado no CLIQUE do CTA "Reservar", uma etapa antes —
+  // marcar de novo aqui contaria duas intenções onde houve uma.
 
   useEffect(() => {
     if (!appliedCoupon || !quote) return;
@@ -154,31 +155,29 @@ export default function BookingPageClient({
   // dependem da noite adjacente — consultados na montagem via /api/extras/check.
   const [opOptions, setOpOptions] = useState<OpExtraOption[]>([]);
   const [activeOps, setActiveOps] = useState<string[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/extras/check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ propertyId: property.slug, checkin, checkout, types: OP_EXTRA_TYPES }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled || !Array.isArray(data?.results)) return;
-        const results = data.results as OpExtraOption[];
-        // Nunca oferecer o que o pacote já entrega: comprar de novo seria pagar
-        // duas vezes pelo mesmo serviço.
-        setOpOptions(results.filter((o) => !inclusosPacote.includes(o.type)));
-        // Pré-marcar os que vieram no link — só se realmente disponíveis.
-        const pre = results
-          .filter((o) => o.available && opExtrasPreselected.includes(o.type))
-          .map((o) => o.type);
-        if (pre.length) setActiveOps(pre);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useFetchDeduplicado<{ results?: OpExtraOption[] }>({
+    chave: chaveDe("extras-check", property.slug, checkin, checkout),
+    buscar: async () => {
+      const r = await fetch("/api/extras/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId: property.slug, checkin, checkout, types: OP_EXTRA_TYPES }),
+      });
+      return r.json();
+    },
+    aoResponder: (data) => {
+      if (!Array.isArray(data?.results)) return;
+      const results = data.results as OpExtraOption[];
+      // Nunca oferecer o que o pacote já entrega: comprar de novo seria pagar
+      // duas vezes pelo mesmo serviço.
+      setOpOptions(results.filter((o) => !inclusosPacote.includes(o.type)));
+      // Pré-marcar os que vieram no link — só se realmente disponíveis.
+      const pre = results
+        .filter((o) => o.available && opExtrasPreselected.includes(o.type))
+        .map((o) => o.type);
+      if (pre.length) setActiveOps(pre);
+    },
+  });
   function toggleOp(type: string) {
     setActiveOps((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]));
   }

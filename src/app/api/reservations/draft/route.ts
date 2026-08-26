@@ -42,6 +42,19 @@ type Body = {
     phone: string;
     notes?: string;
   };
+  /** Identificador da tentativa de checkout, aberto no clique do CTA. */
+  checkoutId?: string;
+  /** gclid/utm da sessão, capturados na primeira página. */
+  atribuicao?: {
+    gclid?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_term?: string;
+    utm_content?: string;
+    landing_page?: string;
+    capturado_em?: string;
+  } | null;
 };
 
 function validEmail(s: string): boolean {
@@ -77,6 +90,67 @@ function validPhone(raw: string): boolean {
   // E.164: 8 a 15 dígitos (aceita números internacionais)
   const d = digitsOnly(raw);
   return d.length >= 8 && d.length <= 15;
+}
+
+/**
+ * Identificadores de medição do navegador, lidos dos cookies na criação do
+ * draft.
+ *
+ * A conversão é enviada server-side depois do webhook, quando o navegador do
+ * cliente já não está por perto. Capturar aqui é a última janela em que esses
+ * valores existem. Nenhum deles identifica pessoa: são identificadores de
+ * sessão de medição.
+ *
+ * O cookie `_ga` vem como `GA1.1.<client_id>` — o client_id do GA4 são os dois
+ * últimos segmentos.
+ */
+function lerIdsDeMedicao(
+  req: NextRequest,
+  body: Body,
+): {
+  gaClientId?: string;
+  gaSessionId?: string;
+  fbp?: string;
+  fbc?: string;
+  checkoutId?: string;
+  atribuicao?: Body["atribuicao"];
+} {
+  // `_ga` chega como `GA1.1.XXXXXXX.YYYYYYY`; o client_id do GA4 são os dois
+  // últimos segmentos. Formato inesperado resolve para ausente, nunca para lixo.
+  const ga = req.cookies.get("_ga")?.value;
+  let gaClientId: string | undefined;
+  if (ga) {
+    const partes = ga.split(".");
+    if (partes.length >= 4) {
+      const candidato = `${partes[partes.length - 2]}.${partes[partes.length - 1]}`;
+      if (/^\d+\.\d+$/.test(candidato)) gaClientId = candidato;
+    }
+  }
+
+  // `_ga_<CONTAINER>` guarda a sessão. O sufixo é o id do stream, que muda —
+  // varremos por prefixo em vez de fixar o nome do cookie.
+  let gaSessionId: string | undefined;
+  for (const cookie of req.cookies.getAll()) {
+    if (!cookie.name.startsWith("_ga_")) continue;
+    // Formato `GS1.1.<session_id>.<n>....`
+    const partes = (cookie.value || "").split(".");
+    if (partes.length >= 3 && /^\d+$/.test(partes[2])) {
+      gaSessionId = partes[2];
+      break;
+    }
+  }
+
+  return {
+    gaClientId,
+    gaSessionId,
+    fbp: req.cookies.get("_fbp")?.value || undefined,
+    fbc: req.cookies.get("_fbc")?.value || undefined,
+    // Vêm do corpo: são de sessionStorage, que o servidor não enxerga.
+    // Qualquer um deles ausente persiste como indefinido e NUNCA bloqueia a
+    // criação do draft — medição não recusa reserva.
+    checkoutId: typeof body.checkoutId === "string" ? body.checkoutId.slice(0, 64) : undefined,
+    atribuicao: body.atribuicao ?? undefined,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -171,7 +245,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return criarDraftPacote({ body, property, pacote, guest, guests });
+    return criarDraftPacote({ body, property, pacote, guest, guests, req });
   }
 
   // Pacote: revalida tudo server-side — nunca confia no total vindo do client
@@ -345,6 +419,7 @@ export async function POST(req: NextRequest) {
     guestPhone: normalizePhone(guest.phone),
     guestCpf: digitsOnly(guest.cpf),
     guestNotes: guest.notes?.trim() || undefined,
+    ...lerIdsDeMedicao(req, body),
     status: "pending" as const,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
@@ -370,9 +445,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Erro ao salvar reserva. Tente novamente em instantes." }, { status: 500 });
   }
 
+  // finalTotal e item voltam para o cliente empurrar begin_checkout com o mesmo
+  // valor que o servidor calculou — o cliente nunca recompõe preço.
   return NextResponse.json({
     draftId: draft.id,
     expiresAt: draft.expiresAt,
+    finalTotal: draft.finalTotal,
+    itemId: draft.packageSlug || draft.propertyId,
+    itemName: draft.packageName || draft.propertyName,
   });
 }
 
@@ -386,8 +466,9 @@ async function criarDraftPacote(args: {
   pacote: PacoteV2;
   guest: Body["guest"];
   guests: number;
+  req: NextRequest;
 }): Promise<NextResponse> {
-  const { body, property, pacote, guest, guests } = args;
+  const { body, property, pacote, guest, guests, req } = args;
 
   const calc = await calcularPacoteServer({
     pacote,
@@ -445,6 +526,7 @@ async function criarDraftPacote(args: {
     guestPhone: normalizePhone(guest.phone),
     guestCpf: digitsOnly(guest.cpf),
     guestNotes: guest.notes?.trim() || undefined,
+    ...lerIdsDeMedicao(req, body),
     status: "pending" as const,
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
@@ -475,7 +557,13 @@ async function criarDraftPacote(args: {
     );
   }
 
-  return NextResponse.json({ draftId: draft.id, expiresAt: draft.expiresAt });
+  return NextResponse.json({
+    draftId: draft.id,
+    expiresAt: draft.expiresAt,
+    finalTotal: draft.finalTotal,
+    itemId: draft.pacoteId,
+    itemName: draft.pacoteNome,
+  });
 }
 
 /** Quantidades vindas do cliente: inteiras, não negativas, com teto. */

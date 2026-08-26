@@ -6,6 +6,9 @@ import { Calendar, ChevronDown, Tag, MessageCircle, ArrowRight } from "lucide-re
 import { formatBRLPrecise } from "@/lib/cn";
 import ExtrasNaCasa, { serializarSelecao } from "@/components/extras/ExtrasNaCasa";
 import { pacotesV2Ativo } from "@/config/flags";
+import { useFetchDeduplicado, chaveDe } from "@/lib/client-fetch";
+import { pushBeginCheckout } from "@/lib/analytics/dataLayer";
+import { iniciarCheckoutId } from "@/lib/analytics/checkout-id";
 
 type PriceFailure = {
   reason: "missing-data" | "unavailable-day" | "min-stay-not-met" | "max-stay-exceeded" | "api-error";
@@ -92,63 +95,79 @@ export default function BookingForm({
   const maxDateISO = useMemo(() => isoPlus(540), []);
   const minCheckoutISO = useMemo(() => (checkin ? isoNextDay(checkin) : todayISO), [checkin, todayISO]);
 
-  // Validação leve do check-in via API (debounced) — substitui a checagem hardcoded de domingo.
-  useEffect(() => {
-    if (!checkin) {
-      setCheckinError(null);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const dummy = new Date(checkin + "T12:00:00");
-        dummy.setDate(dummy.getDate() + 1);
-        const dummyCheckout = `${dummy.getFullYear()}-${String(dummy.getMonth() + 1).padStart(2, "0")}-${String(dummy.getDate()).padStart(2, "0")}`;
-        const res = await fetch("/api/availability/check", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ propertyId: propertySlug, checkin, checkout: dummyCheckout, guests }),
-        });
-        const data = await res.json();
-        if (!data.available && typeof data.reason === "string" && data.reason.toLowerCase().includes("check-in")) {
-          const [y, m, d] = checkin.split("-");
-          setCheckinError(`Check-in não disponível para a data ${d}/${m}/${y}.`);
-        } else {
-          setCheckinError(null);
-        }
-      } catch {
-        setCheckinError(null);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [checkin, propertySlug, guests]);
+  // Validação leve do check-in via API — substitui a checagem hardcoded de domingo.
+  const chaveCheckin = checkin
+    ? chaveDe("checkin-valido", propertySlug, checkin, guests)
+    : "";
 
   useEffect(() => {
-    if (!checkin || !checkout || checkin >= checkout) {
+    if (!checkin) setCheckinError(null);
+  }, [checkin]);
+
+  useFetchDeduplicado<{ available?: boolean; reason?: string }>({
+    chave: chaveCheckin,
+    debounceMs: 400,
+    buscar: async () => {
+      const dummy = new Date(checkin + "T12:00:00");
+      dummy.setDate(dummy.getDate() + 1);
+      const dummyCheckout = `${dummy.getFullYear()}-${String(dummy.getMonth() + 1).padStart(2, "0")}-${String(dummy.getDate()).padStart(2, "0")}`;
+      const res = await fetch("/api/availability/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId: propertySlug, checkin, checkout: dummyCheckout, guests }),
+      });
+      return res.json();
+    },
+    aoResponder: (data) => {
+      if (!data.available && typeof data.reason === "string" && data.reason.toLowerCase().includes("check-in")) {
+        const [y, m, d] = checkin.split("-");
+        setCheckinError(`Check-in não disponível para a data ${d}/${m}/${y}.`);
+      } else {
+        setCheckinError(null);
+      }
+    },
+    aoFalhar: () => setCheckinError(null),
+  });
+
+  const chavePreco =
+    checkin && checkout && checkin < checkout
+      ? chaveDe("preco", propertySlug, checkin, checkout, guests, paymentMethod, couponApplied)
+      : "";
+
+  useEffect(() => {
+    if (!chavePreco) {
       setResponse(null);
+      setLoading(false);
       return;
     }
     setLoading(true);
     setValidationError(null);
+  }, [chavePreco]);
 
-    const params = new URLSearchParams({
-      property: propertySlug,
-      checkin,
-      checkout,
-      guests: String(guests),
-      payment: paymentMethod,
-    });
-    if (couponApplied) params.set("coupon", couponApplied);
-
-    const ctrl = new AbortController();
-    fetch(`/api/price?${params.toString()}`, { signal: ctrl.signal })
-      .then(async (r) => {
-        const data = (await r.json()) as PriceResponse;
-        setResponse(data);
-      })
-      .catch(() => setResponse(null))
-      .finally(() => setLoading(false));
-    return () => ctrl.abort();
-  }, [propertySlug, checkin, checkout, guests, paymentMethod, couponApplied]);
+  useFetchDeduplicado<PriceResponse>({
+    chave: chavePreco,
+    debounceMs: 300,
+    buscar: async () => {
+      const params = new URLSearchParams({
+        property: propertySlug,
+        checkin,
+        checkout,
+        guests: String(guests),
+        payment: paymentMethod,
+      });
+      if (couponApplied) params.set("coupon", couponApplied);
+      const r = await fetch(`/api/price?${params.toString()}`);
+      return r.json();
+    },
+    aoResponder: (data) => {
+      setResponse(data);
+      setLoading(false);
+    },
+    aoFalhar: () => {
+      setResponse(null);
+      setLoading(false);
+    },
+  });
 
   function applyCoupon() {
     setCouponApplied(couponInput.trim().toUpperCase());
@@ -156,6 +175,18 @@ export default function BookingForm({
 
   async function handleContinue() {
     if (!checkin || !checkout || !response || response.ok !== true || checkinError) return;
+
+    // begin_checkout no CLIQUE, antes de qualquer navegação: é aqui que o
+    // hóspede declara intenção. O valor é o total já calculado pelo servidor —
+    // nunca recomposto aqui.
+    pushBeginCheckout({
+      transactionId: iniciarCheckoutId(),
+      value: response.finalTotal,
+      items: [
+        { item_id: propertySlug, item_name: propertySlug, price: response.finalTotal, quantity: 1 },
+      ],
+      paymentMethod,
+    });
 
     setIsValidating(true);
     setValidationError(null);

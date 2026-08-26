@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import PersonalizeSuaEstadia from "./PersonalizeSuaEstadia";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
-import type { ContextoExtra } from "@/lib/tracking";
+import type { ContextoExtra } from "@/lib/analytics/tracking";
+import { useFetchDeduplicado, chaveDe } from "@/lib/client-fetch";
 
 /**
  * Bloco de extras que busca a disponibilidade real antes de exibir.
@@ -36,33 +37,40 @@ export default function ExtrasNaCasa({
 }) {
   const [disponiveis, setDisponiveis] = useState<ExtraExibivel[]>([]);
 
+  // A chave é a combinação de parâmetros que a rota realmente usa. Os ids
+  // ocultos ficam de fora: eles filtram a resposta, não mudam a consulta —
+  // incluí-los faria o mesmo dado ser buscado de novo à toa.
+  const ocultos = ocultarIds.join(",");
+  const chave =
+    checkin && checkout ? chaveDe("extras-disponiveis", propertySlug, checkin, checkout) : "";
+
   useEffect(() => {
-    if (!checkin || !checkout) {
-      setDisponiveis([]);
-      return;
-    }
-    let cancelado = false;
-    const params = new URLSearchParams({ property: propertySlug, checkin, checkout });
+    if (!checkin || !checkout) setDisponiveis([]);
+  }, [checkin, checkout]);
 
-    fetch(`/api/extras/disponiveis?${params}`)
-      .then((r) => (r.ok ? r.json() : { disponiveis: [] }))
-      .then((d) => {
-        if (cancelado) return;
-        const lista = ((d.disponiveis ?? []) as ExtraExibivel[]).filter(
-          (x) => !ocultarIds.includes(x.extra.id),
-        );
-        setDisponiveis(lista);
-        onDisponiveis?.(lista);
-      })
-      .catch(() => {
-        if (!cancelado) setDisponiveis([]);
-      });
+  useFetchDeduplicado<{ disponiveis?: ExtraExibivel[] }>({
+    chave,
+    debounceMs: 300,
+    buscar: async () => {
+      const params = new URLSearchParams({ property: propertySlug, checkin, checkout });
+      const r = await fetch(`/api/extras/disponiveis?${params}`);
+      return r.ok ? r.json() : { disponiveis: [] };
+    },
+    aoResponder: (d) => {
+      const lista = ((d.disponiveis ?? []) as ExtraExibivel[]).filter(
+        (x) => !ocultarIds.includes(x.extra.id),
+      );
+      setDisponiveis(lista);
+      onDisponiveis?.(lista);
+    },
+    aoFalhar: () => setDisponiveis([]),
+  });
 
-    return () => {
-      cancelado = true;
-    };
+  // Reaplica o filtro quando só os ids ocultos mudam — sem refazer a chamada.
+  useEffect(() => {
+    setDisponiveis((prev) => prev.filter((x) => !ocultarIds.includes(x.extra.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertySlug, checkin, checkout, ocultarIds.join(",")]);
+  }, [ocultos]);
 
   if (disponiveis.length === 0) return null;
 

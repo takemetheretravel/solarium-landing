@@ -9,7 +9,9 @@ import { getExtra, type PacoteV2 } from "@/config/precos-e-extras";
 import PersonalizeSuaEstadia from "@/components/extras/PersonalizeSuaEstadia";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
 import { checkoutSugerido, datasElegiveis, alternativaPara } from "@/lib/pricing/elegibilidade";
-import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/tracking";
+import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/analytics/tracking";
+import { pushBeginCheckout } from "@/lib/analytics/dataLayer";
+import { iniciarCheckoutId } from "@/lib/analytics/checkout-id";
 
 type ItemPrecoApi = { extraId: string; nome: string; total: number; qtd: number; incluso: boolean };
 
@@ -232,6 +234,14 @@ export default function PackageBookingV2({
   function reservar() {
     if (!podeReservar || !ok) return;
     trackPacoteCtaReserva({ pacoteId: pacote.id, total: ok.total, bonusAplicado: ok.bonusAplicado });
+
+    // begin_checkout no CLIQUE. `podeReservar` já exige o cálculo server-side
+    // concluído, então o valor aqui é sempre o real.
+    pushBeginCheckout({
+      transactionId: iniciarCheckoutId(),
+      value: ok.total,
+      items: [{ item_id: pacote.id, item_name: pacote.nome, price: ok.total, quantity: 1 }],
+    });
 
     const params = new URLSearchParams({
       propertyId: propertySlug,

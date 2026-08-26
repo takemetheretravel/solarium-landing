@@ -1,77 +1,28 @@
 "use client";
 
+/**
+ * Eventos de PRODUTO — os que medem o experimento de pacotes e o uso dos
+ * extras. Não são eventos de e-commerce: `view_item`, `begin_checkout`,
+ * `generate_lead` e `whatsapp_click` moram em `dataLayer.ts`.
+ *
+ * Todos empurram para o `window.dataLayer` e param por aí. O site não carrega
+ * `gtag.js` nem o pixel do Meta — quem lê o `dataLayer` e dispara tag é o GTM.
+ * Antes daqui as chamadas iam direto em `window.gtag`/`window.fbq`; com o GTM
+ * como único carregador esses globais não existem mais, e continuar chamando
+ * seria perder o evento em silêncio.
+ */
+
 declare global {
   interface Window {
-    gtag?: (...args: unknown[]) => void;
-    fbq?: (...args: unknown[]) => void;
     dataLayer?: unknown[];
   }
 }
 
+/** Empurra `{ event: name, ...params }`. Único caminho de saída deste módulo. */
 export function trackEvent(name: string, params?: Record<string, unknown>) {
   if (typeof window === "undefined") return;
-  window.gtag?.("event", name, params);
-  window.fbq?.("trackCustom", name, params);
-}
-
-export function trackPurchase(params: { value: number; currency: string; transactionId: string }) {
-  if (typeof window === "undefined") return;
-  window.gtag?.("event", "purchase", {
-    transaction_id: params.transactionId,
-    value: params.value,
-    currency: params.currency,
-  });
-  window.fbq?.("track", "Purchase", { value: params.value, currency: params.currency });
-}
-
-export function trackInitiateCheckout(params: { value: number; currency: string }) {
-  if (typeof window === "undefined") return;
-  window.gtag?.("event", "begin_checkout", { value: params.value, currency: params.currency });
-  window.fbq?.("track", "InitiateCheckout", { value: params.value, currency: params.currency });
-}
-
-export function trackLead() {
-  if (typeof window === "undefined") return;
-  window.gtag?.("event", "generate_lead");
-  window.fbq?.("track", "Lead");
-}
-
-export function trackViewContent(params: {
-  value: number | null;
-  currency: string;
-  contentName: string;
-  contentIds: string[];
-}) {
-  if (typeof window === "undefined") return;
-  window.gtag?.("event", "view_item", {
-    currency: params.currency,
-    value: params.value ?? 0,
-    items: [{ item_id: params.contentIds[0], item_name: params.contentName }],
-  });
-  window.fbq?.("track", "ViewContent", {
-    value: params.value ?? 0,
-    currency: params.currency,
-    content_name: params.contentName,
-    content_ids: params.contentIds,
-    content_type: "product",
-  });
-}
-
-export function trackAddPaymentInfo(params: {
-  value: number;
-  currency: string;
-  paymentMethod: "card" | "pix";
-}) {
-  if (typeof window === "undefined") return;
-  window.gtag?.("event", "add_payment_info", {
-    value: params.value,
-    currency: params.currency,
-    payment_type: params.paymentMethod === "pix" ? "Pix" : "Cartão",
-  });
-  window.fbq?.("track", "AddPaymentInfo", {
-    value: params.value,
-    currency: params.currency,
-  });
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ event: name, ...(params ?? {}) });
 }
 
 // ---------------------------------------------------------------------------
@@ -136,25 +87,6 @@ export function trackPacoteCtaReserva(params: {
     bonus_aplicado: params.bonusAplicado,
   });
 }
-
-export function trackReservaConcluida(params: {
-  tipo: "pacote" | "avulso";
-  pacoteId?: string;
-  total: number;
-  noites: number;
-  valorExtras: number;
-  listing: string;
-}) {
-  trackEvent("reserva_concluida", {
-    tipo: params.tipo,
-    pacote_id: params.pacoteId ?? null,
-    total: params.total,
-    noites: params.noites,
-    valor_extras: params.valorExtras,
-    listing: params.listing,
-  });
-}
-
 
 /**
  * Pacote sugerido na página de escolha da casa, com as datas já buscadas.

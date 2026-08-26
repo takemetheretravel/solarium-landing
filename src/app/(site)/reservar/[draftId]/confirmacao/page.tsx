@@ -5,7 +5,6 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import { getDraft } from "@/lib/kv-store";
 import { formatBRLPrecise } from "@/lib/cn";
-import { TrackPurchase } from "@/components/booking/TrackPurchase";
 
 export const dynamic = "force-dynamic";
 
@@ -24,18 +23,10 @@ export default async function ConfirmacaoPage({ params }: { params: { draftId: s
 
   return (
     <main className="bg-cream pt-32 pb-20">
-      <TrackPurchase
-        total={draft.finalTotal}
-        draftId={params.draftId}
-        pacoteId={draft.pacoteId}
-        noites={draft.nights}
-        valorExtras={
-          (draft.pacoteItens ?? []).reduce((s, i) => s + i.total, 0) +
-          (draft.serviceExtras ?? []).reduce((s, e) => s + e.price, 0) +
-          (draft.opExtras ?? []).reduce((s, e) => s + e.price, 0)
-        }
-        listing={draft.propertyId}
-      />
+      {/* Sem evento de conversão nesta página.
+          `purchase` é enviado server-side, quando o pagamento está confirmado e
+          a reserva existe no Hostaway. Disparar aqui também contaria a mesma
+          reserva duas vezes, e contaria de novo a cada recarregamento. */}
       <Container>
         <div className="mx-auto max-w-2xl">
           <div className="mx-auto mb-8 flex h-16 w-16 items-center justify-center rounded-full bg-serra/10">

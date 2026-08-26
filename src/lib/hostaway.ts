@@ -173,6 +173,27 @@ type FetchOpts = {
   ttlSeconds?: number;
 };
 
+/**
+ * Erros de REDE que valem nova tentativa. A causa costuma vir aninhada em
+ * `err.cause.code` no fetch do Node, então olhamos os dois níveis.
+ */
+const CODIGOS_DE_REDE = ["ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EPIPE", "ENOTFOUND", "EAI_AGAIN"];
+
+function ehErroDeRede(err: unknown): boolean {
+  const e = err as { code?: string; cause?: { code?: string }; message?: string };
+  const code = e?.code || e?.cause?.code;
+  if (code && CODIGOS_DE_REDE.includes(code)) return true;
+  const msg = e?.message || "";
+  return CODIGOS_DE_REDE.some((c) => msg.includes(c)) || /fetch failed|socket hang up/i.test(msg);
+}
+
+/** 300ms → 900ms → 2700ms. Três tentativas no total. */
+const ATRASOS_RETRY = [300, 900, 2700];
+
+function esperar(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 async function authFetch<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
   if (opts.cacheKey) {
     const hit = cacheGet<T>(opts.cacheKey);
@@ -196,33 +217,63 @@ async function authFetch<T>(path: string, opts: FetchOpts = {}): Promise<T | nul
     return fetch(`${BASE_URL}${path}`, init);
   };
 
-  try {
-    let token = await getAccessToken();
-    if (!token) return null;
-
-    let res = await doRequest(token);
-
-    if (res.status === 401 || res.status === 403) {
-      console.warn(`[Hostaway] ${res.status} em ${path} — regenerando token e tentando novamente`);
-      token = await getAccessToken(true);
+  // Retry com backoff exponencial: 300ms / 900ms / 2700ms.
+  //
+  // Só para erro de REDE e 5xx. Um 4xx é resposta definitiva do servidor —
+  // repetir não muda nada e ainda multiplica a carga. O 401/403 continua com o
+  // tratamento próprio (regenerar token), que não é retry.
+  //
+  // Motivo: dois ECONNRESET contra a Hostaway derrubaram o preço de uma página
+  // de pacote, e ela respondeu 200 sem preço nenhum. A tentativa aqui resolve a
+  // falha transitória; o que não resolver, o chamador precisa tratar como
+  // indisponibilidade explícita (nunca renderizar preço a partir de null).
+  for (let tentativa = 0; tentativa < ATRASOS_RETRY.length; tentativa++) {
+    const ehUltima = tentativa === ATRASOS_RETRY.length - 1;
+    try {
+      let token = await getAccessToken();
       if (!token) return null;
-      res = await doRequest(token);
-    }
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.error(`[Hostaway] ${opts.method ?? "GET"} ${path} falhou:`, res.status, errText.slice(0, 200));
+      let res = await doRequest(token);
+
+      if (res.status === 401 || res.status === 403) {
+        console.warn(`[Hostaway] ${res.status} em ${path} — regenerando token e tentando novamente`);
+        token = await getAccessToken(true);
+        if (!token) return null;
+        res = await doRequest(token);
+      }
+
+      if (res.status >= 500 && !ehUltima) {
+        console.warn(
+          `[Hostaway] ${path} HTTP ${res.status} — nova tentativa em ${ATRASOS_RETRY[tentativa]}ms`,
+        );
+        await esperar(ATRASOS_RETRY[tentativa]);
+        continue;
+      }
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error(`[Hostaway] ${opts.method ?? "GET"} ${path} falhou:`, res.status, errText.slice(0, 200));
+        return null;
+      }
+      const json = (await res.json()) as T;
+      if (opts.cacheKey && opts.ttlSeconds) {
+        cacheSet(opts.cacheKey, json, opts.ttlSeconds);
+      }
+      return json;
+    } catch (err) {
+      if (ehErroDeRede(err) && !ehUltima) {
+        console.warn(
+          `[Hostaway] ${path} erro de rede (${(err as Error).message}) — nova tentativa em ${ATRASOS_RETRY[tentativa]}ms`,
+        );
+        await esperar(ATRASOS_RETRY[tentativa]);
+        continue;
+      }
+      console.error(`[Hostaway] ${opts.method ?? "GET"} ${path} erro:`, (err as Error).message);
       return null;
     }
-    const json = (await res.json()) as T;
-    if (opts.cacheKey && opts.ttlSeconds) {
-      cacheSet(opts.cacheKey, json, opts.ttlSeconds);
-    }
-    return json;
-  } catch (err) {
-    console.error(`[Hostaway] ${opts.method ?? "GET"} ${path} erro:`, (err as Error).message);
-    return null;
   }
+  console.error(`[Hostaway] ${opts.method ?? "GET"} ${path} esgotou as tentativas`);
+  return null;
 }
 
 export async function getListings(): Promise<HostawayListing[]> {

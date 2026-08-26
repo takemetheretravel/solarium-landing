@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { consultBraspagPayment } from "@/lib/braspag";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
-import { getDraft, claimWebhookEventOnce, releaseWebhookEvent , draftIdDeOrderId } from "@/lib/kv-store";
+import {
+  getDraft,
+  draftIdDeOrderId,
+  insertWebhookEvent,
+  markWebhookEventProcessed,
+  deleteWebhookEvent,
+  getPaymentIndex,
+  pushReconciliationPending,
+} from "@/lib/kv-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +38,7 @@ export const dynamic = "force-dynamic";
 // =============================================================================
 export async function POST(req: Request) {
   let payload: { PaymentId?: string; ChangeType?: number; RecurrentPaymentId?: string } = {};
-  let dedupKey: string | null = null;
+  let eventoParaLiberar: { paymentId: string; changeType: string | number } | null = null;
   try {
     payload = await req.json().catch(() => ({}));
     console.log("[Webhook:Braspag] notificação recebida:", JSON.stringify(payload));
@@ -43,62 +51,93 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true });
     }
 
-    // DEDUP (item 3): a mesma notificação chega/reprocessa 2x. Claim atômico por
-    // PaymentId+ChangeType; se já visto na janela, ignora (não duplica órfão/log).
-    // Em erro, a claim é liberada no catch p/ o retry legítimo reprocessar.
-    dedupKey = `${PaymentId}:${ChangeType ?? "?"}`;
-    const isNew = await claimWebhookEventOnce(dedupKey);
-    if (!isNew) {
-      console.log("[Webhook:Braspag] evento duplicado ignorado (dedup):", dedupKey);
-      dedupKey = null; // não liberar: a 1ª entrega é a dona
-      return NextResponse.json({ ok: true, dedup: true });
+    // IDEMPOTÊNCIA: registro único por (payment_id, change_type) em
+    // webhook_events. A janela é de 30 dias — reentrega tardia (houve caso de
+    // 109 minutos) continua sendo duplicata. Em erro, o registro é apagado no
+    // catch para que o retry legítimo reprocesse.
+    const { inserted } = await insertWebhookEvent({
+      paymentId: String(PaymentId),
+      changeType: ChangeType ?? "none",
+      source: "braspag",
+    });
+    if (!inserted) {
+      console.log("[Webhook:Braspag] duplicate ignored", PaymentId);
+      return NextResponse.json({ ok: true, duplicate: true });
     }
+    eventoParaLiberar = { paymentId: String(PaymentId), changeType: ChangeType ?? "none" };
+
+    const finalizar = async (resposta: Record<string, unknown>) => {
+      await markWebhookEventProcessed(String(PaymentId), ChangeType ?? "none");
+      eventoParaLiberar = null;
+      return NextResponse.json(resposta);
+    };
 
     // RECONSULTA server-side — única fonte de verdade (nunca o payload).
+    // A correlação tem dois degraus: o índice local gravado na autorização
+    // (não depende de rede) e, sem ele, o MerchantOrderId da reconsulta.
+    const indice = await getPaymentIndex(String(PaymentId));
     const consult = await consultBraspagPayment(String(PaymentId));
     const raw = (consult.raw ?? {}) as Record<string, unknown>;
-    const merchantOrderId = raw.MerchantOrderId as string | undefined;
+    const merchantOrderId = indice?.merchant_order_id || (raw.MerchantOrderId as string | undefined);
     console.log(
-      "[Webhook:Braspag] reconsulta: paymentId=%s status=%s merchantOrderId=%s",
+      "[Webhook:Braspag] reconsulta: paymentId=%s status=%s merchantOrderId=%s via=%s",
       PaymentId,
       String(consult.statusCode ?? "-"),
       merchantOrderId ?? "-",
+      indice ? "payment_index" : "consulta-detalhe",
     );
 
     if (!merchantOrderId) {
-      // Pagamento não encontrado/sem pedido — nada a fazer (200 p/ não re-tentar).
-      console.warn("[Webhook:Braspag] MerchantOrderId ausente na consulta — sem ação.");
-      return NextResponse.json({ ok: true, ignored: true });
+      // Nenhum caminho resolveu. 200 p/ não gerar reentrega infinita, mas o
+      // evento fica registrado como pendência — nunca some em silêncio.
+      console.error(
+        "[Webhook:Braspag] correlação falhou " + JSON.stringify({ payment_id: PaymentId, change_type: ChangeType }),
+      );
+      await pushReconciliationPending({
+        payment_id: String(PaymentId),
+        change_type: String(ChangeType ?? "none"),
+        source: "braspag",
+        reason: "merchant_order_id não resolvido (índice local e reconsulta vazios)",
+      });
+      return finalizar({ ok: true, pendingReconciliation: true });
     }
 
     // MerchantOrderId = draftId. Identifica o MÉTODO antes de qualquer confirmação.
-    const draft = await getDraft(draftIdDeOrderId(merchantOrderId));
+    const draft = await getDraft(indice?.draft_id || draftIdDeOrderId(merchantOrderId));
     if (!draft) {
-      console.warn("[Webhook:Braspag] draft não encontrado p/ merchantOrderId:", merchantOrderId);
-      return NextResponse.json({ ok: true, ignored: true });
+      console.error("[Webhook:Braspag] draft não encontrado p/ merchantOrderId:", merchantOrderId);
+      await pushReconciliationPending({
+        payment_id: String(PaymentId),
+        change_type: String(ChangeType ?? "none"),
+        source: "braspag",
+        reason: `draft não encontrado (expirado?) para merchant_order_id ${merchantOrderId}`,
+      });
+      return finalizar({ ok: true, pendingReconciliation: true });
     }
 
     // Item 1: CARTÃO é resolvido SINCRONAMENTE no /credit → só loga e retorna 200.
     if (draft.paymentMethod === "card") {
       console.log("[Webhook:Braspag] método=card — resolvido sincronamente no /credit; sem ação. draftId:", merchantOrderId);
-      return NextResponse.json({ ok: true, method: "card", ignored: true });
+      return finalizar({ ok: true, method: "card", ignored: true });
     }
 
     // Itens 2/4: Pix já reservado = notificação tardia da mesma transação → 200.
     if (typeof draft.hostawayReservationId === "number" && draft.hostawayReservationId > 0) {
       console.log("[Webhook:Braspag] Pix já reservado — notificação tardia; sem ação. draftId:", merchantOrderId);
-      return NextResponse.json({ ok: true, method: "pix", alreadyReserved: true });
+      return finalizar({ ok: true, method: "pix", alreadyReserved: true });
     }
 
     // Item 2: só Pix pendente (não reservado) dispara a confirmação assíncrona.
     const result = await confirmPixPaymentIfPaid(merchantOrderId);
     console.log("[Webhook:Braspag] método=pix resultado:", JSON.stringify({ draftId: merchantOrderId, result }));
 
-    return NextResponse.json({ ok: true, method: "pix", result: result.status });
+    return finalizar({ ok: true, method: "pix", result: result.status });
   } catch (err) {
     console.error("[Webhook:Braspag] erro:", err, "payload:", JSON.stringify(payload));
-    // Libera a claim de dedup p/ a Braspag reprocessar este evento no retry.
-    if (dedupKey) await releaseWebhookEvent(dedupKey);
+    // Libera o registro do evento p/ a Braspag reprocessar no retry.
+    if (eventoParaLiberar) {
+      await deleteWebhookEvent(eventoParaLiberar.paymentId, eventoParaLiberar.changeType);
+    }
     // 500 → a Braspag re-tenta a notificação (comportamento desejado em falha).
     return NextResponse.json({ ok: false }, { status: 500 });
   }

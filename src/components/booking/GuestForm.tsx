@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, FormEvent, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import { lerCheckoutId } from "@/lib/analytics/checkout-id";
+import { lerAtribuicao } from "@/lib/analytics/atribuicao";
 
 type Props = {
   propertySlug: string;
@@ -55,7 +56,6 @@ function validPhone(raw: string): boolean {
 }
 
 export default function GuestForm(props: Props) {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
@@ -103,6 +103,12 @@ export default function GuestForm(props: Props) {
           serviceExtras: props.serviceExtras?.length ? props.serviceExtras : undefined,
           opExtras: props.opExtras?.length ? props.opExtras : undefined,
           guest: { name, email, cpf, phone, notes },
+          // Identificadores de medição capturados AQUI, antes da navegação dura.
+          // Depois dela a rota de pagamento não tem GTM nem cookie de sessão de
+          // anúncio ao alcance, e o envio server-side da conversão acontece
+          // quando o navegador do hóspede já não existe mais.
+          checkoutId: lerCheckoutId(),
+          atribuicao: lerAtribuicao(),
         }),
       });
       if (!res.ok) {
@@ -112,7 +118,19 @@ export default function GuestForm(props: Props) {
         return;
       }
       const data = (await res.json()) as { draftId: string };
-      router.push(`/reservar/${data.draftId}/pagamento`);
+
+      // Nenhum evento é empurrado aqui: `begin_checkout` já saiu no clique do
+      // CTA "Reservar", uma etapa antes. Marcar de novo contaria duas intenções
+      // onde houve uma.
+
+      // Navegação DURA para a rota de pagamento (não router.push).
+      //
+      // A rota de pagamento é isolada de scripts de terceiro e recebe uma CSP
+      // própria. Nenhuma das duas coisas vale numa navegação de cliente: o
+      // documento continua sendo o da página anterior, com os scripts que ela
+      // já carregou e a CSP que ela já recebeu. Só um carregamento novo isola
+      // de verdade.
+      window.location.assign(`/reservar/${data.draftId}/pagamento`);
     } catch {
       setErrorMsg("Falha de conexão. Tente novamente.");
       setSubmitting(false);

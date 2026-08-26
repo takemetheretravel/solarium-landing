@@ -1,3 +1,4 @@
+import { redact } from "@/lib/log/redact";
 export function mensagemRecusa(returnCode?: string): string {
   const code = (returnCode || "").trim();
   const map: Record<string, string> = {
@@ -78,7 +79,7 @@ export async function createPixPayment(params: {
 
   const data = await res.json();
   if (!res.ok) {
-    console.error("[Cielo:Pix] Error:", JSON.stringify(data));
+    console.error("[Cielo:Pix] Error:", JSON.stringify(redact(data)));
     throw new Error(`Cielo Pix error: ${res.status}`);
   }
 
@@ -128,7 +129,12 @@ export async function createCreditPayment(params: {
     },
   };
 
-  console.log("[Cielo:Credit] ExpirationDate enviado:", normalizeExpiration(params.cardExpiration));
+  // A validade do cartão não vai para o log (é dado de cartão). O que interessa
+  // ao diagnóstico é se o formato normalizou, não o valor.
+  console.log(
+    "[Cielo:Credit] ExpirationDate formato ok:",
+    /^\d{2}\/\d{4}$/.test(normalizeExpiration(params.cardExpiration)),
+  );
 
   const res = await fetch(`${BASE_URL}/1/sales/`, {
     method: "POST",
@@ -138,7 +144,8 @@ export async function createCreditPayment(params: {
 
   const data = await res.json();
   if (!res.ok) {
-    console.error("[Cielo:Credit] Error:", JSON.stringify(data));
+    // A resposta de erro da Cielo pode ecoar campos do que foi enviado.
+    console.error("[Cielo:Credit] Error:", JSON.stringify(redact(data)));
     const errors = Array.isArray(data) ? data : [data];
     const errorMsg = errors.map((e: Record<string, unknown>) => (e.Message as string) || (e.message as string) || JSON.stringify(e)).join(", ");
     throw new Error(`Cielo: ${errorMsg}`);
@@ -154,15 +161,55 @@ export async function createCreditPayment(params: {
   };
 }
 
-export async function getPaymentStatus(paymentId: string) {
-  const res = await fetch(`${QUERY_URL}/1/sales/${paymentId}`, {
-    headers: getHeaders(),
-  });
-  const data = await res.json();
-  return {
-    paymentId,
-    status: data.Payment?.Status as number,
-  };
+/**
+ * Consulta de detalhe da venda.
+ *
+ * O POST de notificação da Cielo carrega apenas `PaymentId` e `ChangeType` — o
+ * `MerchantOrderId` NÃO vem no corpo. Ele existe na resposta desta consulta, no
+ * nível raiz, e é o que liga o pagamento ao draft. Por isso o campo passou a ser
+ * devolvido aqui: sem ele o webhook não tem como correlacionar.
+ *
+ * Timeout de 8s e no máximo 2 tentativas — o webhook não pode ficar pendurado
+ * numa consulta lenta, e o gateway reentrega se respondermos erro.
+ */
+export async function getPaymentStatus(paymentId: string): Promise<{
+  paymentId: string;
+  status: number;
+  merchantOrderId?: string;
+  httpStatus?: number;
+}> {
+  const MAX_TENTATIVAS = 2;
+  const TIMEOUT_MS = 8000;
+  let ultimoErro: unknown = null;
+
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    try {
+      const res = await fetch(`${QUERY_URL}/1/sales/${paymentId}`, {
+        headers: getHeaders(),
+        signal: ctrl.signal,
+      });
+      const data = await res.json().catch(() => ({}));
+      return {
+        paymentId,
+        status: data.Payment?.Status as number,
+        merchantOrderId: (data.MerchantOrderId ?? data.Payment?.MerchantOrderId) as string | undefined,
+        httpStatus: res.status,
+      };
+    } catch (err) {
+      ultimoErro = err;
+      console.warn(
+        `[Cielo:getPaymentStatus] tentativa ${tentativa}/${MAX_TENTATIVAS} falhou:`,
+        (err as Error)?.message,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  console.error("[Cielo:getPaymentStatus] consulta falhou:", (ultimoErro as Error)?.message);
+  return { paymentId, status: NaN };
 }
 
 function normalizeExpiration(exp: string): string {
