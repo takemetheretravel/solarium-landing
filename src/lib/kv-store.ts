@@ -665,3 +665,162 @@ export async function markConversionSent(entry: {
     console.error("[kv-store:markConversionSent] Failed:", err);
   }
 }
+
+// ---------------------------------------------------------------------------
+// hostaway_pending_finalization — fila de marcação de pagamento na Hostaway.
+//
+// A Hostaway tem lag entre aceitar a criação da reserva e aceitar uma cobrança
+// nela. Tentar marcar na hora falha na maior parte das vezes, e segurar a
+// resposta esperando o lag passar é pior: o cliente fica na tela de pagamento.
+// Enfileirar desacopla as duas coisas — a reserva nasce e a marcação vira
+// trabalho de fundo, com retry.
+//
+// Chave por reservation_id: enfileirar duas vezes a mesma reserva não cria duas
+// entradas, então uma reentrega de webhook não vira cobrança duplicada.
+const FINALIZACAO_PREFIX = "hostaway_pending_finalization:";
+const FINALIZACAO_TTL = 60 * 60 * 24 * 30; // 30 dias
+
+/** Espaçamento entre tentativas, em minutos. Depois da última, escala. */
+export const BACKOFF_FINALIZACAO_MIN = [5, 15, 30, 60, 60, 60];
+export const MAX_TENTATIVAS_FINALIZACAO = BACKOFF_FINALIZACAO_MIN.length;
+
+export type FinalizacaoHostaway = {
+  reservation_id: number;
+  /** Cartão entra como cobrança offline; Pix, como transferência. */
+  payment_method: "credit_card_offline" | "bank_transfer";
+  amount: number;
+  currency: string;
+  draft_id?: string;
+  attempts: number;
+  created_at: string;
+  last_attempt_at: string | null;
+  last_error: string | null;
+  /** Esgotou as tentativas: sai da rotação e aparece no diagnóstico. */
+  escalado?: boolean;
+};
+
+function chaveFinalizacao(reservationId: number | string): string {
+  return `${FINALIZACAO_PREFIX}${reservationId}`;
+}
+
+/**
+ * Põe a reserva na fila. Idempotente por `reservation_id` — chamar de novo para
+ * a mesma reserva não reinicia o contador nem duplica a entrada.
+ */
+export async function enfileirarFinalizacaoHostaway(entrada: {
+  reservation_id: number;
+  payment_method: "credit_card_offline" | "bank_transfer";
+  amount: number;
+  currency?: string;
+  draft_id?: string;
+}): Promise<void> {
+  if (!entrada.reservation_id || entrada.reservation_id <= 0) return;
+  try {
+    const chave = chaveFinalizacao(entrada.reservation_id);
+    const existente = await getRedis().get<string>(chave);
+    if (existente) {
+      console.log(`[Hostaway:fila] já enfileirada reservation_id=${entrada.reservation_id}`);
+      return;
+    }
+    const registro: FinalizacaoHostaway = {
+      reservation_id: entrada.reservation_id,
+      payment_method: entrada.payment_method,
+      amount: entrada.amount,
+      currency: entrada.currency || "BRL",
+      draft_id: entrada.draft_id,
+      attempts: 0,
+      created_at: new Date().toISOString(),
+      last_attempt_at: null,
+      last_error: null,
+    };
+    await getRedis().set(chave, JSON.stringify(registro), { ex: FINALIZACAO_TTL });
+    console.log(
+      `[Hostaway:fila] enfileirada reservation_id=${entrada.reservation_id} ` +
+        `metodo=${entrada.payment_method} valor=${entrada.amount}`,
+    );
+  } catch (err) {
+    // Nunca derruba a reserva: ela já existe e o pagamento já foi capturado.
+    console.error("[kv-store:enfileirarFinalizacaoHostaway] Failed:", err);
+  }
+}
+
+export async function scanFinalizacoesHostaway(): Promise<FinalizacaoHostaway[]> {
+  try {
+    const keys = await scanKeys(`${FINALIZACAO_PREFIX}*`);
+    if (keys.length === 0) return [];
+    const values = await getRedis().mget<(string | FinalizacaoHostaway | null)[]>(...keys);
+    const out: FinalizacaoHostaway[] = [];
+    for (const raw of values) {
+      if (!raw) continue;
+      try {
+        out.push(
+          typeof raw === "string" ? (JSON.parse(raw) as FinalizacaoHostaway) : (raw as FinalizacaoHostaway),
+        );
+      } catch {
+        // ignora corrompido
+      }
+    }
+    return out;
+  } catch (err) {
+    console.error("[kv-store:scanFinalizacoesHostaway] Failed:", err);
+    return [];
+  }
+}
+
+/** Sucesso: sai da fila de vez. */
+export async function removerFinalizacaoHostaway(reservationId: number): Promise<void> {
+  try {
+    await getRedis().del(chaveFinalizacao(reservationId));
+  } catch (err) {
+    console.error("[kv-store:removerFinalizacaoHostaway] Failed:", err);
+  }
+}
+
+/** Falha: incrementa a tentativa e guarda o erro; escala ao esgotar. */
+export async function registrarFalhaFinalizacao(
+  reservationId: number,
+  erro: string,
+): Promise<FinalizacaoHostaway | null> {
+  try {
+    const chave = chaveFinalizacao(reservationId);
+    const raw = await getRedis().get<string>(chave);
+    if (!raw) return null;
+    const registro = (typeof raw === "string" ? JSON.parse(raw) : raw) as FinalizacaoHostaway;
+    registro.attempts += 1;
+    registro.last_attempt_at = new Date().toISOString();
+    registro.last_error = erro.slice(0, 400);
+    if (registro.attempts >= MAX_TENTATIVAS_FINALIZACAO) {
+      registro.escalado = true;
+      console.error(
+        `[Hostaway:fila] ESCALADO reservation_id=${reservationId} após ${registro.attempts} tentativas: ${registro.last_error}`,
+      );
+    }
+    await getRedis().set(chave, JSON.stringify(registro), { ex: FINALIZACAO_TTL });
+    return registro;
+  } catch (err) {
+    console.error("[kv-store:registrarFalhaFinalizacao] Failed:", err);
+    return null;
+  }
+}
+
+/**
+ * A entrada está madura para nova tentativa?
+ *
+ * Backoff pelo número de tentativas já feitas. Escalada sai da rotação — quem
+ * resolve é uma pessoa, olhando o diagnóstico.
+ */
+export function podeTentarFinalizacao(r: FinalizacaoHostaway, agora = Date.now()): boolean {
+  if (r.escalado) return false;
+  if (r.attempts >= MAX_TENTATIVAS_FINALIZACAO) return false;
+  if (!r.last_attempt_at) {
+    // Primeira tentativa: espera a janela inicial passar desde a criação, para
+    // dar tempo de a Hostaway registrar a reserva.
+    const desde = Date.parse(r.created_at);
+    if (!Number.isFinite(desde)) return true;
+    return agora - desde >= BACKOFF_FINALIZACAO_MIN[0] * 60_000;
+  }
+  const ultima = Date.parse(r.last_attempt_at);
+  if (!Number.isFinite(ultima)) return true;
+  const esperaMin = BACKOFF_FINALIZACAO_MIN[Math.min(r.attempts, BACKOFF_FINALIZACAO_MIN.length - 1)];
+  return agora - ultima >= esperaMin * 60_000;
+}

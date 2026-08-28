@@ -132,7 +132,10 @@
       "Bash(curl -s \"http://localhost:3123/reservar?checkin=2026-08-21&checkout=2026-08-22&guests=2\" -o /tmp/eq.html -w \"%{http_code}\\\\n\")",
       "Bash(grep -o \"Nas datas que você pediu[^\\\\\\\\\\\\\\\\\\\\\"<]*\\\\|o próximo período livre é este\\\\|O próximo fim de semana livre fecha um pacote\\\\|R\\\\$ [0-9.]*\" /tmp/eq.html)",
       "Bash(tee /dev/stderr)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "WebFetch(domain:api.hostaway.com)",
+      "Bash(grep -n \"const property = getPropertyBySlug\\\\|if \\(property\\)\\\\|return NextResponse.json\\({$\\\\|approved: true\\\\|AF-bloqueio\\\\|CapturaFalhou\\\\|BLOQUEIO FALHOU\\\\|registerOrphanAndAlert\" src/app/api/payments/braspag/credit/route.ts)",
+      "Bash(node scripts/recuperar-conversao.mjs --draft 861734d3-929c-4bf4-af67-5ff1f39a2b9b --reserva 65375857 --valor 5700 --quando 2026-08-28T02:04:17Z --dry-run)"
     ]
   }
 }

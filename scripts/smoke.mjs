@@ -304,6 +304,36 @@ function linhasQueCasam(conteudo, regex) {
 }
 
 // ---------------------------------------------------------------------------
+// 10. Toda rota que cria reserva chama enviarConversaoReserva.
+//
+// O disparo de conversao morava DENTRO de /api/payments/braspag/credit. A rota
+// Cielo, que e o caminho de producao, nunca recebeu a instrumentacao: reserva
+// criada, cliente cobrado, zero conversao registrada. Enquanto o disparo for
+// codigo dentro de uma rota, a proxima rota nasce com o mesmo buraco.
+// ---------------------------------------------------------------------------
+{
+  const CRIA_RESERVA = "createHostawayReservation";
+  const DISPARA = "enviarConversaoReserva";
+  // Arquivos que so repassam parametros de reserva, sem criar nada.
+  const ISENTOS = new Set([
+    "src/lib/hostaway.ts",          // e a implementacao, nao um chamador
+    "src/lib/reservation-recovery.ts",
+  ]);
+  const infratores = [];
+  for (const f of FONTES) {
+    if (ISENTOS.has(f.rel)) continue;
+    if (!f.conteudo.includes(CRIA_RESERVA)) continue;
+    if (f.conteudo.includes(DISPARA)) continue;
+    infratores.push(`${f.rel} cria reserva mas nao chama ${DISPARA}()`);
+  }
+  if (infratores.length) {
+    reprovar("rota cria reserva sem disparar conversao", infratores);
+  } else {
+    aprovar(`todo caminho que cria reserva chama ${DISPARA}()`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 4. Os quatro totais golden continuam corretos.
 //
 // São o contrato de preço do motor de pacotes. Se um deles mudar, o valor

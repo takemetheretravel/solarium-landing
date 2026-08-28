@@ -2,9 +2,10 @@ import {
   getDraft,
   updateDraft,
   attachReservationToPaymentIndex,
+  enfileirarFinalizacaoHostaway,
   type ReservationDraft,
 } from "@/lib/kv-store";
-import { enviarConversaoServidor, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
 import { consultBraspagPayment } from "@/lib/braspag";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
@@ -196,11 +197,19 @@ async function criarReservaSeNecessario(draftId: string, draftSnapshot: Reservat
     // Conversão server-side. Este ponto só é alcançado uma vez por draft: o
     // caminho está guardado pelo `hostawayReservationId` já gravado acima e, a
     // montante, pela idempotência do webhook_events.
-    await enviarConversaoServidor({
-      transactionId: String(reservation.reservationId),
-      value: draft.finalTotal,
+    // Pix entra como transferencia, nao cobranca de cartao.
+    await enfileirarFinalizacaoHostaway({
+      reservation_id: reservation.reservationId,
+      payment_method: "bank_transfer",
+      amount: draft.finalTotal,
       currency: "BRL",
+      draft_id: draftId,
+    });
+    await enviarConversaoReserva({
+      reservationId: reservation.reservationId,
+      value: draft.finalTotal,
       items: itensDaReserva(draft),
+      provider: "braspag",
       gaClientId: draft.gaClientId,
       gaSessionId: draft.gaSessionId,
       fbp: draft.fbp,

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { scanCspViolations, scanReconciliationPending } from "@/lib/kv-store";
+import {
+  scanCspViolations,
+  scanReconciliationPending,
+  scanFinalizacoesHostaway,
+} from "@/lib/kv-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,9 +47,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
 
-  const [violacoes, pendencias] = await Promise.all([
+  const [violacoes, pendencias, finalizacoes] = await Promise.all([
     scanCspViolations(),
     scanReconciliationPending(),
+    scanFinalizacoesHostaway(),
   ]);
 
   return NextResponse.json({
@@ -62,6 +67,24 @@ export async function GET(req: Request) {
         first_seen: v.first_seen,
         last_seen: v.last_seen,
       })),
+    },
+    hostaway_finalizacao: {
+      total_na_fila: finalizacoes.length,
+      // Escalados primeiro: são os que exigem uma pessoa.
+      escalados: finalizacoes.filter((f) => f.escalado).length,
+      itens: finalizacoes
+        .slice()
+        .sort((a, b) => Number(b.escalado ?? false) - Number(a.escalado ?? false))
+        .map((f) => ({
+          reservation_id: f.reservation_id,
+          payment_method: f.payment_method,
+          amount: f.amount,
+          attempts: f.attempts,
+          escalado: Boolean(f.escalado),
+          created_at: f.created_at,
+          last_attempt_at: f.last_attempt_at,
+          last_error: f.last_error,
+        })),
     },
     reconciliacao: {
       total: pendencias.length,

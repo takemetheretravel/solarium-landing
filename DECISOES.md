@@ -125,16 +125,48 @@ Os eventos de produto do experimento de pacotes (`pacote_visualizado`,
 
 ### Quem dispara Purchase
 
-**Somente o servidor.** `src/lib/analytics/dataLayer.ts` não exporta função de
-compra, e o smoke falha o build se alguém adicionar uma.
+**Somente o servidor**, por um **módulo único**: `enviarConversaoReserva()` em
+`src/lib/analytics/server-conversions.ts`.
 
-`enviarConversaoServidor()` manda GA4 (Measurement Protocol) e Meta (CAPI) a
-partir de três pontos, todos depois de a reserva existir no Hostaway:
+O disparo já morou dentro de `/api/payments/braspag/credit`. A rota Cielo
+(`/api/payments/credit`), que é o caminho de produção, nunca recebeu a
+instrumentação — reserva 65375857 foi criada, o cliente foi cobrado, e nenhuma
+conversão saiu. Enquanto o disparo for código dentro de uma rota, a próxima rota
+de pagamento nasce com o mesmo buraco. Por isso ele virou função, e o smoke
+reprova o build se algum arquivo chamar `createHostawayReservation` sem chamar
+`enviarConversaoReserva`.
 
-- `src/app/api/webhooks/cielo/route.ts` (Pix/cartão Cielo);
-- `src/lib/braspag-pix-confirm.ts` (Pix Braspag);
-- `src/app/api/payments/braspag/credit/route.ts` (cartão Braspag, resolvido
-  sincronamente — o webhook não age sobre ele).
+Os quatro caminhos que criam reserva, todos ligados ao módulo:
+
+| Caminho | Arquivo |
+| --- | --- |
+| Cartão Cielo | `src/app/api/payments/credit/route.ts` |
+| Cartão Braspag | `src/app/api/payments/braspag/credit/route.ts` |
+| Pix Braspag | `src/lib/braspag-pix-confirm.ts` |
+| Pix Cielo (polling) | `src/app/api/payments/pix/status/route.ts` |
+| Webhook Cielo | `src/app/api/webhooks/cielo/route.ts` |
+
+### Prazos de retroação
+
+| Destino | Janela | Campo |
+| --- | --- | --- |
+| GA4 Measurement Protocol | **72 horas** | `timestamp_micros` |
+| Meta CAPI | **7 dias** | `event_time` |
+
+Passada a janela, o GA4 aceita o evento com 204 e o descarta em silêncio. O
+script `scripts/recuperar-conversao.mjs` calcula o tempo decorrido e recusa o
+envio fora do prazo, em vez de fingir sucesso.
+
+### O 204 do GA4 não prova nada
+
+Medido: `/mp/collect` responde **204 para tudo** — measurement id inexistente,
+api_secret errado, corpo sem evento nenhum. O status HTTP do envio não distingue
+evento contabilizado de evento descartado.
+
+Por isso todo envio é seguido de uma checagem em `/debug/mp/collect`, que roda a
+mesma validação e **devolve** os problemas. É o log `[Conversao:GA4] validacao`
+que diz se o evento vale; `[Conversao:GA4] purchase enviado` diz apenas que a
+requisição foi aceita na porta.
 
 Idempotência em duas camadas:
 
@@ -205,3 +237,48 @@ Toda ramificação de erro do fluxo Braspag libera o botão:
 - depois de um 3DS malsucedido, `reinit3ds` força o efeito de init a rodar de
   novo. Zerar o ref e chamar `setBraspagReady(false)` não reexecutava o efeito
   (ref não é dependência), e a sessão nunca era recriada.
+
+## Marcação de pagamento na Hostaway
+
+Criar a reserva e registrar o pagamento nela são coisas separadas, e a Hostaway
+tem lag entre aceitar uma e aceitar a outra. Tentar marcar na hora falha quase
+sempre; segurar a resposta esperando o lag passar é pior, com o cliente na tela
+de pagamento. Então a marcação é **enfileirada**.
+
+- Fila: `hostaway_pending_finalization` no KV, chaveada por `reservation_id`
+  (enfileirar a mesma reserva duas vezes não cria duas entradas).
+- Método: `credit_card_offline` para cartão, `bank_transfer` para Pix.
+- Dreno: `GET /api/hostaway/finalizar-pagamentos`, por cron.
+- Backoff: 5, 15, 30, 60, 60, 60 minutos. Após 6 tentativas, a entrada é marcada
+  `escalado`, sai da rotação e aparece em `/api/admin/diagnostico`.
+- Idempotência: antes de registrar, consulta as cobranças já existentes na
+  reserva. Se a consulta falhar, **não registra** — cobrança duplicada na
+  contabilidade exige estorno e conversa com o hóspede; marcação pendente só
+  espera.
+
+**Cadência do cron.** O plano Hobby da Vercel só aceita cron diário: um
+`*/5 * * * *` no `vercel.json` faz a Vercel **rejeitar o deployment em
+silêncio**. O cron está em `15 6 * * *`. Para rodar a cada 5 minutos, ou migrar
+para o plano Pro e trocar a expressão, ou apontar um agendador externo para o
+endpoint com `HOSTAWAY_FINALIZE_SECRET`.
+
+**Endpoint não exercitado.** `POST /v1/reservations/{id}/offlineCharges` vem da
+documentação pública; o schema completo do corpo não é publicado. A resposta
+crua é sempre logada em `[Hostaway:pagamento]`, com status e corpo — a primeira
+execução em produção revela o contrato real, sem adivinhação.
+
+## Decomposição financeira da reserva
+
+`src/lib/hostaway-financeiro.ts` monta extras e descontos como linhas
+(`reservationFees`) a partir do draft.
+
+**Regra inegociável:** a soma das linhas tem que fechar ao centavo com o valor
+cobrado. Divergência não é arredondada — a decomposição é descartada, o caso vai
+para `[Hostaway:financeiro]` em nível `error`, e a reserva segue com
+`totalPrice`, que é o comportamento que já funciona. Um orçamento que não fecha
+é pior que um orçamento ausente: ele parece certo.
+
+O envio nasce atrás de `HOSTAWAY_ENVIAR_DECOMPOSICAO`, **desligada**. Sem poder
+exercitar o schema contra a conta real, ligar por padrão arriscaria a criação da
+reserva inteira. Com a flag desligada o cálculo roda e é logado, sem alterar
+nada.

@@ -3,6 +3,10 @@
     {
       "path": "/api/payments/braspag/pix-reconcile",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/hostaway/finalizar-pagamentos",
+      "schedule": "15 6 * * *"
     }
   ]
 }

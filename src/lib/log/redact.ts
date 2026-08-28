@@ -37,10 +37,16 @@ export const CHAVES_PROIBIDAS = [
   "token",
   "apikey",
   "api_key",
-  // Antifraude
+  // Antifraude.
+  //
+  // `FraudAnalysisStatus` e `FraudAnalysisReasonCode` NÃO entram aqui, de
+  // propósito: sem eles, o log de autorização não distingue uma aprovação de
+  // uma recusa pelo antifraude — foi a dúvida que travou a investigação das
+  // seis tentativas de 27/08. São classificação da decisão, não identificador
+  // nem credencial. O que continua fora é o que identifica a análise ou pontua
+  // o cliente.
   "fraudanalysisid",
   "fraudscore",
-  "fraudanalysisreasoncode",
   "browserfingerprint",
   "fingerprintid",
   "providermerchantid",

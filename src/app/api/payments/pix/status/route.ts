@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDraft, updateDraft } from "@/lib/kv-store";
+import { getDraft, updateDraft, enfileirarFinalizacaoHostaway } from "@/lib/kv-store";
+import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
 import { getPaymentStatus } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
@@ -86,6 +87,28 @@ export async function GET(req: Request) {
           metodo: "Pix",
           hostawayUrl: `https://dashboard.hostaway.com/reservations/${reservation.reservationId}/edit`,
           cieloId: draft.cieloPaymentId,
+        });
+
+        // Pix confirmado pelo polling: quarto caminho que cria reserva. Ficava
+        // sem conversao e sem marcacao de pagamento — o smoke apontou.
+        await enfileirarFinalizacaoHostaway({
+          reservation_id: reservation.reservationId,
+          payment_method: "bank_transfer",
+          amount: draft.finalTotal,
+          currency: "BRL",
+          draft_id: draftId,
+        });
+        await enviarConversaoReserva({
+          reservationId: reservation.reservationId,
+          value: draft.finalTotal,
+          items: itensDaReserva(draft),
+          provider: "cielo",
+          gaClientId: draft.gaClientId,
+          gaSessionId: draft.gaSessionId,
+          fbp: draft.fbp,
+          fbc: draft.fbc,
+          email: draft.guestEmail,
+          phone: draft.guestPhone,
         });
       } else {
         // Pix confirmado, Hostaway falhou → marca para criação manual

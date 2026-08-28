@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
-import { getDraft, updateDraft } from "@/lib/kv-store";
+import {
+  getDraft,
+  updateDraft,
+  savePaymentIndex,
+  attachReservationToPaymentIndex,
+  enfileirarFinalizacaoHostaway,
+} from "@/lib/kv-store";
+import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { decomposicaoParaEnvio } from "@/lib/hostaway-financeiro";
 import { createCreditPayment } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
@@ -85,7 +93,28 @@ export async function POST(req: Request) {
 
     await updateDraft(draftId, { cieloPaymentId: result.paymentId, status: "paid" });
 
+    // Índice de correlação: o webhook da Cielo não traz MerchantOrderId no corpo,
+    // e sem este registro ele depende de ida à API para achar a reserva.
+    if (result.paymentId) {
+      await savePaymentIndex({
+        payment_id: result.paymentId,
+        merchant_order_id: draftId,
+        draft_id: draftId,
+        provider: "cielo",
+        method: "card",
+      });
+    }
+
     const property = getPropertyBySlug(draft.propertyId);
+    if (!property) {
+      // CAMINHO SILENCIOSO FECHADO. Antes: `if (property)` sem `else` — a
+      // propriedade não resolvendo pulava a criação da reserva inteira e a rota
+      // ainda respondia `approved: true`. Cliente cobrado, sem reserva, sem log.
+      console.error(
+        "🚨 PAGO SEM RESERVA — propriedade não resolvida " +
+          JSON.stringify({ draftId, propertyId: draft.propertyId, cieloPaymentId: result.paymentId }),
+      );
+    }
     if (property) {
       const totalDiscount = (draft.couponDiscount || 0) + (draft.pixDiscount || 0);
         // Bloquear ANTES de criar: o check-in do listing e as 15h e o hospede fica
@@ -114,6 +143,7 @@ export async function POST(req: Request) {
         shortNotice: draft.shortNotice,
         serviceExtras: enrichServiceExtras(draft.serviceExtras),
         opExtras: draft.opExtras,
+        linhasFinanceiras: decomposicaoParaEnvio(draft, valorACobrar, draftId) ?? undefined,
         ...paramsDePacote(draft),
       }) : null;
       if (!bloqueio.todasBloqueadas) {
@@ -149,6 +179,41 @@ export async function POST(req: Request) {
           shortNotice: draft.shortNotice,
           serviceExtras: enrichServiceExtras(draft.serviceExtras),
           opExtras: opExtrasForEmail,
+        });
+
+        if (result.paymentId) {
+          await attachReservationToPaymentIndex(result.paymentId, reservation.reservationId);
+        }
+
+        // Marcação de pagamento na Hostaway: ENFILEIRADA, não tentada aqui. A
+        // Hostaway tem lag entre criar a reserva e aceitar a cobrança, e uma
+        // tentativa síncrona falharia na maioria das vezes — segurar a resposta
+        // esperando o lag passar é pior ainda, com o cliente na tela.
+        await enfileirarFinalizacaoHostaway({
+          reservation_id: reservation.reservationId,
+          payment_method: "credit_card_offline",
+          amount: valorACobrar,
+          currency: "BRL",
+          draft_id: draftId,
+        });
+
+        // Conversão pelo módulo único, o mesmo que a rota Braspag chama.
+        await enviarConversaoReserva({
+          reservationId: reservation.reservationId,
+          value: valorACobrar,
+          items: itensDaReserva(draft),
+          provider: "cielo",
+          gaClientId: draft.gaClientId,
+          gaSessionId: draft.gaSessionId,
+          fbp: draft.fbp,
+          fbc: draft.fbc,
+          email: draft.guestEmail,
+          phone: draft.guestPhone,
+          clientIpAddress:
+            req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+            req.headers.get("x-real-ip") ||
+            undefined,
+          clientUserAgent: req.headers.get("user-agent") || undefined,
         });
       } else {
         // Pagamento aprovado, Hostaway falhou → marca para criação manual
