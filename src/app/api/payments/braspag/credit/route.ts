@@ -8,6 +8,7 @@ import {
   enfileirarFinalizacaoHostaway,
 } from "@/lib/kv-store";
 import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { finalizarPagamentoEmSegundoPlano } from "@/lib/hostaway-finalizacao";
 import { decomposicaoParaEnvio } from "@/lib/hostaway-financeiro";
 import { redact } from "@/lib/log/redact";
 import {
@@ -508,6 +509,13 @@ export async function POST(req: Request) {
           currency: "BRL",
           draft_id: draftId,
         });
+        // Camada 1: tenta ja, em segundo plano. A fila acima e a rede de seguranca.
+        finalizarPagamentoEmSegundoPlano({
+          reservation_id: reservation.reservationId,
+          payment_method: "credit_card_offline",
+          amount: valorACobrar,
+          currency: "BRL",
+        });
 
         // Conversão pelo módulo único, o mesmo que a rota Cielo chama.
         await enviarConversaoReserva({
@@ -515,7 +523,8 @@ export async function POST(req: Request) {
           value: valorACobrar,
           items: itensDaReserva(draft),
           provider: "braspag",
-          gaClientId: draft.gaClientId,
+          rotaOrigem: "braspag",
+                    gaClientId: draft.gaClientId,
           gaSessionId: draft.gaSessionId,
           fbp: draft.fbp,
           fbc: draft.fbc,

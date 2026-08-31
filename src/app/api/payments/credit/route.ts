@@ -7,6 +7,7 @@ import {
   enfileirarFinalizacaoHostaway,
 } from "@/lib/kv-store";
 import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { finalizarPagamentoEmSegundoPlano } from "@/lib/hostaway-finalizacao";
 import { decomposicaoParaEnvio } from "@/lib/hostaway-financeiro";
 import { createCreditPayment } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
@@ -196,6 +197,13 @@ export async function POST(req: Request) {
           currency: "BRL",
           draft_id: draftId,
         });
+        // Camada 1: tenta ja, em segundo plano. A fila acima e a rede de seguranca.
+        finalizarPagamentoEmSegundoPlano({
+          reservation_id: reservation.reservationId,
+          payment_method: "credit_card_offline",
+          amount: valorACobrar,
+          currency: "BRL",
+        });
 
         // Conversão pelo módulo único, o mesmo que a rota Braspag chama.
         await enviarConversaoReserva({
@@ -203,7 +211,8 @@ export async function POST(req: Request) {
           value: valorACobrar,
           items: itensDaReserva(draft),
           provider: "cielo",
-          gaClientId: draft.gaClientId,
+          rotaOrigem: "cielo",
+                    gaClientId: draft.gaClientId,
           gaSessionId: draft.gaSessionId,
           fbp: draft.fbp,
           fbc: draft.fbc,

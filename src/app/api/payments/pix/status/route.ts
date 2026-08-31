@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDraft, updateDraft, enfileirarFinalizacaoHostaway } from "@/lib/kv-store";
 import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { finalizarPagamentoEmSegundoPlano } from "@/lib/hostaway-finalizacao";
 import { getPaymentStatus } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
@@ -98,11 +99,19 @@ export async function GET(req: Request) {
           currency: "BRL",
           draft_id: draftId,
         });
+        // Camada 1: tenta ja, em segundo plano. A fila acima e a rede de seguranca.
+        finalizarPagamentoEmSegundoPlano({
+          reservation_id: reservation.reservationId,
+          payment_method: "bank_transfer",
+          amount: draft.finalTotal,
+          currency: "BRL",
+        });
         await enviarConversaoReserva({
           reservationId: reservation.reservationId,
           value: draft.finalTotal,
           items: itensDaReserva(draft),
           provider: "cielo",
+          rotaOrigem: "pix",
           gaClientId: draft.gaClientId,
           gaSessionId: draft.gaSessionId,
           fbp: draft.fbp,

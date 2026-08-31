@@ -21,6 +21,7 @@ import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
 import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { finalizarPagamentoEmSegundoPlano } from "@/lib/hostaway-finalizacao";
 import { redact } from "@/lib/log/redact";
 
 export const runtime = "nodejs";
@@ -237,12 +238,20 @@ export async function POST(req: Request) {
           currency: "BRL",
           draft_id: draftId,
         });
+        // Camada 1: tenta ja, em segundo plano. A fila acima e a rede de seguranca.
+        finalizarPagamentoEmSegundoPlano({
+          reservation_id: reservation.reservationId,
+          payment_method: draft.paymentMethod === "pix" ? "bank_transfer" : "credit_card_offline",
+          amount: draft.finalTotal,
+          currency: "BRL",
+        });
         await enviarConversaoReserva({
           reservationId: reservation.reservationId,
           value: draft.finalTotal,
           items: itensDaReserva(draft),
           provider: "cielo",
-          gaClientId: draft.gaClientId,
+          rotaOrigem: "webhook",
+                    gaClientId: draft.gaClientId,
           gaSessionId: draft.gaSessionId,
           fbp: draft.fbp,
           fbc: draft.fbc,

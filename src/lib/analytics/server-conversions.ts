@@ -1,5 +1,9 @@
 import crypto from "crypto";
-import { conversionAlreadySent, markConversionSent } from "@/lib/kv-store";
+import {
+  conversionAlreadySent,
+  markConversionSent,
+  type RotaOrigemConversao,
+} from "@/lib/kv-store";
 
 /**
  * Envio de conversão server-side (GA4 Measurement Protocol + Meta CAPI).
@@ -47,6 +51,9 @@ export type ConversaoParams = {
   timestampMicros?: number;
   /** Segundos epoch, para o `event_time` do Meta. */
   eventTimeSegundos?: number;
+  /** Caminho que originou a conversão — vai para o diagnóstico. */
+  rotaOrigem?: RotaOrigemConversao;
+  provider?: string;
 };
 
 function sha256(valor: string): string {
@@ -85,7 +92,7 @@ async function validarPayloadGa4(
   apiSecret: string,
   corpo: unknown,
   transactionId: string,
-): Promise<void> {
+): Promise<{ ok: boolean; mensagens?: string[] }> {
   try {
     const url = `https://www.google-analytics.com/debug/mp/collect?measurement_id=${encodeURIComponent(
       measurementId,
@@ -108,14 +115,17 @@ async function validarPayloadGa4(
     const problemas = dados?.validationMessages ?? [];
     if (problemas.length === 0) {
       console.log(`[Conversao:GA4] validacao ok transaction_id=${transactionId}`);
-      return;
+      return { ok: true };
     }
+    const mensagens = problemas.map((m) => `${m.validationCode ?? "?"}: ${m.description ?? "?"}`);
     console.error(
-      `[Conversao:GA4] VALIDACAO REPROVOU transaction_id=${transactionId} — ` +
-        problemas.map((m) => `${m.validationCode ?? "?"}: ${m.description ?? "?"}`).join(" | "),
+      `[Conversao:GA4] VALIDACAO REPROVOU transaction_id=${transactionId} — ` + mensagens.join(" | "),
     );
+    return { ok: false, mensagens };
   } catch (err) {
-    console.warn(`[Conversao:GA4] validacao indisponivel transaction_id=${transactionId}:`, (err as Error)?.message);
+    const msg = (err as Error)?.message ?? "erro";
+    console.log(`[Conversao:GA4] validacao indisponivel transaction_id=${transactionId}: ${msg}`);
+    return { ok: false, mensagens: [`validacao indisponivel: ${msg}`] };
   }
 }
 
@@ -130,11 +140,23 @@ async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "fa
   const measurementId = process.env.GA4_MEASUREMENT_ID;
   const apiSecret = process.env.GA4_API_SECRET;
   if (!measurementId || !apiSecret) {
-    console.warn(
+    // `console.log`, nao `warn`: o export de log da Vercel nao captura warn —
+    // 0 linhas de warn em 4.552 exportadas. Um aviso invisivel e um silencio.
+    console.log(
       `[Conversao:GA4] pulado transaction_id=${p.transactionId} — ` +
         `GA4_MEASUREMENT_ID=${measurementId ? "ok" : "AUSENTE"} ` +
         `GA4_API_SECRET=${apiSecret ? "ok" : "AUSENTE"}`,
     );
+    // Registra a AUSENCIA: sem isso, "nao ha registro" e ambiguo entre "nunca
+    // tentou" e "tentou e faltou credencial".
+    await markConversionSent({
+      transactionId: p.transactionId,
+      destino: "ga4",
+      httpStatus: null,
+      resultado: "pulado_sem_credencial",
+      rotaOrigem: p.rotaOrigem,
+      provider: p.provider,
+    });
     return "pulado";
   }
 
@@ -181,8 +203,15 @@ async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "fa
     const r = await postJson(url, corpo);
     // Registrado mesmo em não-2xx: o hit saiu, e repetir sem saber se o GA4 o
     // aceitou é o caminho para contar a mesma reserva duas vezes.
-    await markConversionSent({ transactionId: p.transactionId, destino: "ga4", httpStatus: r.status });
     if (!r.ok) {
+      await markConversionSent({
+        transactionId: p.transactionId,
+        destino: "ga4",
+        httpStatus: r.status,
+        resultado: "falha",
+        rotaOrigem: p.rotaOrigem,
+        provider: p.provider,
+      });
       console.error(`[Conversao:GA4] falhou http=${r.status} transaction_id=${p.transactionId}`);
       return "falhou";
     }
@@ -191,7 +220,18 @@ async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "fa
     // sem nenhum evento. "enviado" aqui significa "aceito na porta", não
     // "contabilizado". Quem responde se o evento vale é a validação abaixo.
     console.log(`[Conversao:GA4] purchase enviado http=${r.status} transaction_id=${p.transactionId}`);
-    await validarPayloadGa4(measurementId, apiSecret, corpo, p.transactionId);
+    const validacao = await validarPayloadGa4(measurementId, apiSecret, corpo, p.transactionId);
+    // Registrado DEPOIS da validacao: o veredito e parte do registro, senao o
+    // diagnostico so saberia que houve 204 — que nao significa nada.
+    await markConversionSent({
+      transactionId: p.transactionId,
+      destino: "ga4",
+      httpStatus: r.status,
+      resultado: validacao.ok ? "ok" : "falha",
+      validacaoGa4: validacao,
+      rotaOrigem: p.rotaOrigem,
+      provider: p.provider,
+    });
     return "enviado";
   } catch (err) {
     // Sem resposta do servidor: NÃO marca. Erro de rede pode significar que o
@@ -206,7 +246,19 @@ async function enviarMeta(p: ConversaoParams): Promise<"enviado" | "pulado" | "f
   const pixelId = process.env.META_PIXEL_ID;
   const token = process.env.META_CAPI_ACCESS_TOKEN;
   if (!pixelId || !token) {
-    console.warn("[Conversao:Meta] pulado — META_PIXEL_ID/META_CAPI_ACCESS_TOKEN não definidos.");
+    console.log(
+      `[Conversao:Meta] pulado transaction_id=${p.transactionId} — ` +
+        `META_PIXEL_ID=${pixelId ? "ok" : "AUSENTE"} ` +
+        `META_CAPI_ACCESS_TOKEN=${token ? "ok" : "AUSENTE"}`,
+    );
+    await markConversionSent({
+      transactionId: p.transactionId,
+      destino: "meta",
+      httpStatus: null,
+      resultado: "pulado_sem_credencial",
+      rotaOrigem: p.rotaOrigem,
+      provider: p.provider,
+    });
     return "pulado";
   }
 
@@ -250,7 +302,14 @@ async function enviarMeta(p: ConversaoParams): Promise<"enviado" | "pulado" | "f
         },
       ],
     });
-    await markConversionSent({ transactionId: p.transactionId, destino: "meta", httpStatus: r.status });
+    await markConversionSent({
+      transactionId: p.transactionId,
+      destino: "meta",
+      httpStatus: r.status,
+      resultado: r.ok ? "ok" : "falha",
+      rotaOrigem: p.rotaOrigem,
+      provider: p.provider,
+    });
     if (!r.ok) {
       console.error(`[Conversao:Meta] falhou http=${r.status} event_id=${p.transactionId}`);
       return "falhou";
@@ -316,6 +375,8 @@ export async function enviarConversaoReserva(params: {
   clientUserAgent?: string;
   timestampMicros?: number;
   eventTimeSegundos?: number;
+  /** Caminho que criou a reserva. Aparece em /api/admin/diagnostico. */
+  rotaOrigem?: RotaOrigemConversao;
 }): Promise<{ ga4: string; meta: string }> {
   const transactionId = String(params.reservationId);
   console.log(`[Conversao] reserva=${transactionId} provider=${params.provider}`);
@@ -334,6 +395,8 @@ export async function enviarConversaoReserva(params: {
     clientUserAgent: params.clientUserAgent,
     timestampMicros: params.timestampMicros,
     eventTimeSegundos: params.eventTimeSegundos,
+    rotaOrigem: params.rotaOrigem,
+    provider: params.provider,
   });
 }
 

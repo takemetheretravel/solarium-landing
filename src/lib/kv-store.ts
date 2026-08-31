@@ -615,11 +615,28 @@ export async function scanCspViolations(): Promise<CspViolation[]> {
 const CONVERSION_PREFIX = "conversions_sent:";
 const CONVERSION_TTL = 60 * 60 * 24 * 730; // 24 meses
 
+/** De onde partiu o envio. Responde "qual caminho criou esta reserva?". */
+export type RotaOrigemConversao =
+  | "braspag"
+  | "cielo"
+  | "pix"
+  | "webhook"
+  | "recuperacao-manual";
+
 export type ConversionSent = {
   transaction_id: string;
   destino: "ga4" | "meta";
   sent_at: string;
   http_status: number | null;
+  /** `pulado_sem_credencial` também é registrado: a ausência é um desfecho. */
+  resultado?: "ok" | "falha" | "pulado_sem_credencial";
+  /**
+   * Veredito de `/debug/mp/collect`. O 204 do envio real não distingue evento
+   * contabilizado de descartado — só esta validação responde.
+   */
+  validacao_ga4?: { ok: boolean; mensagens?: string[] };
+  rota_origem?: RotaOrigemConversao;
+  provider?: string;
 };
 
 function chaveConversao(transactionId: string, destino: "ga4" | "meta"): string {
@@ -647,6 +664,10 @@ export async function markConversionSent(entry: {
   transactionId: string;
   destino: "ga4" | "meta";
   httpStatus: number | null;
+  resultado?: "ok" | "falha" | "pulado_sem_credencial";
+  validacaoGa4?: { ok: boolean; mensagens?: string[] };
+  rotaOrigem?: RotaOrigemConversao;
+  provider?: string;
 }): Promise<void> {
   if (!entry.transactionId) return;
   try {
@@ -655,6 +676,10 @@ export async function markConversionSent(entry: {
       destino: entry.destino,
       sent_at: new Date().toISOString(),
       http_status: entry.httpStatus,
+      resultado: entry.resultado,
+      validacao_ga4: entry.validacaoGa4,
+      rota_origem: entry.rotaOrigem,
+      provider: entry.provider,
     };
     await getRedis().set(
       chaveConversao(entry.transactionId, entry.destino),
@@ -664,6 +689,48 @@ export async function markConversionSent(entry: {
   } catch (err) {
     console.error("[kv-store:markConversionSent] Failed:", err);
   }
+}
+
+/**
+ * Registros de conversão, mais recentes primeiro.
+ *
+ * Base da pergunta "a venda de ontem foi contabilizada?", respondida sem abrir
+ * o painel do Google nem o do Meta.
+ */
+export async function scanConversoesEnviadas(limite = 50): Promise<ConversionSent[]> {
+  try {
+    const keys = await scanKeys(`${CONVERSION_PREFIX}*`);
+    if (keys.length === 0) return [];
+    const values = await getRedis().mget<(string | ConversionSent | null)[]>(...keys);
+    const out: ConversionSent[] = [];
+    for (const raw of values) {
+      if (!raw) continue;
+      try {
+        out.push(typeof raw === "string" ? (JSON.parse(raw) as ConversionSent) : (raw as ConversionSent));
+      } catch {
+        // ignora corrompido
+      }
+    }
+    return out.sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1)).slice(0, limite);
+  } catch (err) {
+    console.error("[kv-store:scanConversoesEnviadas] Failed:", err);
+    return [];
+  }
+}
+
+/** Os dois registros (GA4 e Meta) de uma reserva específica. */
+export async function lerConversoesDaReserva(transactionId: string): Promise<ConversionSent[]> {
+  const out: ConversionSent[] = [];
+  for (const destino of ["ga4", "meta"] as const) {
+    try {
+      const raw = await getRedis().get<string>(chaveConversao(transactionId, destino));
+      if (!raw) continue;
+      out.push((typeof raw === "string" ? JSON.parse(raw) : raw) as ConversionSent);
+    } catch {
+      // ignora
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

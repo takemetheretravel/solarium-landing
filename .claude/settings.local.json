@@ -135,7 +135,10 @@
       "Bash(git commit -q -m ' *)",
       "WebFetch(domain:api.hostaway.com)",
       "Bash(grep -n \"const property = getPropertyBySlug\\\\|if \\(property\\)\\\\|return NextResponse.json\\({$\\\\|approved: true\\\\|AF-bloqueio\\\\|CapturaFalhou\\\\|BLOQUEIO FALHOU\\\\|registerOrphanAndAlert\" src/app/api/payments/braspag/credit/route.ts)",
-      "Bash(node scripts/recuperar-conversao.mjs --draft 861734d3-929c-4bf4-af67-5ff1f39a2b9b --reserva 65375857 --valor 5700 --quando 2026-08-28T02:04:17Z --dry-run)"
+      "Bash(node scripts/recuperar-conversao.mjs --draft 861734d3-929c-4bf4-af67-5ff1f39a2b9b --reserva 65375857 --valor 5700 --quando 2026-08-28T02:04:17Z --dry-run)",
+      "Bash(node scripts/checar-ambiente.mjs)",
+      "Bash(node -c \"console.log\\(\\)\")",
+      "Bash(node --check scripts/recuperar-conversao.mjs)"
     ]
   }
 }

@@ -282,3 +282,69 @@ O envio nasce atrás de `HOSTAWAY_ENVIAR_DECOMPOSICAO`, **desligada**. Sem poder
 exercitar o schema contra a conta real, ligar por padrão arriscaria a criação da
 reserva inteira. Com a flag desligada o cálculo roda e é logado, sem alterar
 nada.
+
+## TTL do draft: 2 horas é curto demais
+
+Os identificadores de atribuição (`gaClientId`, `gaSessionId`, `_fbp`, `_fbc`,
+`gclid`, `utm_*`) vivem no draft e **morrem com ele**. O TTL é de 2 horas.
+
+Um checkout com várias tentativas de cartão — recusa, troca de cartão, 3DS que
+falha e obriga a recomeçar — passa fácil de duas horas. Quando isso acontece, a
+conversão pode até ser enviada, mas entra sem origem: aparece como tráfego
+direto, e a campanha que trouxe o hóspede não recebe crédito nenhum.
+
+Foi o que aconteceu com a reserva 65375857. O draft `861734d3-…` já havia
+expirado quando a recuperação foi tentada, e todos os identificadores estavam
+perdidos em definitivo.
+
+**Avaliar aumentar para 24 horas numa rodada futura.** O custo é chave a mais no
+Redis por 22 horas; o benefício é atribuição que sobrevive a um checkout difícil.
+
+### O que sobrevive: os dados da reserva
+
+A reserva na Hostaway guarda e-mail, telefone e nome do hóspede depois que o
+draft evapora. O Meta CAPI aceita esses campos como parâmetros de
+correspondência, com SHA-256 e normalização (minúsculas, sem espaços; telefone
+só dígitos com código do país). Não substitui `_fbp`/`_fbc`, mas recupera boa
+parte da atribuição — e é o que `scripts/recuperar-conversao.mjs` usa.
+
+O GA4 não tem equivalente: sem `client_id` real, só resta um identificador
+sintético, que conta a receita mas cria um usuário fantasma e atribui a compra à
+origem direta. Por ser um trade-off e não um detalhe técnico, o script só faz
+isso com `--ga4-sintetico` explícito.
+
+## Marcação de pagamento: duas camadas
+
+O cron sozinho não resolve o problema real — o hóspede abre o portal minutos
+depois de reservar e vê "não pago". Mesmo a cada 5 minutos haveria janela.
+
+**Camada 1, imediata.** `finalizarPagamentoEmSegundoPlano()` usa o `waitUntil` da
+Vercel para tentar em 10s, 30s e 60s **depois** que a resposta já foi entregue —
+o hóspede nunca espera. Orçamento total de 90s; estourou, desiste em silêncio.
+(`after()` do Next só existe da versão 15; aqui é `@vercel/functions`.)
+
+**Camada 2, cron.** A fila `hostaway_pending_finalization` com backoff de
+5/15/30/60/60/60 minutos, e escalada após 6 tentativas.
+
+As duas usam a mesma guarda de idempotência: consultam as cobranças da reserva
+antes de registrar, e **não registram** se a consulta falhar.
+
+`POST /api/hostaway/finalizar-pagamentos` existe para agendador externo, com
+`HOSTAWAY_FINALIZE_SECRET` — é a saída quando o plano da Vercel não permite cron
+sub-diário.
+
+## Diagnóstico auto-explicativo
+
+`GET /api/admin/diagnostico` responde "a conversão da reserva X chegou?" **sem
+abrir o painel do Google nem o do Meta**:
+
+- `saude` — presença de credenciais (booleanos, nunca valores), contagem de
+  conversões das últimas 24h por destino e resultado, estado da fila Hostaway e
+  da reconciliação;
+- `conversoes` — últimos 50 registros com `resultado`, `validacao_ga4`,
+  `rota_origem` e `provider`;
+- `?transaction_id=<id>` — filtra uma reserva específica.
+
+`pulado_sem_credencial` é registrado como desfecho. Sem isso, "não há registro"
+seria ambíguo entre "nunca tentou" e "tentou e faltou credencial" — e foi
+exatamente essa ambiguidade que escondeu o problema do GA4.

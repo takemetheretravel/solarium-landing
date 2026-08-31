@@ -35,7 +35,7 @@ function autorizado(req: Request): boolean {
   return false;
 }
 
-export async function GET(req: Request) {
+async function drenar(req: Request) {
   const temSegredo =
     (process.env.HOSTAWAY_FINALIZE_SECRET || process.env.BRASPAG_RECONCILE_SECRET || "").trim() ||
     (process.env.CRON_SECRET || "").trim();
@@ -96,4 +96,24 @@ export async function GET(req: Request) {
 
   console.log("[Hostaway:fila] execução: " + JSON.stringify(resultado));
   return NextResponse.json({ ok: true, ...resultado });
+}
+
+/**
+ * GET — usado pelo cron da Vercel, que só emite GET.
+ */
+export async function GET(req: Request) {
+  return drenar(req);
+}
+
+/**
+ * POST — mesma coisa, para agendador EXTERNO.
+ *
+ * Existe porque a cadência do cron depende do plano da Vercel: no Hobby só há
+ * cron diario, e uma expressao de 5 minutos no `vercel.json` faz a Vercel rejeitar o
+ * deployment em silencio. Com este POST, um agendador de fora (cron-job.org e
+ * afins) chama a cada 5 minutos usando `HOSTAWAY_FINALIZE_SECRET`, sem depender
+ * do plano.
+ */
+export async function POST(req: Request) {
+  return drenar(req);
 }

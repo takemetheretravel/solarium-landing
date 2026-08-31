@@ -37,6 +37,7 @@ function lerArgs(argv) {
     else if (a === "--valor") args.valor = Number(argv[++i]);
     else if (a === "--quando") args.quando = argv[++i];
     else if (a === "--moeda") args.moeda = argv[++i];
+    else if (a === "--ga4-sintetico") args.ga4Sintetico = true;
   }
   return args;
 }
@@ -81,6 +82,9 @@ const GA4_ID = (process.env.GA4_MEASUREMENT_ID || "").trim();
 const GA4_SECRET = (process.env.GA4_API_SECRET || "").trim();
 const META_PIXEL = (process.env.META_PIXEL_ID || "").trim();
 const META_TOKEN = (process.env.META_CAPI_ACCESS_TOKEN || "").trim();
+const HOSTAWAY_ACCOUNT = (process.env.HOSTAWAY_ACCOUNT_ID || "").trim();
+const HOSTAWAY_KEY = (process.env.HOSTAWAY_API_KEY || "").trim();
+const HOSTAWAY_BASE = (process.env.HOSTAWAY_API_BASE_URL || "https://api.hostaway.com/v1").trim();
 const REDIS_URL = (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "").trim();
 const REDIS_TOKEN = (process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "").trim();
 
@@ -124,12 +128,73 @@ async function marcarEnviado(transactionId, destino, httpStatus) {
     destino,
     sent_at: new Date().toISOString(),
     http_status: httpStatus,
+    resultado: httpStatus && httpStatus >= 200 && httpStatus < 300 ? "ok" : "falha",
+    rota_origem: "recuperacao-manual",
   });
   // 24 meses, igual ao TTL da aplicação.
   await redis(["SET", `conversions_sent:${destino}:${transactionId}`, registro, "EX", String(60 * 60 * 24 * 730)]);
 }
 
 const sha256 = (v) => createHash("sha256").update(String(v).trim().toLowerCase()).digest("hex");
+
+// ---------------------------------------------------------------------------
+// Hostaway: a reserva ainda tem os dados do hospede depois que o draft expirou.
+// E a unica fonte de correspondencia que sobrevive ao TTL de 2h.
+
+async function tokenHostaway() {
+  if (!HOSTAWAY_ACCOUNT || !HOSTAWAY_KEY) return null;
+  try {
+    const res = await fetch(`${HOSTAWAY_BASE}/accessTokens`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: HOSTAWAY_ACCOUNT,
+        client_secret: HOSTAWAY_KEY,
+        scope: "general",
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return j?.access_token ?? null;
+  } catch (err) {
+    console.error("  [hostaway] token falhou:", err.message);
+    return null;
+  }
+}
+
+async function lerReservaHostaway(id) {
+  const token = await tokenHostaway();
+  if (!token) return null;
+  try {
+    const res = await fetch(`${HOSTAWAY_BASE}/reservations/${id}`, {
+      headers: { Authorization: `Bearer ${token}`, "Cache-Control": "no-cache" },
+    });
+    const j = await res.json().catch(() => ({}));
+    return j?.result ?? null;
+  } catch (err) {
+    console.error("  [hostaway] consulta falhou:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Normalizacao dos parametros de correspondencia do Meta.
+ *
+ * A especificacao exige minusculas, sem espaco nas pontas, e telefone so com
+ * digitos incluindo o codigo do pais. Hash fora do padrao nao casa com ninguem —
+ * e um envio que parece ter funcionado e nao atribuiu nada.
+ */
+function normalizarTelefone(bruto) {
+  let d = String(bruto || "").replace(/\D/g, "");
+  if (!d) return null;
+  // Numero brasileiro sem o 55 na frente: acrescenta.
+  if (d.length <= 11) d = "55" + d;
+  return d;
+}
+function normalizarNome(bruto) {
+  const v = String(bruto || "").trim().toLowerCase();
+  return v || null;
+}
 
 // ---------------------------------------------------------------------------
 
@@ -181,7 +246,29 @@ async function main() {
     console.log(`  ${k.padEnd(14)} ${v === null ? "AUSENTE (null)" : v}`);
   }
 
-  const valor = args.valor ?? draft?.finalTotal ?? null;
+  // --- Reserva na Hostaway: sobrevive ao TTL do draft ---------------------
+  console.log("");
+  console.log("[1b] Dados do hospede (Hostaway)");
+  let reserva = null;
+  if (!HOSTAWAY_ACCOUNT || !HOSTAWAY_KEY) {
+    console.log("  Credenciais Hostaway ausentes — sem correspondencia por hash.");
+  } else {
+    reserva = await lerReservaHostaway(transactionId);
+    if (!reserva) {
+      console.log(`  reserva ${transactionId}: NAO ENCONTRADA na Hostaway.`);
+    } else {
+      // Presenca, nunca o valor: sao dados pessoais.
+      const tem = (v) => (v ? "presente" : "AUSENTE");
+      console.log(`  reserva ${transactionId}: encontrada`);
+      console.log(`    email      ${tem(reserva.guestEmail)}`);
+      console.log(`    telefone   ${tem(reserva.phone)}`);
+      console.log(`    nome       ${tem(reserva.guestFirstName)} / ${tem(reserva.guestLastName)}`);
+      console.log(`    cidade     ${tem(reserva.guestCity)}`);
+      console.log(`    pais       ${tem(reserva.guestCountry)}`);
+    }
+  }
+
+  const valor = args.valor ?? draft?.finalTotal ?? reserva?.totalPrice ?? null;
   if (valor === null) {
     console.error("\n  Sem --valor e sem draft para inferir. Abortando.");
     process.exit(1);
@@ -215,6 +302,14 @@ async function main() {
     console.log("  GA4:  PULADO — ja registrado em conversions_sent (idempotencia).");
   } else if (!ga4NoPrazo) {
     console.log("  GA4:  PULADO — fora da janela de 72h; o envio seria aceito e descartado.");
+  } else if (!campos.gaClientId && !args.ga4Sintetico) {
+    // Decisao de trade-off que NAO e minha: sem client_id real o evento entra
+    // com identificador sintetico, aparece como origem direta e cria um usuario
+    // fantasma nos relatorios. Passe --ga4-sintetico se aceitar isso.
+    console.log("  GA4:  PULADO — sem client_id real.");
+    console.log("        Um identificador sintetico contaria a receita, mas criaria um");
+    console.log("        usuario fantasma e atribuiria a compra a origem direta.");
+    console.log("        Passe --ga4-sintetico se quiser assim mesmo.");
   } else {
     const corpo = {
       client_id: campos.gaClientId || `server.${sha256(transactionId).slice(0, 16)}`,
@@ -266,11 +361,36 @@ async function main() {
   } else if (!metaNoPrazo) {
     console.log("  Meta: PULADO — fora da janela de 7 dias.");
   } else {
+    // Correspondencia por hash. Sem fbp/fbc (o draft expirou), sao estes campos
+    // que permitem ao Meta reconhecer a pessoa. Todos SHA-256, normalizados
+    // conforme a especificacao — hash fora do padrao nao casa com ninguem.
     const userData = {};
-    if (campos.fbp) userData.fbp = campos.fbp;
-    if (campos.fbc) userData.fbc = campos.fbc;
-    if (draft?.guestEmail) userData.em = [sha256(draft.guestEmail)];
-    if (draft?.guestPhone) userData.ph = [sha256(String(draft.guestPhone).replace(/\D/g, ""))];
+    const usados = [];
+    if (campos.fbp) { userData.fbp = campos.fbp; usados.push("fbp"); }
+    if (campos.fbc) { userData.fbc = campos.fbc; usados.push("fbc"); }
+
+    const email = draft?.guestEmail || reserva?.guestEmail;
+    if (email) { userData.em = [sha256(email)]; usados.push("em"); }
+
+    const tel = normalizarTelefone(draft?.guestPhone || reserva?.phone);
+    if (tel) { userData.ph = [sha256(tel)]; usados.push("ph"); }
+
+    const fn = normalizarNome(draft?.guestFirstName || reserva?.guestFirstName);
+    if (fn) { userData.fn = [sha256(fn)]; usados.push("fn"); }
+    const ln = normalizarNome(draft?.guestLastName || reserva?.guestLastName);
+    if (ln) { userData.ln = [sha256(ln)]; usados.push("ln"); }
+
+    const cidade = normalizarNome(reserva?.guestCity);
+    if (cidade) { userData.ct = [sha256(cidade.replace(/\s/g, ""))]; usados.push("ct"); }
+    const estado = normalizarNome(reserva?.guestState);
+    if (estado) { userData.st = [sha256(estado.replace(/\s/g, ""))]; usados.push("st"); }
+    const pais = normalizarNome(reserva?.guestCountry);
+    if (pais) { userData.country = [sha256(pais)]; usados.push("country"); }
+
+    console.log(`  Meta: parametros de correspondencia: ${usados.length ? usados.join(", ") : "NENHUM"}`);
+    if (usados.length === 0) {
+      console.log("  Meta: sem nenhum parametro, o evento conta receita mas nao atribui.");
+    }
 
     const corpo = {
       data: [
