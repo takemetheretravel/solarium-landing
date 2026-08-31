@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { saveDraft, getDraft } from "@/lib/kv-store";
 import { calculatePrice, getCalendar } from "@/lib/hostaway";
+import { chegadaPermitida } from "@/lib/pricing/restricoes-chegada";
 import { getPropertyBySlug } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
 import { getPackageBySlug, validatePackageDates, packageTotalActive, extrasTotalActive, isExtraActive } from "@/config/packages";
@@ -184,6 +185,28 @@ export async function POST(req: NextRequest) {
   const guests = Number(body.guests || 2);
   if (!Number.isFinite(guests) || guests < 1 || guests > property.capacity.max) {
     return NextResponse.json({ error: "Número de hóspedes inválido" }, { status: 400 });
+  }
+
+  // ÚLTIMA BARREIRA antes de gerar cobrança.
+  //
+  // A restrição de chegada vem do PMS e já foi checada no cálculo de preço, mas
+  // aquela consulta pode ter sido feita minutos antes, e o calendário muda. Aqui
+  // é o ponto sem volta: depois disto o hóspede vai para a tela de pagamento.
+  //
+  // `indeterminado` também recusa. Vender uma entrada que a Hostaway pode não
+  // aceitar custa uma reserva desfeita e uma conversa constrangida; recusar
+  // custa um clique a mais e uma saída pelo WhatsApp.
+  const chegada = await chegadaPermitida(property.slug, body.checkin);
+  if (!chegada.permitida) {
+    console.error(
+      "[Draft] chegada recusada " +
+        JSON.stringify({
+          property: property.slug,
+          checkin: body.checkin,
+          indeterminado: chegada.indeterminado,
+        }),
+    );
+    return NextResponse.json({ error: chegada.motivo }, { status: 400 });
   }
 
   // ---------------------------------------------------------------------

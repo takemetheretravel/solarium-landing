@@ -304,6 +304,33 @@ function linhasQueCasam(conteudo, regex) {
 }
 
 // ---------------------------------------------------------------------------
+// 11. A criacao de draft valida restricao de chegada.
+//
+// O PMS recusa chegada em certos dias (`closedOnArrival`). Enquanto o site nao
+// lia esse campo, o pacote Dois Casais oferecia entrada no domingo no Completo:
+// o hospede escolhia, pagava, e a reserva nao podia ser efetivada. O draft e a
+// ULTIMA barreira antes da cobranca — ela nao pode ser pulada.
+// ---------------------------------------------------------------------------
+{
+  const VALIDACAO = "chegadaPermitida";
+  const draft = FONTES.find((f) => f.rel === "src/app/api/reservations/draft/route.ts");
+  if (!draft) {
+    reprovar("rota de criacao de draft nao encontrada", [
+      "src/app/api/reservations/draft/route.ts sumiu ou mudou de lugar",
+    ]);
+    // Exige a CHAMADA, nao a mencao: `import { chegadaPermitida }` sozinho
+    // satisfaria um `includes()` e deixaria passar a rota sem validacao.
+  } else if (!draft.conteudo.includes(`await ${VALIDACAO}(`)) {
+    reprovar("draft criado sem validar restricao de chegada", [
+      `src/app/api/reservations/draft/route.ts nao chama ${VALIDACAO}()`,
+      "Sem isso, uma data que a Hostaway recusa vira cobranca.",
+    ]);
+  } else {
+    aprovar(`criacao de draft valida chegada via ${VALIDACAO}()`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 4. Os quatro totais golden continuam corretos.
 //
 // São o contrato de preço do motor de pacotes. Se um deles mudar, o valor

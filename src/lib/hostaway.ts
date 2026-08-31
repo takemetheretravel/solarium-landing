@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet, cacheClear, cacheDelete } from "./hostaway-cache";
+import { mensagemChegadaBloqueada } from "./pricing/mensagem-chegada";
 
 const BASE_URL = process.env.HOSTAWAY_API_BASE_URL || "https://api.hostaway.com/v1";
 const ACCOUNT_ID = process.env.HOSTAWAY_ACCOUNT_ID || "";
@@ -58,6 +59,7 @@ export type HostawayPriceFailure = {
     | "unavailable-day"
     | "min-stay-not-met"
     | "max-stay-exceeded"
+    | "closed-on-arrival"
     | "api-error";
   message: string;
   meta?: Record<string, unknown>;
@@ -392,6 +394,23 @@ export async function calculatePriceDetailed(
         reason: "unavailable-day",
         message: `A data ${blocked.date} está reservada.`,
         meta: { date: blocked.date, status: blocked.status },
+      },
+    };
+  }
+
+  // CHEGADA fechada no PMS (`closedOnArrival`).
+  //
+  // A noite pode estar livre e a chegada, proibida — são coisas diferentes, e
+  // enquanto só a primeira era checada o site vendia entrada num dia que a
+  // Hostaway recusa. A restrição vale SÓ para o primeiro dia: passar por cima
+  // de um domingo no meio da estadia continua permitido.
+  const primeiroDia = days.find((d) => d.date === checkin) ?? days[0];
+  if (primeiroDia?.closedOnArrival === 1) {
+    return {
+      failure: {
+        reason: "closed-on-arrival",
+        message: mensagemChegadaBloqueada(checkin),
+        meta: { date: checkin },
       },
     };
   }

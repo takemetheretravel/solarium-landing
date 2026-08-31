@@ -205,3 +205,68 @@ Toda ramificação de erro do fluxo Braspag libera o botão:
 - depois de um 3DS malsucedido, `reinit3ds` força o efeito de init a rodar de
   novo. Zerar o ref e chamar `setBraspagReady(false)` não reexecutava o efeito
   (ref não é dependência), e a sessão nunca era recriada.
+
+## Restrições de chegada (closedOnArrival)
+
+### De onde vêm: da Hostaway, a cada consulta
+
+O PMS marca `closedOnArrival` **dia a dia** no calendário, e o site lê esse
+campo. Não há lista local de dias bloqueados.
+
+A alternativa — configurar "domingo" por listing — foi descartada por medição,
+não por preferência. Levantamento de 01/09 a 31/10/2026:
+
+| Listing | Domingos com chegada fechada | Segundas | minimumStay observado |
+| --- | --- | --- | --- |
+| Sol 1 (316007) | **8 de 8** | 1 de 8 | 1, 3 |
+| Sol 2 (316005) | **7 de 8** | 2 de 8 | 1, 2, 3 |
+| Completo (316006) | **8 de 8** | 2 de 8 | 1, 3 |
+
+O Sol 2 libera um domingo. Uma regra local de dia da semana erraria já nesse
+caso, e desatualizaria em silêncio na primeira mudança feita no PMS. Lendo da
+API, mudar a regra na Hostaway basta — o site acompanha sozinho.
+
+**A restrição é de CHEGADA, não de ocupação.** Passar por cima de um domingo no
+meio da estadia sempre foi permitido e continua sendo: só o dia de entrada é
+consultado.
+
+### Onde é decidido
+
+`src/lib/pricing/restricoes-chegada.ts` é a única fonte. O Completo ocupa as
+**duas** listings: basta uma delas recusar a chegada para a data estar fora — a
+casa não pode ser entregue pela metade. Era um furo à parte, porque
+`/api/availability/check` consultava só o listing do próprio `property.id`.
+
+`indeterminado` distingue "a Hostaway disse não" de "não consegui perguntar".
+Quem está prestes a cobrar trata os dois como recusa.
+
+### A validação é do servidor; o front espelha
+
+| Camada | Onde | Papel |
+| --- | --- | --- |
+| Preço | `calculatePriceDetailed` (falha `closed-on-arrival`) | cobre `/api/price` e `/api/pacotes/preco` |
+| Disponibilidade | `/api/availability/check` | usa o módulo compartilhado |
+| **Draft** | `/api/reservations/draft` | **última barreira antes da cobrança** |
+| Interface | `AvisoChegada.tsx` + `/api/restricoes/chegada` | conveniência: avisa antes, não decide |
+
+O front usa `<input type="date">` nativo, que não desabilita dias avulsos. A
+marcação visual é a lista das próximas datas bloqueadas sob o campo, mais a
+mensagem imediata quando a data escolhida é uma delas — com saída pelo WhatsApp.
+Nenhum evento de analytics com `value` dispara numa data inválida.
+
+O smoke reprova o build se a criação de draft deixar de chamar
+`chegadaPermitida()`.
+
+### Restrições que o site ainda NÃO respeita
+
+Levantadas nesta rodada, **não corrigidas** — ficam para decisão:
+
+| Restrição | Estado |
+| --- | --- |
+| `minimumStay` | Respeitada em `/api/availability/check` e em `calculatePriceDetailed`. **OK.** |
+| `closedOnDeparture` | Só em `/api/availability/check`. O cálculo de preço e a criação de draft **ignoram** — dá para vender uma saída que o PMS recusa. |
+| `maximumStay` | Declarado no tipo e há a razão `max-stay-exceeded`, mas **nada** compara. Estadia acima do teto passa. |
+| Gap rules | Não consultadas. A API expõe via regras de disponibilidade; o site não lê. |
+
+O `closedOnDeparture` é o mais próximo do problema desta rodada: mesma classe de
+falha, na outra ponta da estadia.

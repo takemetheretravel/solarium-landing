@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCalendar } from "@/lib/hostaway";
+import { chegadaPermitida } from "@/lib/pricing/restricoes-chegada";
 import { getPropertyBySlug } from "@/config/properties";
 
 export const runtime = "nodejs";
@@ -58,17 +59,19 @@ export async function POST(req: Request) {
     // Index by date
     const dayMap = new Map(raw.map((d) => [d.date, d]));
 
-    // 1. Check-in day must not be closedOnArrival
+    // 1. Chegada permitida?
+    //
+    // Pelo modulo compartilhado, nao pelo calendario carregado acima: o Completo
+    // ocupa DUAS listings, e esta rota so consultava a do proprio `property.id`.
+    // Bastava a outra listing recusar a chegada para a data passar aqui e
+    // quebrar na hora de efetivar.
     const checkinDay = dayMap.get(checkin);
     if (!checkinDay) {
       return NextResponse.json({ available: false, reason: "Não foi possível verificar a data de check-in." });
     }
-    if (checkinDay.closedOnArrival === 1) {
-      const diaSemana = new Date(checkin + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long" });
-      return NextResponse.json({
-        available: false,
-        reason: `Não realizamos check-in em ${diaSemana}s. Por favor, escolha outra data de entrada.`,
-      });
+    const chegada = await chegadaPermitida(property.slug, checkin);
+    if (!chegada.permitida) {
+      return NextResponse.json({ available: false, reason: chegada.motivo });
     }
 
     // 2. All nights between checkin and checkout must be available
