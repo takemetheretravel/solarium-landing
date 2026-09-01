@@ -422,13 +422,20 @@ valor novo, diferença e `createdAt` do draft.
 Nenhuma página do checkout foi alterada: as rotas já devolvem `returnMessage`/
 `error`, e a tela de pagamento já renderiza esses campos.
 
-### Pendência conhecida
+### Um dono só para a restrição de chegada
 
-O bloco de chegada em `revalidar-draft.ts` lê `closedOnArrival` do calendário
-diretamente. Quando `fix/restricoes-chegada-hostaway` entrar, trocar por
-`chegadaPermitida()` de `src/lib/pricing/restricoes-chegada.ts` — é a mesma
-leitura, e preço/restrição não podem ter dois donos. Há um comentário no arquivo
-marcando o ponto.
+A revalidação chama `chegadaPermitida()` de `src/lib/pricing/restricoes-chegada.ts`
+— a **mesma** função que a criação de draft e a exibição usam. Houve uma versão
+intermediária que lia `closedOnArrival` do calendário por conta própria dentro de
+`revalidar-draft.ts`; foi removida no merge. Duas leituras da mesma regra
+divergem no dia em que uma das duas muda, e a mensagem ao hóspede passa a ter
+duas redações. A mensagem também vem de lá (`mensagemChegadaBloqueada`), com o
+link do WhatsApp anexado.
+
+Uma diferença deliberada: `chegadaPermitida()` deixa exceção de rede subir, o que
+é adequado em quem exibe preço. Na antessala da cobrança não é: a revalidação
+envolve a chamada em `try/catch` e converte a exceção em recusa `indeterminado`
+com mensagem explicada, em vez de um 500 genérico da rota.
 
 ## Cron da finalização Hostaway a cada 5 minutos (exige plano Pro)
 

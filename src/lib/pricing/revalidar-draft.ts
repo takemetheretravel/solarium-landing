@@ -1,7 +1,7 @@
-import { calculatePriceDetailed, getCalendar } from "@/lib/hostaway";
+import { calculatePriceDetailed } from "@/lib/hostaway";
+import { chegadaPermitida } from "@/lib/pricing/restricoes-chegada";
 import { getPropertyBySlug } from "@/config/properties";
 import { getPacoteV2 } from "@/config/precos-e-extras";
-import { listingsForProperty } from "@/config/operational-extras";
 import { SITE } from "@/config/site";
 import type { ReservationDraft } from "@/lib/kv-store";
 
@@ -73,11 +73,27 @@ export async function revalidarDraftAntesDeCobrar(
   // 1) Chegada. Checada primeiro: se o PMS fechou o dia de entrada, nem preço
   //    nem disponibilidade importam — a reserva não pode ser criada.
   //
-  //    NOTA DE MANUTENÇÃO: quando `fix/restricoes-chegada-hostaway` entrar,
-  //    trocar este bloco por `chegadaPermitida(property.slug, draft.checkin)`
-  //    de `@/lib/pricing/restricoes-chegada`, que é a mesma leitura.
-  const chegada = await chegadaAindaPermitida(property.slug, draft.checkin);
-  if (!chegada.ok) {
+  //    A leitura é `chegadaPermitida()`, a MESMA que a criação de draft e a
+  //    exibição usam. Restrição de chegada não pode ter dois donos: uma segunda
+  //    leitura própria aqui divergiria da primeira no dia em que uma das duas
+  //    mudasse. A mensagem também vem de lá — voz da marca num lugar só.
+  //
+  //    O try/catch existe porque `chegadaPermitida()` deixa exceção de rede
+  //    subir. Aqui, na antessala da cobrança, "não consegui perguntar" tem que
+  //    virar recusa explicada, não um 500 genérico da rota.
+  let chegada: Awaited<ReturnType<typeof chegadaPermitida>>;
+  try {
+    chegada = await chegadaPermitida(property.slug, draft.checkin);
+  } catch (err) {
+    console.error("[Revalidacao:chegada] falha ao consultar a Hostaway:", (err as Error)?.message);
+    chegada = {
+      permitida: false,
+      motivo: "Não conseguimos confirmar esta data agora. Fale com a gente pelo WhatsApp.",
+      indeterminado: true,
+    };
+  }
+
+  if (!chegada.permitida) {
     console.error(
       "[Revalidacao] chegada bloqueada " +
         JSON.stringify({
@@ -85,16 +101,14 @@ export async function revalidarDraftAntesDeCobrar(
           property: draft.propertyId,
           checkin: draft.checkin,
           indeterminado: chegada.indeterminado,
+          criadoEm: draft.createdAt,
         }),
     );
     return {
       ok: false,
       motivo: chegada.indeterminado ? "indeterminado" : "chegada-bloqueada",
       status: 409,
-      mensagem: chegada.indeterminado
-        ? `Não conseguimos confirmar esta data agora. Fale com a gente pelo WhatsApp: ${LINK_WHATSAPP}`
-        : `A casa deixou de aceitar entrada em ${formatarData(draft.checkin)} desde que você começou esta reserva. ` +
-          `Escolha outra data de chegada ou fale com a gente pelo WhatsApp: ${LINK_WHATSAPP}`,
+      mensagem: `${chegada.motivo} ${LINK_WHATSAPP}`,
     };
   }
 
@@ -189,43 +203,4 @@ export async function revalidarDraftAntesDeCobrar(
   }
 
   return { ok: true };
-}
-
-/**
- * O dia de chegada segue aceito? O Completo ocupa as duas listings: basta uma
- * recusar para a data estar fora.
- *
- * `indeterminado` separa "a Hostaway disse não" de "não consegui perguntar".
- * Antes de cobrar, os dois param a tentativa — mas a mensagem ao hóspede muda.
- */
-async function chegadaAindaPermitida(
-  propertySlug: string,
-  checkin: string,
-): Promise<{ ok: true } | { ok: false; indeterminado: boolean }> {
-  const listings = listingsForProperty(propertySlug);
-  if (listings.length === 0) return { ok: false, indeterminado: true };
-
-  let calendarios: Awaited<ReturnType<typeof getCalendar>>[];
-  try {
-    calendarios = await Promise.all(listings.map((id) => getCalendar(id, checkin, checkin)));
-  } catch (err) {
-    console.error("[Revalidacao:chegada] falha ao ler calendário:", (err as Error)?.message);
-    return { ok: false, indeterminado: true };
-  }
-
-  for (const dias of calendarios) {
-    const dia = dias.find((d) => d.date === checkin);
-    // Sem o dia no calendário não dá para afirmar nada — e não inventamos
-    // permissão em cima de uma cobrança.
-    if (!dia) return { ok: false, indeterminado: true };
-    if (dia.closedOnArrival === 1) return { ok: false, indeterminado: false };
-  }
-
-  return { ok: true };
-}
-
-/** `2026-09-14` → `14/09/2026`. Sem Date: a string já é a data local do PMS. */
-function formatarData(iso: string): string {
-  const [ano, mes, dia] = (iso || "").split("-");
-  return ano && mes && dia ? `${dia}/${mes}/${ano}` : iso;
 }
