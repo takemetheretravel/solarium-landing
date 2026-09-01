@@ -5,8 +5,11 @@ import {
   pushAuthLog,
   savePaymentIndex,
   attachReservationToPaymentIndex,
+  enfileirarFinalizacaoHostaway,
 } from "@/lib/kv-store";
-import { enviarConversaoServidor, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { finalizarPagamentoEmSegundoPlano } from "@/lib/hostaway-finalizacao";
+import { decomposicaoParaEnvio } from "@/lib/hostaway-financeiro";
 import { redact } from "@/lib/log/redact";
 import {
   createBraspagAuthorization,
@@ -235,6 +238,11 @@ export async function POST(req: Request) {
               PaymentId: paymentIdResolvido,
               Status: statusResolvido,
               ProviderReturnCode: providerReturnCode,
+              // Sem estes dois, `Status: 1` no log é ambíguo: não dá para saber
+              // se a transação seguiu para captura ou se o antifraude a barrou
+              // logo depois. Classificam a decisão; não identificam a análise.
+              FraudAnalysisStatus: rawFa.Status ?? auth.fraudStatus ?? null,
+              FraudAnalysisReasonCode: rawFa.FraudAnalysisReasonCode ?? auth.fraudReasonCode ?? null,
               providerUsed: auth.providerUsed ?? null,
               httpStatus: auth.status,
               cardLast4,
@@ -345,7 +353,21 @@ export async function POST(req: Request) {
       const afLabel =
         auth.fraudStatus === 2 ? "Reject" : auth.fraudStatus === 3 ? "Review" : "sem retorno (undefined)";
       // Sem score nem id do antifraude: os dois ficam só no authlog do KV.
-      console.error("[Braspag:AF-bloqueio]", JSON.stringify({ draftId, paymentId: auth.paymentId, fraudStatus: auth.fraudStatus }));
+      // `autorizadoMasCancelado` é a linha que explica o par que confundia a
+      // leitura do log: autorização com Status 1 e ProviderReturnCode "00" que
+      // mesmo assim não vira reserva, porque o void desfez a autorização.
+      console.error(
+        "[Braspag:AF-bloqueio]",
+        JSON.stringify({
+          draftId,
+          paymentId: auth.paymentId,
+          fraudStatus: auth.fraudStatus,
+          fraudReasonCode: auth.fraudReasonCode ?? null,
+          decisao: afLabel,
+          autorizadoMasCancelado: true,
+          reservaCriada: false,
+        }),
+      );
       await enviarAlertaRecusa({
         hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
         propriedade: draft.propertyName,
@@ -399,6 +421,15 @@ export async function POST(req: Request) {
     await updateDraft(draftId, { braspagPaymentId: auth.paymentId, status: "paid" });
 
     const property = getPropertyBySlug(draft.propertyId);
+    if (!property) {
+      // CAMINHO SILENCIOSO FECHADO. Antes: `if (property)` sem `else` — a
+      // propriedade não resolvendo pulava a criação da reserva inteira e a rota
+      // ainda respondia `approved: true`. Cliente cobrado, sem reserva, sem log.
+      console.error(
+        "🚨 PAGO SEM RESERVA — propriedade não resolvida " +
+          JSON.stringify({ draftId, propertyId: draft.propertyId, paymentId: auth.paymentId }),
+      );
+    }
     if (property) {
       const totalDiscount = (draft.couponDiscount || 0) + (draft.pixDiscount || 0);
       const reservationParams = {
@@ -424,6 +455,7 @@ export async function POST(req: Request) {
         shortNotice: draft.shortNotice,
         serviceExtras: enrichServiceExtras(draft.serviceExtras),
         opExtras: draft.opExtras,
+        linhasFinanceiras: decomposicaoParaEnvio(draft, valorACobrar, draftId) ?? undefined,
         ...paramsDePacote(draft),
       };
       // Bloquear ANTES de criar. O check-in do listing e as 15h e o hospede
@@ -468,16 +500,31 @@ export async function POST(req: Request) {
         if (auth.paymentId) {
           await attachReservationToPaymentIndex(auth.paymentId, reservation.reservationId);
         }
-        // Conversão server-side. O cartão é resolvido SINCRONAMENTE aqui (o
-        // webhook não age sobre ele), então este é o único ponto de disparo do
-        // fluxo de cartão. Roda uma vez: a rota só chega aqui quando a reserva
-        // acabou de ser criada.
-        await enviarConversaoServidor({
-          transactionId: String(reservation.reservationId),
-          value: valorACobrar,
+
+        // Marcação de pagamento na Hostaway: ENFILEIRADA (ver a rota Cielo).
+        await enfileirarFinalizacaoHostaway({
+          reservation_id: reservation.reservationId,
+          payment_method: "credit_card_offline",
+          amount: valorACobrar,
           currency: "BRL",
+          draft_id: draftId,
+        });
+        // Camada 1: tenta ja, em segundo plano. A fila acima e a rede de seguranca.
+        finalizarPagamentoEmSegundoPlano({
+          reservation_id: reservation.reservationId,
+          payment_method: "credit_card_offline",
+          amount: valorACobrar,
+          currency: "BRL",
+        });
+
+        // Conversão pelo módulo único, o mesmo que a rota Cielo chama.
+        await enviarConversaoReserva({
+          reservationId: reservation.reservationId,
+          value: valorACobrar,
           items: itensDaReserva(draft),
-          gaClientId: draft.gaClientId,
+          provider: "braspag",
+          rotaOrigem: "braspag",
+                    gaClientId: draft.gaClientId,
           gaSessionId: draft.gaSessionId,
           fbp: draft.fbp,
           fbc: draft.fbc,

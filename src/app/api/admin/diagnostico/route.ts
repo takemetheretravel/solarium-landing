@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { scanCspViolations, scanReconciliationPending } from "@/lib/kv-store";
+import {
+  scanCspViolations,
+  scanReconciliationPending,
+  scanFinalizacoesHostaway,
+  scanConversoesEnviadas,
+  lerConversoesDaReserva,
+  type ConversionSent,
+} from "@/lib/kv-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,10 +50,33 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
 
-  const [violacoes, pendencias] = await Promise.all([
+  // `?transaction_id=` responde sobre UMA reserva; sem ele, as ultimas 50.
+  const filtro = new URL(req.url).searchParams.get("transaction_id")?.trim();
+
+  const [violacoes, pendencias, finalizacoes, conversoes] = await Promise.all([
     scanCspViolations(),
     scanReconciliationPending(),
+    scanFinalizacoesHostaway(),
+    filtro ? lerConversoesDaReserva(filtro) : scanConversoesEnviadas(50),
   ]);
+
+  // Saude: presenca de credencial, NUNCA o valor.
+  const ga4Ok = Boolean(process.env.GA4_MEASUREMENT_ID && process.env.GA4_API_SECRET);
+  const metaOk = Boolean(process.env.META_PIXEL_ID && process.env.META_CAPI_ACCESS_TOKEN);
+
+  const limite24h = Date.now() - 24 * 60 * 60 * 1000;
+  const ultimas24h = conversoes.filter((c) => Date.parse(c.sent_at) >= limite24h);
+  function contar(lista: ConversionSent[], destino: "ga4" | "meta") {
+    const doDestino = lista.filter((c) => c.destino === destino);
+    return {
+      total: doDestino.length,
+      ok: doDestino.filter((c) => c.resultado === "ok").length,
+      falha: doDestino.filter((c) => c.resultado === "falha").length,
+      pulado_sem_credencial: doDestino.filter((c) => c.resultado === "pulado_sem_credencial").length,
+      // Registros anteriores a esta rodada nao tem `resultado`.
+      sem_classificacao: doDestino.filter((c) => !c.resultado).length,
+    };
+  }
 
   return NextResponse.json({
     csp: {
@@ -62,6 +92,52 @@ export async function GET(req: Request) {
         first_seen: v.first_seen,
         last_seen: v.last_seen,
       })),
+    },
+    saude: {
+      // Booleanos: dizem se da para enviar, sem revelar o que esta configurado.
+      ga4_credenciais_presentes: ga4Ok,
+      meta_credenciais_presentes: metaOk,
+      conversoes_ultimas_24h: { ga4: contar(ultimas24h, "ga4"), meta: contar(ultimas24h, "meta") },
+      hostaway_finalizacao: {
+        total: finalizacoes.length,
+        escalados: finalizacoes.filter((f) => f.escalado).length,
+        aguardando: finalizacoes.filter((f) => !f.escalado).length,
+      },
+      reconciliacao_pendente: pendencias.length,
+    },
+    conversoes: {
+      filtro_transaction_id: filtro ?? null,
+      total: conversoes.length,
+      itens: conversoes.map((c) => ({
+        transaction_id: c.transaction_id,
+        destino: c.destino,
+        enviado_em: c.sent_at,
+        http_status: c.http_status,
+        // `null` = registro anterior a esta rodada, sem classificacao.
+        resultado: c.resultado ?? null,
+        // So o GA4 tem validacao: e o unico cujo 204 nao prova nada.
+        validacao_ga4: c.destino === "ga4" ? (c.validacao_ga4 ?? null) : null,
+        rota_origem: c.rota_origem ?? null,
+        provider: c.provider ?? null,
+      })),
+    },
+    hostaway_finalizacao: {
+      total_na_fila: finalizacoes.length,
+      // Escalados primeiro: são os que exigem uma pessoa.
+      escalados: finalizacoes.filter((f) => f.escalado).length,
+      itens: finalizacoes
+        .slice()
+        .sort((a, b) => Number(b.escalado ?? false) - Number(a.escalado ?? false))
+        .map((f) => ({
+          reservation_id: f.reservation_id,
+          payment_method: f.payment_method,
+          amount: f.amount,
+          attempts: f.attempts,
+          escalado: Boolean(f.escalado),
+          created_at: f.created_at,
+          last_attempt_at: f.last_attempt_at,
+          last_error: f.last_error,
+        })),
     },
     reconciliacao: {
       total: pendencias.length,

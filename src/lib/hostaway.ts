@@ -592,6 +592,11 @@ export async function createHostawayReservation(params: {
   dataLimiteCancelamentoExtras?: string;
   /** Reserva vinda do preview de teste — marcação explícita para a equipe. */
   reservaTeste?: boolean;
+  /**
+   * Linhas do orçamento (extras/descontos). Já vêm reconciliadas: quem monta
+   * só devolve a lista quando a soma fecha ao centavo com `totalPrice`.
+   */
+  linhasFinanceiras?: { name: string; amount: number; type: string }[];
 }): Promise<{ reservationId: number } | null> {
   try {
     const token = await getAccessToken();
@@ -743,6 +748,17 @@ export async function createHostawayReservation(params: {
       body.customFieldValues = customFieldValues;
     }
 
+    // Decomposição do orçamento (extras e descontos como linhas). Só entra no
+    // corpo quando fecha ao centavo COM o total cobrado e a flag está ligada —
+    // ver `hostaway-financeiro.ts`. `totalPrice` continua sendo a autoridade.
+    if (params.linhasFinanceiras?.length) {
+      body.reservationFees = params.linhasFinanceiras.map((l) => ({
+        name: l.name,
+        amount: l.amount,
+        type: l.type,
+      }));
+    }
+
     console.log("[Hostaway:createReservation] Body:", JSON.stringify(body));
 
     const res = await fetch(`${BASE_URL}/reservations`, {
@@ -768,25 +784,12 @@ export async function createHostawayReservation(params: {
 
     console.log("[Hostaway:createReservation] Created:", reservationId);
 
-    // Marcação como paga não está disponível via API pública Hostaway.
-    // Fluxo: receber pagamento Cielo → marcar manualmente no Hostaway (1 minuto por reserva).
-    console.log("⚠️  AÇÃO MANUAL NECESSÁRIA — MARCAR RESERVA COMO PAGA NO HOSTAWAY ⚠️");
-    console.log(
-      JSON.stringify(
-        {
-          reservationId,
-          dashboardUrl: `https://dashboard.hostaway.com/reservations/${reservationId}/edit`,
-          valorCobrado: `R$ ${params.totalPrice.toFixed(2)}`,
-          metodoPagamento: params.paymentMethod === "pix" ? "Pix" : `Cartão ${params.installments || 1}x`,
-          acao:
-            "Abrir reserva → Add transaction → Amount: " +
-            params.totalPrice.toFixed(2) +
-            " → Date: hoje → Confirmar",
-        },
-        null,
-        2,
-      ),
-    );
+    // A marcação de pagamento NÃO é feita aqui: ela vai para a fila
+    // `hostaway_pending_finalization` e é drenada pelo cron
+    // /api/hostaway/finalizar-pagamentos, com retry e backoff. A Hostaway tem
+    // lag entre aceitar a reserva e aceitar uma cobrança nela, então tentar
+    // agora falharia quase sempre — e segurar a resposta esperando o lag é pior,
+    // com o cliente na tela de pagamento.
 
     return { reservationId };
   } catch (err) {
@@ -854,4 +857,96 @@ function dataPorExtenso(iso: string): string {
   const [ano, mes, dia] = iso.split("-").map(Number);
   if (!ano || !mes || !dia) return iso;
   return `${dia} de ${MESES_PT[mes - 1]}`;
+}
+
+// ---------------------------------------------------------------------------
+// Marcação de pagamento na reserva (cobrança offline).
+//
+// ATENÇÃO — endpoint confirmado apenas pela documentação pública, NÃO exercitado
+// contra a conta real. A doc da Hostaway descreve
+// `POST /v1/reservations/{id}/offlineCharges` para registrar cobrança fora dos
+// canais, com `PUT .../offlineCharges/{chargeId}` para atualizar. O formato do
+// corpo não está publicado por completo, então:
+//   - a resposta crua é SEMPRE logada, com status e corpo, para que a primeira
+//     execução em produção revele o contrato de verdade;
+//   - falha nunca derruba nada: a entrada volta para a fila e tenta de novo.
+// Se o endpoint responder 404/400 de forma consistente, o log traz o suficiente
+// para ajustar sem adivinhação.
+
+export type CobrancaHostaway = {
+  id?: number;
+  amount?: number;
+  paymentMethod?: string;
+  status?: string;
+};
+
+/**
+ * Cobranças já registradas na reserva. Base da idempotência: nunca registrar
+ * pagamento duplicado — cobrar o hóspede duas vezes na contabilidade é pior que
+ * deixar a marcação pendente.
+ *
+ * `null` = não foi possível consultar. O chamador NÃO deve registrar nesse caso.
+ */
+export async function listarCobrancasHostaway(
+  reservationId: number,
+): Promise<CobrancaHostaway[] | null> {
+  const json = await authFetch<{ result?: CobrancaHostaway[] }>(
+    `/reservations/${reservationId}/offlineCharges`,
+  );
+  if (json === null) return null;
+  return json.result ?? [];
+}
+
+/**
+ * Registra a cobrança offline. Só chamar depois de `listarCobrancasHostaway`
+ * confirmar que ainda não existe uma equivalente.
+ */
+export async function registrarPagamentoHostaway(params: {
+  reservationId: number;
+  amount: number;
+  currency?: string;
+  paymentMethod: "credit_card_offline" | "bank_transfer";
+}): Promise<{ ok: boolean; status: number; erro?: string }> {
+  try {
+    const token = await getAccessToken();
+    if (!token) return { ok: false, status: 0, erro: "sem token Hostaway" };
+
+    const body = {
+      amount: Math.round(params.amount * 100) / 100,
+      currency: params.currency || "BRL",
+      paymentMethod: params.paymentMethod,
+      // Data da cobrança = agora. O pagamento real já aconteceu no gateway;
+      // aqui é só o registro contábil no PMS.
+      chargeDate: new Date().toISOString().slice(0, 10),
+      isCompleted: 1,
+    };
+
+    const res = await fetch(`${BASE_URL}/reservations/${params.reservationId}/offlineCharges`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      cache: "no-store",
+      body: JSON.stringify(body),
+    });
+
+    const texto = await res.text().catch(() => "");
+    // Log integral do desfecho: é ele que vai revelar o contrato real na
+    // primeira execução em produção.
+    console.log(
+      `[Hostaway:pagamento] reservation_id=${params.reservationId} http=${res.status} ` +
+        `metodo=${params.paymentMethod} valor=${body.amount} resposta=${texto.slice(0, 300)}`,
+    );
+
+    if (!res.ok) {
+      return { ok: false, status: res.status, erro: texto.slice(0, 300) || `HTTP ${res.status}` };
+    }
+    return { ok: true, status: res.status };
+  } catch (err) {
+    const msg = (err as Error)?.message ?? "erro desconhecido";
+    console.error(`[Hostaway:pagamento] reservation_id=${params.reservationId} exceção:`, msg);
+    return { ok: false, status: 0, erro: msg };
+  }
 }

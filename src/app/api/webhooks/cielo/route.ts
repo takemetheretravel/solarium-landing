@@ -11,6 +11,7 @@ import {
   savePaymentIndex,
   attachReservationToPaymentIndex,
   pushReconciliationPending,
+  enfileirarFinalizacaoHostaway,
 } from "@/lib/kv-store";
 import { getPaymentStatus } from "@/lib/cielo";
 import { createHostawayReservation } from "@/lib/hostaway";
@@ -19,7 +20,8 @@ import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
-import { enviarConversaoServidor, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { finalizarPagamentoEmSegundoPlano } from "@/lib/hostaway-finalizacao";
 import { redact } from "@/lib/log/redact";
 
 export const runtime = "nodejs";
@@ -229,12 +231,27 @@ export async function POST(req: Request) {
         // identificador canônico é o número da reserva. Roda uma vez por
         // PaymentId: a guarda de idempotência do topo do handler já garantiu
         // que este trecho não executa de novo para a mesma notificação.
-        await enviarConversaoServidor({
-          transactionId: String(reservation.reservationId),
-          value: draft.finalTotal,
+        await enfileirarFinalizacaoHostaway({
+          reservation_id: reservation.reservationId,
+          payment_method: draft.paymentMethod === "pix" ? "bank_transfer" : "credit_card_offline",
+          amount: draft.finalTotal,
           currency: "BRL",
+          draft_id: draftId,
+        });
+        // Camada 1: tenta ja, em segundo plano. A fila acima e a rede de seguranca.
+        finalizarPagamentoEmSegundoPlano({
+          reservation_id: reservation.reservationId,
+          payment_method: draft.paymentMethod === "pix" ? "bank_transfer" : "credit_card_offline",
+          amount: draft.finalTotal,
+          currency: "BRL",
+        });
+        await enviarConversaoReserva({
+          reservationId: reservation.reservationId,
+          value: draft.finalTotal,
           items: itensDaReserva(draft),
-          gaClientId: draft.gaClientId,
+          provider: "cielo",
+          rotaOrigem: "webhook",
+                    gaClientId: draft.gaClientId,
           gaSessionId: draft.gaSessionId,
           fbp: draft.fbp,
           fbc: draft.fbc,
