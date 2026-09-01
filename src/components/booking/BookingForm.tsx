@@ -8,6 +8,11 @@ import ExtrasNaCasa, { serializarSelecao } from "@/components/extras/ExtrasNaCas
 import { pacotesV2Ativo } from "@/config/flags";
 import { useFetchDeduplicado, chaveDe } from "@/lib/client-fetch";
 import { pushBeginCheckout } from "@/lib/analytics/dataLayer";
+import {
+  useDiasSemChegada,
+  AvisoChegadaBloqueada,
+  ProximosDiasBloqueados,
+} from "@/components/booking/AvisoChegada";
 import { iniciarCheckoutId } from "@/lib/analytics/checkout-id";
 
 type PriceFailure = {
@@ -90,6 +95,8 @@ export default function BookingForm({
   const [checkinError, setCheckinError] = useState<string | null>(null);
   const [selecaoExtras, setSelecaoExtras] = useState<Record<string, number>>({});
   const V2 = pacotesV2Ativo();
+  const diasSemChegada = useDiasSemChegada(propertySlug);
+  const chegadaBloqueada = Boolean(checkin && diasSemChegada.has(checkin));
 
   const todayISO = useMemo(() => isoToday(), []);
   const maxDateISO = useMemo(() => isoPlus(540), []);
@@ -175,6 +182,8 @@ export default function BookingForm({
 
   async function handleContinue() {
     if (!checkin || !checkout || !response || response.ok !== true || checkinError) return;
+    // Nenhum evento com `value` sai numa data invalida — nem a navegacao.
+    if (chegadaBloqueada) return;
 
     // begin_checkout no CLIQUE, antes de qualquer navegação: é aqui que o
     // hóspede declara intenção. O valor é o total já calculado pelo servidor —
@@ -225,7 +234,7 @@ export default function BookingForm({
 
   const okQuote = response && response.ok === true ? response : null;
   const failure = response && response.ok === false ? response.failure : null;
-  const canContinue = Boolean(okQuote && !loading && !checkinError);
+  const canContinue = Boolean(okQuote && !loading && !checkinError && !chegadaBloqueada);
 
   // Reporta o total para o pai (PropertyBookingLayout → MobileBookingBar) sempre que
   // a quote válida, datas ou response mudarem. Fonte única da verdade: o BookingForm.
@@ -278,6 +287,7 @@ export default function BookingForm({
           {checkinError && (
             <p className="mt-1 font-sans text-xs text-red-600">{checkinError}</p>
           )}
+          <ProximosDiasBloqueados diasBloqueados={diasSemChegada} />
         </div>
         <div>
           <label htmlFor="checkout" className="block cursor-pointer font-sans text-[0.6rem] uppercase tracking-[0.25em] text-charcoal/60">
@@ -435,6 +445,8 @@ export default function BookingForm({
           />
         </div>
       )}
+
+      <AvisoChegadaBloqueada checkin={checkin} diasBloqueados={diasSemChegada} />
 
       {loading && <p className="mt-4 font-sans text-xs text-charcoal/50">Calculando preço…</p>}
       {failure && (

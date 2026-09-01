@@ -7,6 +7,11 @@ import { formatBRLPrecise } from "@/lib/cn";
 import { pushViewPackage, pushBeginCheckout } from "@/lib/analytics/dataLayer";
 import { iniciarCheckoutId } from "@/lib/analytics/checkout-id";
 import {
+  useDiasSemChegada,
+  AvisoChegadaBloqueada,
+  ProximosDiasBloqueados,
+} from "@/components/booking/AvisoChegada";
+import {
   PackageConfig,
   validatePackageDates,
   round10down,
@@ -178,7 +183,11 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
   );
 
   const hasDates = hostawayTotal != null;
-  const canReserve = Boolean(hasDates && !loading && !dateError && !availError && !priceError);
+  const diasSemChegada = useDiasSemChegada(propertySlug);
+  const chegadaBloqueada = Boolean(checkin && diasSemChegada.has(checkin));
+  const canReserve = Boolean(
+    hasDates && !loading && !dateError && !availError && !priceError && !chegadaBloqueada,
+  );
 
   // Preço que não pôde ser obtido NÃO vira preço aproximado.
   //
@@ -220,6 +229,8 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
 
   function handleReserve() {
     if (!canReserve || !checkin) return;
+    // Data invalida nao dispara evento com `value` nem navega.
+    if (chegadaBloqueada) return;
 
     // begin_checkout no CLIQUE. `canReserve` já garante preço real da Hostaway:
     // com o preço indisponível o botão nem chega aqui.
@@ -377,6 +388,12 @@ function PackageBookingLegado({ pkg }: { pkg: PackageConfig }) {
           <p className="font-sans text-xs text-charcoal">{availError}</p>
         </div>
       )}
+      <AvisoChegadaBloqueada
+        checkin={checkin}
+        diasBloqueados={diasSemChegada}
+        propertyNome={selectedProperty?.name}
+      />
+
       {precoIndisponivel && (
         <div className="mt-3 border border-copper/30 bg-copper/5 p-3">
           <p className="font-sans text-xs text-charcoal">

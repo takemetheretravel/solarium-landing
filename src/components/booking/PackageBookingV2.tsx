@@ -12,6 +12,11 @@ import { checkoutSugerido, datasElegiveis, alternativaPara } from "@/lib/pricing
 import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/analytics/tracking";
 import { pushBeginCheckout } from "@/lib/analytics/dataLayer";
 import { iniciarCheckoutId } from "@/lib/analytics/checkout-id";
+import {
+  useDiasSemChegada,
+  AvisoChegadaBloqueada,
+  ProximosDiasBloqueados,
+} from "@/components/booking/AvisoChegada";
 
 type ItemPrecoApi = { extraId: string; nome: string; total: number; qtd: number; incluso: boolean };
 
@@ -218,7 +223,9 @@ export default function PackageBookingV2({
 
   const ok = resposta?.compativel === true ? resposta : null;
   const incompativel = resposta?.compativel === false ? resposta : null;
-  const podeReservar = Boolean(ok && !carregando && !erro);
+  const diasSemChegada = useDiasSemChegada(propertySlug);
+  const chegadaBloqueada = Boolean(checkin && diasSemChegada.has(checkin));
+  const podeReservar = Boolean(ok && !carregando && !erro && !chegadaBloqueada);
 
   // O riscado é a soma literal das linhas exibidas, calculada no servidor.
   // Nunca recompor aqui — divergir da soma é o bug que a §1 veio matar.
@@ -233,6 +240,8 @@ export default function PackageBookingV2({
 
   function reservar() {
     if (!podeReservar || !ok) return;
+    // Data invalida nao dispara evento com `value` nem navega.
+    if (chegadaBloqueada) return;
     trackPacoteCtaReserva({ pacoteId: pacote.id, total: ok.total, bonusAplicado: ok.bonusAplicado });
 
     // begin_checkout no CLIQUE. `podeReservar` já exige o cálculo server-side

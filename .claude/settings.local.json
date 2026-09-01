@@ -143,7 +143,12 @@
       "Bash(git commit -m 'chore: ignora .vercel e atualiza permissoes locais *)",
       "Bash(GA4_MEASUREMENT_ID='[SENSITIVE]' GA4_API_SECRET='[SENSITIVE]' META_PIXEL_ID='[SENSITIVE]' META_CAPI_ACCESS_TOKEN='[SENSITIVE]' ADMIN_API_TOKEN='[SENSITIVE]' node scripts/checar-ambiente.mjs --sem-rede)",
       "Bash(git commit -m 'TTL do draft em 24h com revalidacao obrigatoria, cron de 5min e checar-ambiente honesto *)",
-      "Bash(git commit -m 'chore: atualiza permissoes locais *)"
+      "Bash(git commit -m 'chore: atualiza permissoes locais *)",
+      "Bash(cp src/app/api/reservations/draft/route.ts /tmp/d.bak)",
+      "Bash(sed -i 's/const chegada = await chegadaPermitida\\(/const chegada = await naoExiste\\(/' src/app/api/reservations/draft/route.ts)",
+      "Bash(echo \"markers restantes: $?\")",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.local.json','utf8'\\)\\);console.log\\('settings.local.json: JSON valido'\\)\")",
+      "Bash(node --check scripts/smoke.mjs)"
     ]
   }
 }
