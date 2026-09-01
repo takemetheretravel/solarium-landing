@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { saveDraft, getDraft } from "@/lib/kv-store";
+import { saveDraft, getDraft, DRAFT_TTL } from "@/lib/kv-store";
 import { calculatePrice, getCalendar } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { validateCoupon } from "@/config/site";
@@ -385,7 +385,9 @@ export async function POST(req: NextRequest) {
   const guestLastName = nameParts.slice(1).join(" ") || "";
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  // Derivado do TTL do Redis: o que a tela promete e o que o store cumpre têm
+  // que ser o mesmo número, senão um dos dois mente.
+  const expiresAt = new Date(now.getTime() + DRAFT_TTL * 1000);
 
   const draft = {
     id: randomUUID(),
@@ -529,7 +531,7 @@ async function criarDraftPacote(args: {
     ...lerIdsDeMedicao(req, body),
     status: "pending" as const,
     createdAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+    expiresAt: new Date(now.getTime() + DRAFT_TTL * 1000).toISOString(),
   };
 
   console.log("[Draft:pacoteV2]", {

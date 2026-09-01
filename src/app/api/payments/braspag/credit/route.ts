@@ -26,6 +26,7 @@ import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
 import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
+import { revalidarDraftAntesDeCobrar } from "@/lib/pricing/revalidar-draft";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,6 +108,23 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { approved: false, returnMessage: "Estadias de 1 noite só permitem pagamento à vista. Use 1x ou Pix." },
         { status: 400 },
+      );
+    }
+
+    // ---- Reconferência do draft contra a Hostaway (idêntica à Cielo) ----
+    // Roda DEPOIS do 3DS, que é client-side, e ANTES da autorização. Não toca no
+    // fluxo 3DS: só decide se a autorização pode acontecer. Recusar aqui aborta
+    // uma autenticação já feita — o que é preferível a autorizar preço velho.
+    const revalidacao = await revalidarDraftAntesDeCobrar(draft);
+    if (!revalidacao.ok) {
+      return NextResponse.json(
+        {
+          approved: false,
+          returnMessage: revalidacao.mensagem,
+          error: revalidacao.mensagem,
+          revalidacao: revalidacao.motivo,
+        },
+        { status: revalidacao.status },
       );
     }
 

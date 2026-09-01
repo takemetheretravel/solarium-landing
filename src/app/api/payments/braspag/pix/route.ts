@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDraft, updateDraft } from "@/lib/kv-store";
 import { createBraspagPixPayment } from "@/lib/braspag";
 import { pixChargeFromDraft } from "@/lib/pix-pricing";
+import { revalidarDraftAntesDeCobrar } from "@/lib/pricing/revalidar-draft";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,15 @@ export async function POST(req: Request) {
 
     const draft = await getDraft(draftId);
     if (!draft) return NextResponse.json({ error: "Draft não encontrado ou expirado" }, { status: 404 });
+
+    // Draft de até 24h: reconfere contra a Hostaway antes de emitir o QR.
+    const revalidacao = await revalidarDraftAntesDeCobrar(draft);
+    if (!revalidacao.ok) {
+      return NextResponse.json(
+        { error: revalidacao.mensagem, revalidacao: revalidacao.motivo },
+        { status: revalidacao.status },
+      );
+    }
 
     // Reuso: se já existe um Pix gerado para este draft, não gera outra cobrança.
     if (draft.braspagPaymentId && draft.status === "pending") {

@@ -18,7 +18,17 @@ function getRedis(): Redis {
   return _redis;
 }
 
-const DRAFT_TTL = 60 * 60 * 2; // 2 horas
+// 24 horas. Eram 2h, e 2h não cobrem um checkout real: numa reserva medida em
+// produção o hóspede tentou pagar seis vezes em 18 minutos, desistiu, e só
+// concluiu 44 minutos depois de começar — com retentativa e troca de cartão,
+// passar de duas horas é comum. Draft expirado apaga `fbp`, `fbc`, `gclid` e os
+// UTMs, e a conversão chega ao Meta e ao GA4 sem atribuição de campanha.
+//
+// O preço do TTL longo é que o draft envelhece. Por isso TODA rota de cobrança
+// chama `revalidarDraftAntesDeCobrar()` antes de autorizar — ver
+// `src/lib/pricing/revalidar-draft.ts`. Aumentar este número sem aquela guarda
+// troca um problema de atribuição por um de cobrança errada.
+export const DRAFT_TTL = 60 * 60 * 24; // 24 horas
 
 export type ReservationDraft = {
   id: string;
@@ -127,8 +137,8 @@ export async function getDraft(id: string): Promise<ReservationDraft | null> {
 }
 
 // Varre todos os drafts vivos no Redis (SCAN draft:*). Como o TTL do draft é
-// 2h, isso cobre com folga a janela de reconciliação de Pix pendente — não há
-// draft com mais de 2h no store. Usado pelo pix-reconcile.
+// 24h, isso cobre com folga a janela de reconciliação de Pix pendente — não há
+// draft com mais de 24h no store. Usado pelo pix-reconcile.
 export async function scanAllDrafts(): Promise<ReservationDraft[]> {
   try {
     const redis = getRedis();

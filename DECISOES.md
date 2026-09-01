@@ -348,3 +348,135 @@ abrir o painel do Google nem o do Meta**:
 `pulado_sem_credencial` é registrado como desfecho. Sem isso, "não há registro"
 seria ambíguo entre "nunca tentou" e "tentou e faltou credencial" — e foi
 exatamente essa ambiguidade que escondeu o problema do GA4.
+
+## TTL do draft: 24 horas, com revalidação obrigatória antes de cobrar
+
+O TTL era de **2 horas**. Numa reserva medida em produção o hóspede tentou pagar
+seis vezes entre 01:20 e 01:38 UTC e só concluiu às 02:04 — 44 minutos entre o
+começo e o fim, com troca de gateway no meio. Um checkout com retentativas passa
+de duas horas com facilidade.
+
+Quando o draft expira, some junto tudo que atribui a venda à campanha: `fbp`,
+`fbc`, `gclid` e os UTMs são capturados **na criação do draft** (é a última
+janela em que o navegador do cliente ainda existe) e vivem só ali. Foi
+exatamente o que aconteceu com a reserva 65375857: a conversão chegou ao Meta
+(`http=200`, `events_received: 1`) sem uma única fonte de atribuição.
+
+**TTL agora: 24 horas** (`DRAFT_TTL` em `src/lib/kv-store.ts`; `expiresAt` das
+duas rotas de draft deriva da mesma constante, para a tela e o store não se
+contradizerem).
+
+### Por que a revalidação não é opcional
+
+Um draft que vive 24h carrega preço e disponibilidade que podem ter envelhecido.
+Estender o TTL sem reconferir **troca um problema de atribuição por um problema
+de cobrança errada** — que é muito pior. Por isso, `revalidarDraftAntesDeCobrar()`
+(`src/lib/pricing/revalidar-draft.ts`) roda em **toda** rota que cobra, imediatamente
+antes de autorizar:
+
+| Rota | Momento |
+|---|---|
+| `/api/payments/credit` (Cielo cartão) | antes de `createCreditPayment` |
+| `/api/payments/pix` (Cielo Pix) | antes de emitir o QR |
+| `/api/payments/braspag/credit` | depois do 3DS, antes da autorização |
+| `/api/payments/braspag/pix` | antes de emitir o QR |
+
+O smoke tem uma verificação dedicada (nº 12) que reprova se qualquer uma dessas
+quatro rotas deixar de chamar a guarda — exigindo a **chamada**, não a menção, para
+que um `import` órfão não satisfaça a checagem.
+
+### O que é reconferido, e o que não é
+
+Só o que vem da Hostaway e muda sozinho: (1) disponibilidade das noites, (2) total
+da Hostaway, (3) `closedOnArrival` do dia de chegada. O que vem do config local
+(cupom, preço de extra, regra de pacote) não muda entre a criação do draft e o
+pagamento dentro de um mesmo deploy.
+
+A comparação de preço é entre `draft.totalPrice` e o novo `quote.totalPrice` — as
+duas pontas da **mesma grandeza** (o total da Hostaway, gravado assim nos dois
+caminhos, avulso e pacote V2). Comparar contra `finalTotal` misturaria desconto,
+extras e Pix, e daria falso positivo a cada rodada. Tolerância de R$ 0,50 para
+arredondamento.
+
+### Desfechos
+
+- **Preço divergiu** → não cobra nem o valor antigo nem o novo. Interrompe com
+  HTTP 409 e mensagem ao hóspede dizendo que os valores mudaram, pedindo que
+  refaça a busca para ver e confirmar o preço atualizado. A mensagem
+  deliberadamente **não anuncia um valor novo**: o total final de um pacote não é
+  o total da Hostaway (desconto progressivo, bônus e extras entram depois), e
+  publicar ali um número que não seria o cobrado é pior que não publicar nenhum.
+  Refazer a reserva recalcula tudo pelo motor de sempre — é essa a forma honesta
+  de "pedir confirmação".
+- **Data indisponível** → 409 com o motivo da Hostaway e o link do WhatsApp.
+- **Chegada fechada** (`closedOnArrival`) → 409 explicando que a casa deixou de
+  aceitar entrada naquele dia, com o WhatsApp.
+- **Não deu para perguntar à Hostaway** (`api-error`, calendário sem o dia,
+  listing não resolvida) → também interrompe. Quem está prestes a cobrar trata
+  "a Hostaway disse não" e "não consegui perguntar" do mesmo jeito: cobrar sem
+  confirmar é o único desfecho inaceitável.
+
+Toda divergência é logada em nível `error` com `draftId`, datas, valor antigo,
+valor novo, diferença e `createdAt` do draft.
+
+Nenhuma página do checkout foi alterada: as rotas já devolvem `returnMessage`/
+`error`, e a tela de pagamento já renderiza esses campos.
+
+### Pendência conhecida
+
+O bloco de chegada em `revalidar-draft.ts` lê `closedOnArrival` do calendário
+diretamente. Quando `fix/restricoes-chegada-hostaway` entrar, trocar por
+`chegadaPermitida()` de `src/lib/pricing/restricoes-chegada.ts` — é a mesma
+leitura, e preço/restrição não podem ter dois donos. Há um comentário no arquivo
+marcando o ponto.
+
+## Cron da finalização Hostaway a cada 5 minutos (exige plano Pro)
+
+`/api/hostaway/finalizar-pagamentos` passou de `15 6 * * *` (1x/dia) para
+`*/5 * * * *`. A camada de `waitUntil` continua sendo o caminho principal — o
+cron é a rede de segurança para o que ela não pegou.
+
+**Isto depende do plano Pro.** No plano Hobby a Vercel só aceita cron diário, e
+um cron sub-diário faz a validação **rejeitar o deployment em silêncio**: o
+deploy não é criado e não aparece nem como erro na lista. Sintoma: commits param
+de publicar sem explicação. Se a conta voltar para Hobby, este agendamento tem
+que voltar para diário junto.
+
+O `pix-reconcile` segue em `0 6 * * *`: ele varre drafts vivos e não tem a mesma
+urgência.
+
+## Variáveis Sensitive na Vercel não voltam por `vercel env pull`
+
+Variável marcada como **Sensitive** no painel da Vercel não pode ser lida de
+volta: `vercel env pull` grava um marcador (`[SENSITIVE]`) no lugar do valor. O
+valor real só existe no painel e no runtime do deployment.
+
+Isso custou uma rodada inteira: o `checar-ambiente.mjs` rodou com
+`GA4_MEASUREMENT_ID` valendo literalmente a string `[SENSITIVE]` e reportou
+"GA4 credenciais ACEITAS, payload valido".
+
+Agora o script **detecta e recusa placeholders** (`[SENSITIVE]`, `[REDACTED]`,
+`<...>`, `undefined`, `null`, `changeme`, `your-*`, vazio) antes de qualquer
+chamada de rede, reportando `FALHA` — nunca `ok` — com a explicação de que a
+variável não pôde ser lida. Valor fora do formato também para ali, em vez de
+seguir para a rede como antes.
+
+Para checar de verdade: ler o valor no painel da Vercel e exportá-lo no ambiente
+antes de rodar o script.
+
+## `/debug/mp/collect` não valida credencial do GA4
+
+O endpoint `https://www.google-analytics.com/debug/mp/collect` devolve
+`validationMessages` sobre a **estrutura do payload**. Ele **não** confere
+`measurement_id` nem `api_secret`: credenciais erradas passam sem uma única
+mensagem. Era essa a base do falso positivo acima — a verificação nunca provou
+nada sobre a credencial.
+
+O GA4 **não oferece equivalente** ao que o Meta oferece. No Meta, um
+`GET /v21.0/<pixel_id>?access_token=…` no Graph API rejeita token inválido com
+erro 190/OAuth: isso é verificação real de credencial. No GA4 não existe essa
+porta.
+
+Consequência prática, agora explícita na saída do script: a linha do GA4 é
+`aviso`, não `ok`, e diz que valida estrutura, não credencial. A única prova de
+que o GA4 contabilizou é o Realtime/DebugView no painel.

@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/hostaway/finalizar-pagamentos",
-      "schedule": "15 6 * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -7,6 +7,7 @@ import {
   enfileirarFinalizacaoHostaway,
 } from "@/lib/kv-store";
 import { enviarConversaoReserva, itensDaReserva } from "@/lib/analytics/server-conversions";
+import { revalidarDraftAntesDeCobrar } from "@/lib/pricing/revalidar-draft";
 import { finalizarPagamentoEmSegundoPlano } from "@/lib/hostaway-finalizacao";
 import { decomposicaoParaEnvio } from "@/lib/hostaway-financeiro";
 import { createCreditPayment } from "@/lib/cielo";
@@ -45,6 +46,22 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { approved: false, returnMessage: "Estadias de 1 noite só permitem pagamento à vista. Use 1x ou Pix." },
         { status: 400 },
+      );
+    }
+
+    // O draft vive 24h. Antes de autorizar, reconfere disponibilidade, preço e
+    // restrição de chegada contra a Hostaway — divergência para a cobrança em
+    // vez de cobrar o valor velho.
+    const revalidacao = await revalidarDraftAntesDeCobrar(draft);
+    if (!revalidacao.ok) {
+      return NextResponse.json(
+        {
+          approved: false,
+          returnMessage: revalidacao.mensagem,
+          error: revalidacao.mensagem,
+          revalidacao: revalidacao.motivo,
+        },
+        { status: revalidacao.status },
       );
     }
 

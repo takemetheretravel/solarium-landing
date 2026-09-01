@@ -334,6 +334,47 @@ function linhasQueCasam(conteudo, regex) {
 }
 
 // ---------------------------------------------------------------------------
+// 12. Toda rota de cobranca revalida o draft antes de cobrar.
+//
+// O draft vive 24h para nao perder a atribuicao de campanha de um checkout com
+// retentativas. O preco de viver tanto e envelhecer: diaria muda no PMS, data e
+// vendida por outro canal, dia de chegada e fechado. Uma rota de cobranca sem
+// esta guarda cobra o valor velho em silencio — que e o unico desfecho pior do
+// que perder a atribuicao. A guarda nao pode sumir por descuido de refatoracao.
+// ---------------------------------------------------------------------------
+{
+  const REVALIDA = "revalidarDraftAntesDeCobrar";
+  // Cobram de verdade. Rotas de status/polling nao entram: nao autorizam nada.
+  const ROTAS_DE_COBRANCA = [
+    "src/app/api/payments/credit/route.ts",
+    "src/app/api/payments/pix/route.ts",
+    "src/app/api/payments/braspag/credit/route.ts",
+    "src/app/api/payments/braspag/pix/route.ts",
+  ];
+  const infratores = [];
+  for (const rel of ROTAS_DE_COBRANCA) {
+    const f = FONTES.find((x) => x.rel === rel);
+    if (!f) {
+      infratores.push(`${rel} sumiu ou mudou de lugar`);
+      continue;
+    }
+    // Exige a CHAMADA, nao a mencao: o `import` sozinho satisfaria um includes()
+    // e deixaria passar a rota sem a guarda.
+    if (!f.conteudo.includes(`await ${REVALIDA}(`)) {
+      infratores.push(`${rel} cobra sem chamar ${REVALIDA}()`);
+    }
+  }
+  if (infratores.length) {
+    reprovar("rota de cobranca sem revalidacao do draft", [
+      ...infratores,
+      "Draft de 24h sem revalidacao = cobranca com preco desatualizado.",
+    ]);
+  } else {
+    aprovar(`as ${ROTAS_DE_COBRANCA.length} rotas de cobranca chamam ${REVALIDA}()`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 4. Os quatro totais golden continuam corretos.
 //
 // São o contrato de preço do motor de pacotes. Se um deles mudar, o valor

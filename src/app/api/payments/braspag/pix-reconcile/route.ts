@@ -20,9 +20,9 @@ export const maxDuration = 60;
 // Sugestão: agendar via Vercel Cron (vercel.json) a cada 15min, ou acionar
 // manualmente ao investigar um Pix "pago mas sem reserva".
 //
-// Janela: o TTL do draft no Redis é 2h, então o SCAN cobre todos os drafts
-// vivos (não existe draft com mais de 2h — janela de 24h é coberta por
-// construção; Pix expirado além do TTL exige tratamento manual via painel).
+// Janela: o TTL do draft no Redis é 24h, então o SCAN cobre todos os drafts
+// vivos (não existe draft com mais de 24h; Pix expirado além do TTL exige
+// tratamento manual via painel).
 //
 // VALIDAR EM PRODUÇÃO: em sandbox o Pix nunca vira pago, então o reconcile
 // sempre reportará "pending" — o caminho só confirma de verdade em produção.

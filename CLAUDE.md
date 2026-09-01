@@ -25,7 +25,9 @@ Solarium Mantiqueira — site de reservas diretas (temporada premium, Itanhandu/
 - `src/app/api/`: payments/credit, payments/pix, payments/braspag/test, reservations/draft, availability/check, extras/check, webhooks/cielo, webhooks/braspag
 
 ## Avisos operacionais (deploy)
-- **Vercel plano Hobby só aceita cron DIÁRIO.** Um cron mais frequente (ex.: `*/10 * * * *`) em `vercel.json` faz a Vercel **REJEITAR o deployment silenciosamente** na validação — o deploy não é criado e **não aparece nem como erro** na lista. Sintoma: commits param de publicar sem explicação. O cron do `pix-reconcile` está em `0 6 * * *` (1x/dia, 06:00 UTC). Se migrar para Pro, pode voltar para `*/10 * * * *`.
+- **Plano atual: Pro** — cron sub-diário é permitido. `finalizar-pagamentos` está em `*/5 * * * *`; `pix-reconcile` segue em `0 6 * * *`.
+- **Se a conta voltar para Hobby, todo cron tem que virar DIÁRIO.** No Hobby, um cron mais frequente (ex.: `*/10 * * * *`) em `vercel.json` faz a Vercel **REJEITAR o deployment silenciosamente** na validação — o deploy não é criado e **não aparece nem como erro** na lista. Sintoma: commits param de publicar sem explicação.
+- **Variável marcada como Sensitive na Vercel não volta por `vercel env pull`** — o comando grava `[SENSITIVE]` no lugar do valor. Para conferir credencial, ler o valor no painel e exportar no ambiente. Ver `DECISOES.md`.
 
 ## Estilo de trabalho
 Decisões diretas, flags de risco proativas, sem floreio. Prompts em português.

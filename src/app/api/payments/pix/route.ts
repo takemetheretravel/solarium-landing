@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDraft, updateDraft } from "@/lib/kv-store";
 import { createPixPayment } from "@/lib/cielo";
+import { revalidarDraftAntesDeCobrar } from "@/lib/pricing/revalidar-draft";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,16 @@ export async function POST(req: Request) {
     const draft = await getDraft(draftId);
     if (!draft) return NextResponse.json({ error: "Draft não encontrado ou expirado" }, { status: 404 });
     if (draft.paymentMethod !== "pix") return NextResponse.json({ error: "Método inválido" }, { status: 400 });
+
+    // Draft de até 24h: reconfere contra a Hostaway antes de emitir o QR. O QR
+    // é a cobrança — gerá-lo com preço velho é cobrar errado.
+    const revalidacao = await revalidarDraftAntesDeCobrar(draft);
+    if (!revalidacao.ok) {
+      return NextResponse.json(
+        { error: revalidacao.mensagem, revalidacao: revalidacao.motivo },
+        { status: revalidacao.status },
+      );
+    }
 
     const amountCents = Math.round(draft.finalTotal * 100);
 
