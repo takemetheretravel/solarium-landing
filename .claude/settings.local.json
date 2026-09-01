@@ -141,7 +141,9 @@
       "Bash(node --check scripts/recuperar-conversao.mjs)",
       "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
       "Bash(git commit -m 'chore: ignora .vercel e atualiza permissoes locais *)",
-      "Bash(GA4_MEASUREMENT_ID='[SENSITIVE]' GA4_API_SECRET='[SENSITIVE]' META_PIXEL_ID='[SENSITIVE]' META_CAPI_ACCESS_TOKEN='[SENSITIVE]' ADMIN_API_TOKEN='[SENSITIVE]' node scripts/checar-ambiente.mjs --sem-rede)"
+      "Bash(GA4_MEASUREMENT_ID='[SENSITIVE]' GA4_API_SECRET='[SENSITIVE]' META_PIXEL_ID='[SENSITIVE]' META_CAPI_ACCESS_TOKEN='[SENSITIVE]' ADMIN_API_TOKEN='[SENSITIVE]' node scripts/checar-ambiente.mjs --sem-rede)",
+      "Bash(git commit -m 'TTL do draft em 24h com revalidacao obrigatoria, cron de 5min e checar-ambiente honesto *)",
+      "Bash(git commit -m 'chore: atualiza permissoes locais *)"
     ]
   }
 }
