@@ -37,3 +37,4 @@ next-env.d.ts
 
 # temp video downloads (before Cloudinary upload)
 /temp
+.env*
