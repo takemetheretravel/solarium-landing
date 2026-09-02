@@ -552,3 +552,135 @@ Levantadas nesta rodada, **não corrigidas** — ficam para decisão:
 
 O `closedOnDeparture` é o mais próximo do problema desta rodada: mesma classe de
 falha, na outra ponta da estadia.
+
+## Simulação de pós-pagamento
+
+`POST /api/admin/simular-pos-pagamento` roda o fluxo real **a partir do ponto em
+que a autorização já teria dado certo**, sem cobrar cartão nenhum.
+
+### Para que serve
+
+Tudo que acontece depois do "aprovado" — criar a reserva na Hostaway, disparar a
+conversão, enfileirar a marcação de pagamento, gravar em `conversions_sent` — só
+era exercitado por uma venda de verdade. Testar isso custava um cartão real e um
+estorno, então quase não era testado, e os defeitos apareciam em produção com um
+hóspede no meio.
+
+A rota executa as cinco etapas na ordem e devolve o que cada uma respondeu,
+incluindo a **resposta crua da Hostaway**.
+
+### O que ela NÃO valida: o 3DS
+
+O 3DS acontece **antes** da autorização, no navegador, e continua sem ter como
+ser exercitado fora de produção. A simulação começa depois disso. Nenhuma
+conclusão sobre 3DS pode ser tirada de uma simulação bem-sucedida.
+
+### Nenhum gateway é alcançável
+
+O arquivo não importa `braspag.ts` nem `cielo.ts`, nem nada que os importe. O
+`PaymentId` é sintético e identificável (`SIM-<provider>-<metodo>-<base36>`). A
+verificação 13 do smoke reprova se um import de gateway aparecer ali — é essa
+propriedade que torna a rota segura, e ela não pode depender de disciplina.
+
+### Como isola dados de teste
+
+| Risco | Isolamento |
+|---|---|
+| Purchase real no Meta | `test_event_code` **obrigatório**. Sem `META_TEST_EVENT_CODE` a rota RECUSA (412) em vez de enviar. Não existe "simular só um pouco": um Purchase sem o código entra no relatório **e na otimização de campanha**. |
+| Evento contaminando o GA4 | `debug_mode: true` → DebugView, fora dos relatórios. É o que o GA4 oferece: não há equivalente ao `test_event_code`. |
+| Calendário bloqueado | Reserva criada com `status: "inquiry"` e `isPaid: false` — consulta, não reserva confirmada. |
+| Reserva confundida com real | Nome prefixado com `[SIMULACAO]`, `source: solarium-simulacao`, `reservaTeste: true` (que já põe o aviso na nota do anfitrião). |
+| Ensaio no horizonte operacional | Recusa datas a menos de **90 dias**. Mais perto, a equipe vê o ensaio na lista de chegadas da semana e trata como real. |
+| Ensaio contado como venda | `rota_origem: "simulacao"` no `conversions_sent`. |
+
+Limpeza: `DELETE /api/admin/simular-pos-pagamento/{reservationId}`, sob o mesmo
+token — deixar a criação protegida e a limpeza aberta daria a estranhos o poder
+de cancelar reserva pelo número. Cancela e tira da fila de finalização junto
+(uma reserva cancelada ainda enfileirada geraria tentativas de cobrança até
+esgotar o backoff).
+
+`scripts/simular-reserva.mjs` faz o ciclo completo: cria o draft, chama a rota,
+imprime o relatório e cancela no fim (`--manter` preserva).
+
+## Chave de acesso em código-fonte: o que foi encontrado e fechado
+
+Cinco pontos guardavam acesso administrativo com a string `lucas2026` escrita no
+próprio código, em repositório **público** e sem gate de ambiente:
+
+```
+GET  /api/debug/hostaway-reservation?key=lucas2026
+GET  /api/debug/channels?key=lucas2026
+GET  /api/debug/price-test?key=lucas2026
+POST /api/debug/regenerate-token?key=lucas2026
+GET  /debug/hostaway?key=lucas2026
+```
+
+A primeira dispara **seis tentativas de criação de reserva** contra a conta de
+produção (listing 316007), uma delas com `status: confirmed` e `isPaid: true`. A
+quarta derruba o cache do token de acesso da Hostaway. Segredo em código-fonte
+não é segredo.
+
+Porta única agora em `src/lib/admin-auth.ts`:
+
+- `exigirAdmin()` — `ADMIN_API_TOKEN` em `x-admin-token` ou `Bearer`, comparado
+  em tempo constante. **Nunca em query string**: URL vaza em log de servidor,
+  histórico e cabeçalho `Referer`. Sem o token configurado o endpoint fica
+  FECHADO (503), nunca aberto.
+- `exigirAdminForaDeProducao()` — o mesmo, mais 404 quando `VERCEL_ENV` é
+  `production`. Token sozinho não basta para rota que cria ou cancela coisa real
+  no PMS: um token vazado viraria reserva de verdade no calendário.
+
+A verificação 15 do smoke reprova qualquer chave literal usada como guarda.
+
+## Hostaway: o que a documentação respondeu, e o que não
+
+O suporte respondeu por bot que o schema não é documentado. O changelog da
+referência (`https://api.hostaway.com/documentation`) contradiz isso em parte —
+mas a página lista os recursos sem abrir os campos. O que ficou firme:
+
+- **`status: "confirmed"` está DEPRECIADO para criação/atualização** desde
+  2020-12-18. Nosso `createHostawayReservation` envia exatamente isso em toda
+  reserva real. Não quebrou até hoje, mas é dívida com prazo.
+- **`ownerStay`** (2021-03-31) identifica datas reservadas pelo proprietário e
+  **não pode ter informação financeira** — por isso não serve para a simulação,
+  que precisa exercitar justamente a parte financeira. `inquiry` é a escolha.
+- **`priceDetails`** é o campo do detalhamento de preço na criação, e pode ir no
+  mesmo `POST /v1/reservations` (2022-11-01).
+- **Tipos financeiros**: `accommodation`, `commissions`, `tax`, `other`,
+  `totals`. **A documentação não diz em qual deles um desconto entra** — é a
+  pergunta que sobra para o suporte.
+- **`GET /v1/reservations/paymentMethods`** é o endpoint dos métodos válidos.
+
+`scripts/hostaway-contrato.mjs` pergunta o resto à própria API, só com leitura:
+métodos de pagamento, uma reserva com e sem `includeResources=1` (para provar a
+diferença) e a distribuição real de status na conta.
+
+## Limite de taxa da Hostaway (429): não havia tratamento nenhum
+
+`authFetch` repetia em 5xx e erro de rede. **429 é 4xx**, então caía no
+`if (!res.ok)`, virava `null` na hora e o chamador via "preço indisponível" ou
+"reserva não criada" — sem nada no log dizendo "limite".
+
+O header `X-RateLimit-Retry-After` da Hostaway é um **timestamp Unix**, não uma
+quantidade de segundos de espera. Interpretá-lo como delay faria o processo
+dormir por décadas. O tratamento novo converte subtraindo o agora, com teto de
+60s, e ignora valor implausível — relógio fora de sincronia não pode travar
+requisição.
+
+Limites conhecidos: `POST /v1/reservations` 200/10s;
+`POST /v1/listings/{id}/calendar/priceDetails` 400/10s.
+
+## `includeResources=1` e as taxas que somem
+
+Sem esse parâmetro, `reservationFees` volta vazio em `GET /v1/reservations`.
+Hoje o código só usa `includeResources=1` em `GET /listings/{id}` e **não lê
+reserva nenhuma de volta**, então o problema não morde — mas mordia no instante
+em que alguém fosse conferir a decomposição enviada e concluísse "a Hostaway não
+gravou", quando na verdade não tinha pedido.
+
+## Webhooks e a fila: não há alternativa a procurar
+
+Os eventos suportados são `reservation created`, `reservation updated` e
+`new message received`. **Não existe** evento de "reserva pronta para receber
+cobrança". A fila `hostaway_pending_finalization` com retry e backoff continua
+sendo a abordagem correta — a busca por um webhook que avise está encerrada.

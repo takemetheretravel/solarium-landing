@@ -252,6 +252,36 @@ async function authFetch<T>(path: string, opts: FetchOpts = {}): Promise<T | nul
         continue;
       }
 
+      // 429 — limite de taxa. NÃO havia tratamento nenhum: como 429 é 4xx, caía
+      // no `if (!res.ok)` abaixo e virava `null` na hora, sem nova tentativa. O
+      // sintoma seria "preço indisponível" ou "reserva não criada" sob rajada,
+      // sem nada no log que dissesse "limite".
+      //
+      // ATENÇÃO ao header: `X-RateLimit-Retry-After` da Hostaway é um TIMESTAMP
+      // UNIX (segundos epoch), não uma quantidade de segundos de espera. Tratá-lo
+      // como delay faria o processo dormir por décadas. Aqui ele é convertido em
+      // espera subtraindo o agora, e vem com teto — um relógio fora de sincronia
+      // não pode travar a requisição.
+      if (res.status === 429) {
+        const bruto = res.headers.get("x-ratelimit-retry-after");
+        const alvoSegundos = Number(bruto);
+        let esperaMs = ATRASOS_RETRY[tentativa];
+        if (Number.isFinite(alvoSegundos) && alvoSegundos > 0) {
+          const deltaMs = alvoSegundos * 1000 - Date.now();
+          // Só aceita a dica se ela for positiva e plausível (até 60s).
+          if (deltaMs > 0 && deltaMs <= 60_000) esperaMs = deltaMs;
+          else if (deltaMs > 60_000) esperaMs = 60_000;
+        }
+        console.warn(
+          `[Hostaway] ${path} HTTP 429 (limite de taxa) — header=${bruto ?? "ausente"} ` +
+            `esperando ${esperaMs}ms${ehUltima ? " (última tentativa)" : ""}`,
+        );
+        if (!ehUltima) {
+          await esperar(esperaMs);
+          continue;
+        }
+      }
+
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
         console.error(`[Hostaway] ${opts.method ?? "GET"} ${path} falhou:`, res.status, errText.slice(0, 200));

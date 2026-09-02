@@ -152,7 +152,10 @@
       "Bash(awk -F: '$1>619 && $1<780')",
       "Bash(grep -n 'split\\(\"$\\\\|test\\(l\\)\\)\\\\|replace\\(/\\\\\\\\/\\\\\\\\/' scripts/smoke.mjs)",
       "Bash(python3 -)",
-      "Bash(git commit -m 'Simulacao de pos-pagamento sem cobrar cartao, isolada de dado real *)"
+      "Bash(git commit -m 'Simulacao de pos-pagamento sem cobrar cartao, isolada de dado real *)",
+      "Bash(node --check scripts/hostaway-contrato.mjs)",
+      "Bash(node --check scripts/simular-reserva.mjs)",
+      "Bash(git commit -m 'Tratamento de 429 da Hostaway, script de contrato da API e DECISOES *)"
     ]
   }
 }
