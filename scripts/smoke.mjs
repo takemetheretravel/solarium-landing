@@ -47,6 +47,9 @@ function arquivosFonte(dir = SRC) {
 
 const FONTES = arquivosFonte();
 
+/** Quebra de linha nos dois formatos: o repositório tem arquivos CRLF e LF. */
+const SEPARADOR_DE_LINHA = /\r?\n/;
+
 function linhasQueCasam(conteudo, regex) {
   const achados = [];
   conteudo.split("\n").forEach((linha, i) => {
@@ -398,6 +401,151 @@ function linhasQueCasam(conteudo, regex) {
     ]);
   } else {
     aprovar(`criacao de draft valida chegada via ${VALIDACAO}()`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 13. A simulacao de pos-pagamento nao alcanca gateway nenhum.
+//
+// A rota existe para exercitar o pos-pagamento SEM cobrar. No dia em que ela
+// puder importar braspag.ts ou cielo.ts, deixa de ser simulacao e vira uma forma
+// obscura de cobrar de verdade — com token de admin e sem tela.
+// ---------------------------------------------------------------------------
+{
+  const SIMULACAO = "src/app/api/admin/simular-pos-pagamento/route.ts";
+  const GATEWAYS = [/@\/lib\/braspag/, /@\/lib\/cielo/, /braspag-pix-confirm/, /pix-pricing/];
+  const f = FONTES.find((x) => x.rel === SIMULACAO);
+  if (!f) {
+    reprovar("rota de simulacao nao encontrada", [`${SIMULACAO} sumiu ou mudou de lugar`]);
+  } else {
+    const achados = [];
+    for (const re of GATEWAYS) {
+      const linhas = f.conteudo.split(SEPARADOR_DE_LINHA)
+        .filter((l) => /^\s*import\s/.test(l) && re.test(l));
+      achados.push(...linhas.map((l) => l.trim()));
+    }
+    if (achados.length) {
+      reprovar("simulacao alcanca modulo de gateway", [
+        ...achados,
+        "A simulacao NAO pode chamar gateway: e essa a propriedade que a torna segura.",
+      ]);
+    } else {
+      aprovar("simulacao nao importa nenhum modulo de gateway");
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 14. A simulacao exige ADMIN_API_TOKEN e recusa conversao sem test_event_code.
+//
+// Duas guardas, um bloco: sem token, um estranho cria reserva na conta de
+// producao; sem `META_TEST_EVENT_CODE`, o Purchase de ensaio vira venda REAL no
+// Meta e entra na otimizacao de campanha. As duas ja custaram caro em outras
+// rotas deste repositorio.
+// ---------------------------------------------------------------------------
+{
+  const ROTAS_ADMIN = [
+    "src/app/api/admin/simular-pos-pagamento/route.ts",
+    "src/app/api/admin/simular-pos-pagamento/[reservationId]/route.ts",
+    "src/app/api/admin/diagnostico/route.ts",
+  ];
+  const problemas = [];
+
+  for (const rel of ROTAS_ADMIN) {
+    const f = FONTES.find((x) => x.rel === rel);
+    if (!f) {
+      problemas.push(`${rel} sumiu ou mudou de lugar`);
+      continue;
+    }
+    // Exige a CHAMADA da guarda, nao a mencao.
+    if (!/exigirAdmin(ForaDeProducao)?\(req\)/.test(f.conteudo)) {
+      problemas.push(`${rel} nao chama exigirAdmin() — rota administrativa aberta`);
+    }
+  }
+
+  const sim = FONTES.find((x) => x.rel === "src/app/api/admin/simular-pos-pagamento/route.ts");
+  if (sim) {
+    if (!sim.conteudo.includes("META_TEST_EVENT_CODE")) {
+      problemas.push("simulacao nao le META_TEST_EVENT_CODE — conversao de ensaio viraria venda real");
+    }
+    // A recusa tem que ACONTECER, nao so a leitura existir.
+    if (!/if\s*\(!metaTestEventCode\)/.test(sim.conteudo)) {
+      problemas.push("simulacao le META_TEST_EVENT_CODE mas nao recusa quando ele falta");
+    }
+    if (!sim.conteudo.includes("modoTeste")) {
+      problemas.push("simulacao nao marca a conversao como teste (modoTeste)");
+    }
+  }
+
+  if (problemas.length) {
+    reprovar("rota administrativa sem guarda", problemas);
+  } else {
+    aprovar("rotas admin exigem token; simulacao recusa sem test_event_code");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 15. Nenhuma chave de acesso escrita no codigo-fonte.
+//
+// As rotas /api/debug/* eram guardadas por `?key=lucas2026`, com a chave neste
+// repositorio PUBLICO. Uma delas cria reserva na conta de producao da Hostaway;
+// outra derruba o token de acesso. Segredo em codigo-fonte nao e segredo.
+// ---------------------------------------------------------------------------
+{
+  // Padroes de "chave literal usada como guarda". Comentario nao conta.
+  const SUSPEITOS = [
+    /(?:key|senha|password|secret|token)\s*(?:===?|!==?)\s*["'][A-Za-z0-9_-]{6,}["']/,
+    /const\s+(?:DEBUG_KEY|ADMIN_KEY|API_KEY)\s*=\s*["'][A-Za-z0-9_-]{6,}["']/,
+  ];
+  const infratores = [];
+  for (const f of FONTES) {
+    f.conteudo.split(SEPARADOR_DE_LINHA).forEach((linha, i) => {
+      const semComentario = linha.replace(/\/\/.*$/, "").replace(/\/\*.*?\*\//g, "");
+      if (!semComentario.trim()) return;
+      // `e.key === "Escape"` é tecla de teclado, não credencial. A propriedade
+      // `key` de um KeyboardEvent casa com o padrão e não tem nada a ver.
+      if (/\b(e|ev|evt|event)\.key\b/.test(semComentario)) return;
+      if (SUSPEITOS.some((re) => re.test(semComentario))) {
+        infratores.push(`${f.rel} linha ${i + 1}: ${semComentario.trim().slice(0, 110)}`);
+      }
+    });
+  }
+  if (infratores.length) {
+    reprovar("chave de acesso escrita no codigo-fonte", [
+      ...infratores,
+      "Use ADMIN_API_TOKEN via @/lib/admin-auth. O repositorio e publico.",
+    ]);
+  } else {
+    aprovar("nenhuma chave de acesso literal no codigo");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 16. As datas padrao dos pacotes respeitam as regras de saida deles.
+//
+// O Final de Ano abria em 29/12 -> 01/01 (terca a sexta) enquanto a propria tela
+// avisava que a saida precisa ser sabado, domingo ou segunda. Sugestao que o
+// pacote recusa ensina a data errada. A suite de preco cobre isso; aqui garante
+// que o arquivo de teste continua existindo e sendo executado.
+// ---------------------------------------------------------------------------
+{
+  const TESTE = join(RAIZ, "src", "lib", "pricing", "datas-padrao.test.ts");
+  let conteudo = "";
+  try {
+    conteudo = readFileSync(TESTE, "utf8");
+  } catch {
+    conteudo = "";
+  }
+  if (!conteudo) {
+    reprovar("teste das datas padrao sumiu", [
+      "src/lib/pricing/datas-padrao.test.ts e o que impede um pacote de sugerir data que ele proprio recusa.",
+    ]);
+  } else if (!conteudo.includes("checkoutSugerido") || !conteudo.includes("checkoutDows")) {
+    reprovar("teste das datas padrao deixou de checar as regras de saida", [
+      "datas-padrao.test.ts precisa comparar a saida sugerida com checkoutDows do pacote.",
+    ]);
+  } else {
+    aprovar("datas padrao dos pacotes cobertas contra as regras de saida");
   }
 }
 

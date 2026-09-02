@@ -616,6 +616,25 @@ export async function createHostawayReservation(params: {
    * só devolve a lista quando a soma fecha ao centavo com `totalPrice`.
    */
   linhasFinanceiras?: { name: string; amount: number; type: string }[];
+  /**
+   * SIMULAÇÃO — `/api/admin/simular-pos-pagamento`.
+   *
+   * Cria a reserva pelo MESMO caminho do fluxo real (mandar por outro caminho
+   * não provaria nada sobre este), mudando só o que precisa mudar para não
+   * virar venda: o status e a marcação de pago.
+   *
+   * `status: "inquiry"` é o que a Hostaway aceita para consulta — não é reserva
+   * confirmada e não bloqueia o calendário. `isPaid: false` evita que a reserva
+   * de ensaio apareça no financeiro como recebida.
+   */
+  simulacao?: { status: string; isPaid: boolean };
+  /**
+   * Coletor da resposta CRUA da Hostaway, para a simulação aprender o contrato
+   * (é assim que se descobre o schema da decomposição financeira sem arriscar
+   * uma venda). Opcional e sem efeito no fluxo real: o tipo de retorno continua
+   * exatamente o mesmo, então nenhuma rota de pagamento muda.
+   */
+  coletarResposta?: (r: { httpStatus: number; corpo: unknown }) => void;
 }): Promise<{ reservationId: number } | null> {
   try {
     const token = await getAccessToken();
@@ -755,12 +774,12 @@ export async function createHostawayReservation(params: {
       phone,
       totalPrice: Math.round(params.totalPrice * 100) / 100, // VALOR REAL COBRADO
       currency: params.currency || "BRL",
-      isPaid: true,
-      paymentStatus: "Paid",
+      isPaid: params.simulacao ? params.simulacao.isPaid : true,
+      paymentStatus: params.simulacao && !params.simulacao.isPaid ? "Unknown" : "Paid",
       guestLocale: "pt",
       hostNote,
       guestNote,
-      status: "confirmed",
+      status: params.simulacao ? params.simulacao.status : "confirmed",
     };
 
     if (customFieldValues.length > 0) {
@@ -792,6 +811,10 @@ export async function createHostawayReservation(params: {
 
     const data = await res.json();
     console.log("[Hostaway:createReservation] Response:", res.status, JSON.stringify(data).slice(0, 300));
+
+    // Entrega a resposta crua a quem pediu — inclusive o ERRO, que é a metade
+    // informativa quando se está descobrindo um schema.
+    params.coletarResposta?.({ httpStatus: res.status, corpo: data });
 
     if (!res.ok) {
       console.error("[Hostaway:createReservation] FAILED:", data.message);
@@ -967,5 +990,37 @@ export async function registrarPagamentoHostaway(params: {
     const msg = (err as Error)?.message ?? "erro desconhecido";
     console.error(`[Hostaway:pagamento] reservation_id=${params.reservationId} exceção:`, msg);
     return { ok: false, status: 0, erro: msg };
+  }
+}
+
+/**
+ * Cancela uma reserva. Usado pela limpeza da simulação.
+ *
+ * A Hostaway não expõe DELETE de reserva: o caminho é mudar o status para
+ * `cancelled` via PUT. Devolve a resposta crua porque quem chama é diagnóstico —
+ * "não deu certo" sem o corpo não ajuda ninguém a entender por quê.
+ */
+export async function cancelHostawayReservation(
+  reservationId: number,
+): Promise<{ ok: boolean; httpStatus: number; corpo: unknown }> {
+  try {
+    const token = await getAccessToken();
+    if (!token) return { ok: false, httpStatus: 0, corpo: "sem token" };
+
+    const res = await fetch(`${BASE_URL}/reservations/${reservationId}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      body: JSON.stringify({ status: "cancelled" }),
+    });
+    const corpo = await res.json().catch(() => null);
+    console.log(`[Hostaway:cancel] reserva=${reservationId} → ${res.status}`);
+    return { ok: res.ok, httpStatus: res.status, corpo };
+  } catch (err) {
+    console.error("[Hostaway:cancel] Exception:", err);
+    return { ok: false, httpStatus: 0, corpo: (err as Error)?.message };
   }
 }

@@ -54,6 +54,21 @@ export type ConversaoParams = {
   /** Caminho que originou a conversão — vai para o diagnóstico. */
   rotaOrigem?: RotaOrigemConversao;
   provider?: string;
+  /**
+   * Modo TESTE — a simulação de pós-pagamento.
+   *
+   * O evento continua sendo enviado de verdade, pelo MESMO código do fluxo real
+   * (mandar por um caminho paralelo não provaria nada sobre o caminho real), mas
+   * marcado de forma que nenhuma das duas plataformas o conte:
+   *
+   * - Meta: `test_event_code` põe o evento em "Testar eventos" e fora dos
+   *   relatórios. O código é OBRIGATÓRIO aqui — sem ele o envio é recusado antes
+   *   de sair, em vez de virar Purchase real numa conta de anúncios.
+   * - GA4: `debug_mode: true` manda o evento para o DebugView, sem contaminar
+   *   relatório. O GA4 não tem equivalente ao `test_event_code`; `debug_mode` é
+   *   o que existe.
+   */
+  modoTeste?: { metaTestEventCode: string };
 };
 
 function sha256(valor: string): string {
@@ -184,6 +199,9 @@ async function enviarGa4(p: ConversaoParams): Promise<"enviado" | "pulado" | "fa
           transaction_id: p.transactionId,
           value: p.value,
           currency: p.currency,
+          // Simulação: DebugView em vez de relatório. É o mais perto de um
+          // `test_event_code` que o GA4 oferece.
+          ...(p.modoTeste ? { debug_mode: true } : {}),
           ...(p.gaSessionId ? { session_id: p.gaSessionId } : {}),
           items: p.items.map((i) => ({
             item_id: i.item_id,
@@ -280,6 +298,9 @@ async function enviarMeta(p: ConversaoParams): Promise<"enviado" | "pulado" | "f
       token,
     )}`;
     const r = await postJson(url, {
+      // Simulação: o evento aparece em "Testar eventos" e NÃO entra em
+      // relatório nem em otimização de campanha.
+      ...(p.modoTeste ? { test_event_code: p.modoTeste.metaTestEventCode } : {}),
       data: [
         {
           event_name: "Purchase",
@@ -377,6 +398,8 @@ export async function enviarConversaoReserva(params: {
   eventTimeSegundos?: number;
   /** Caminho que criou a reserva. Aparece em /api/admin/diagnostico. */
   rotaOrigem?: RotaOrigemConversao;
+  /** Simulação: marca o evento como teste nas duas plataformas. */
+  modoTeste?: { metaTestEventCode: string };
 }): Promise<{ ga4: string; meta: string }> {
   const transactionId = String(params.reservationId);
   console.log(`[Conversao] reserva=${transactionId} provider=${params.provider}`);
@@ -397,6 +420,7 @@ export async function enviarConversaoReserva(params: {
     eventTimeSegundos: params.eventTimeSegundos,
     rotaOrigem: params.rotaOrigem,
     provider: params.provider,
+    modoTeste: params.modoTeste,
   });
 }
 

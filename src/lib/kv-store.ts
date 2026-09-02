@@ -631,7 +631,13 @@ export type RotaOrigemConversao =
   | "cielo"
   | "pix"
   | "webhook"
-  | "recuperacao-manual";
+  | "recuperacao-manual"
+  /**
+   * `/api/admin/simular-pos-pagamento`. Evento de TESTE: vai ao Meta com
+   * `test_event_code` e ao GA4 com `debug_mode`, então não entra em relatório.
+   * Fica registrado para o diagnóstico distinguir venda de ensaio.
+   */
+  | "simulacao";
 
 export type ConversionSent = {
   transaction_id: string;
