@@ -8,7 +8,14 @@
 
 import { unstable_cache } from "next/cache";
 import { calculatePriceDetailed, getCalendar, type HostawayPriceFailure } from "@/lib/hostaway";
-import { datasElegiveis, totalDoPacote, noitesDoPacote, motorDoPacote } from "./elegibilidade";
+import {
+  datasElegiveis,
+  totalDoPacote,
+  noitesDoPacote,
+  motorDoPacote,
+  checkoutParaChegada,
+} from "./elegibilidade";
+import { chegadaPermitida } from "./restricoes-chegada";
 import { listingsForProperty } from "@/config/operational-extras";
 import { getPropertyBySlug } from "@/config/properties";
 import { PacoteV2, JANELA_CANCELAMENTO_EXTRAS_DIAS } from "@/config/precos-e-extras";
@@ -41,6 +48,13 @@ export type ResultadoPacoteServer =
       status: number;
       /** Caminho concreto quando existe: outra casa livre ou a próxima data livre. */
       alternativa?: { rotulo: string; href: string };
+      /**
+       * Mais de um caminho, quando existe mais de um.
+       *
+       * A chegada bloqueada pode ter véspera E dia seguinte livres; oferecer só
+       * um dos dois esconde metade da saída. Quem renderiza mostra todos.
+       */
+      alternativas?: { rotulo: string; href: string }[];
     };
 
 /** Dia seguinte a uma data ISO. */
@@ -175,6 +189,67 @@ async function estadiaDisponivel(
   }
 }
 
+/**
+ * Véspera e dia seguinte que REALMENTE dariam para reservar.
+ *
+ * "Escolha outra data" sem dizer qual joga o trabalho de volta no hóspede, que
+ * não tem como saber quais domingos a casa abre — a restrição é um calendário do
+ * PMS, não uma regra de dia da semana (o Sol 2 libera 1 dos 8 domingos medidos).
+ *
+ * Uma vizinha só é oferecida se passar nas TRÊS portas: o pacote aceita o par, a
+ * Hostaway aceita a chegada, e as noites estão livres. Sugerir uma data que
+ * falha na etapa seguinte é pior que não sugerir — o hóspede clica e leva outra
+ * recusa.
+ */
+async function chegadasVizinhasViaveis(
+  input: EntradaPacoteServer,
+): Promise<{ checkin: string; alternativa: { rotulo: string; href: string } }[]> {
+  const { pacote, propertySlug, checkin, checkout, guests } = input;
+
+  const noites = Math.round(
+    (new Date(checkout + "T12:00:00").getTime() - new Date(checkin + "T12:00:00").getTime()) /
+      86400000,
+  );
+
+  // Véspera antes do dia seguinte: adiantar a viagem costuma ser mais fácil que
+  // adiá-la, e a ordem é a ordem em que aparecem na tela.
+  const candidatas = [somarDias(checkin, -1), somarDias(checkin, 1)].filter(
+    (d) => d >= new Date().toISOString().slice(0, 10),
+  );
+
+  const viaveis: { checkin: string; alternativa: { rotulo: string; href: string } }[] = [];
+
+  for (const ci of candidatas) {
+    // 1) O pacote fecha com esta chegada? Preserva a duração que o hóspede já
+    //    tinha escolhido; se não fechar, o helper procura outra válida.
+    const co = checkoutParaChegada(pacote.slug, propertySlug, ci, noites);
+    if (!co) continue;
+
+    // 2) A Hostaway aceita chegada neste dia? Mesma função que o draft e a
+    //    revalidação usam — restrição de chegada tem um dono só.
+    let chegada: Awaited<ReturnType<typeof chegadaPermitida>>;
+    try {
+      chegada = await chegadaPermitida(propertySlug, ci);
+    } catch {
+      continue;
+    }
+    if (!chegada.permitida) continue;
+
+    // 3) As noites estão mesmo livres?
+    if ((await estadiaDisponivel(propertySlug, ci, co)) !== "livre") continue;
+
+    viaveis.push({
+      checkin: ci,
+      alternativa: {
+        rotulo: `Chegar em ${formatarDia(ci)} (saída em ${formatarDia(co)})`,
+        href: linkDoPacote(pacote.slug, propertySlug, ci, co, guests),
+      },
+    });
+  }
+
+  return viaveis;
+}
+
 /** "2 de janeiro" — para mensagem, nunca para cálculo. */
 function formatarDia(iso: string): string {
   return new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", {
@@ -221,6 +296,30 @@ async function diagnosticarSemPreco(
             href: linkDoPacote(pacote.slug, propertySlug, checkin, alvoElegivel, guests),
           }
         : undefined,
+    };
+  }
+
+  // CHEGADA FECHADA NO PMS.
+  //
+  // Este caso caía no `FALHA_TECNICA` lá embaixo: as datas estão LIVRES, então
+  // `estadiaDisponivel` respondia "livre", que não é "ocupada", e a tela dizia
+  // "Não conseguimos calcular o preço agora. Tente de novo em instantes". O
+  // hóspede lia falha temporária do site e tentava de novo — para sempre. A
+  // recusa é permanente e tem um motivo que ele precisa entender: é o dia da
+  // semana. A mensagem já vem pronta de `mensagemChegadaBloqueada()`, dentro de
+  // `falha.message`; só nunca chegava até aqui.
+  if (falha?.reason === "closed-on-arrival") {
+    const vizinhas = await chegadasVizinhasViaveis(input);
+    console.log(
+      `[Pacote] chegada bloqueada ${checkin} (${pacote.slug}/${propertySlug}) — ` +
+        `vizinhas viáveis: ${vizinhas.map((v) => v.checkin).join(", ") || "nenhuma"}`,
+    );
+    return {
+      ok: false,
+      status: 200,
+      erro: falha.message,
+      alternativa: vizinhas[0]?.alternativa,
+      alternativas: vizinhas.map((v) => v.alternativa),
     };
   }
 
@@ -364,20 +463,36 @@ async function datasLivresDoPacote(
 
   for (let offset = 0; offset < dias; offset++) {
     const checkin = iso(new Date(inicio.getTime() + offset * 86400000));
-    const checkout = somarDias(checkin, noites);
 
-    // MESMA elegibilidade do calendário e do draft.
+    // A saída sai da REGRA do pacote, não de `chegada + noitesMin`.
+    //
+    // Somar o mínimo e filtrar depois não gerava data inválida — o filtro pegava
+    // —, mas estreitava a oferta em silêncio: no Final de Ano, `checkin + 3` só
+    // cai em dia de saída permitido quando a chegada é quarta, então quarta era
+    // a ÚNICA chegada que o varredor conseguia anunciar, e a saída de domingo,
+    // que é a do pacote, nunca aparecia. Perder oferta válida é tão caro quanto
+    // anunciar oferta inválida.
+    const checkout = checkoutParaChegada(slug, propertySlug, checkin);
+    if (!checkout) continue;
+
+    // Rede de segurança: o helper já devolve só par elegível, mas a checagem
+    // fica — é a mesma porta que o calendário e o draft usam.
     if (!datasElegiveis(slug, propertySlug, checkin, checkout).elegivel) continue;
+
+    const noitesDaEstadia = Math.round(
+      (new Date(checkout + "T12:00:00").getTime() - new Date(checkin + "T12:00:00").getTime()) /
+        86400000,
+    );
 
     // Mínimo de noites da chegada: sugerir data que a Hostaway recusa na hora de
     // cotar é o mesmo que não sugerir nada. O pacote com `ignorarMinimoPMS` não
     // é recusado, então também não é filtrado aqui.
     const minimoDaChegada = noitesCal.get(checkin)?.minimo ?? 1;
-    if (noites < minimoDaChegada && !ignoraMinimo) continue;
+    if (noitesDaEstadia < minimoDaChegada && !ignoraMinimo) continue;
 
     let hostawayTotal = 0;
     let completa = true;
-    for (let n = 0; n < noites; n++) {
+    for (let n = 0; n < noitesDaEstadia; n++) {
       const noite = noitesCal.get(somarDias(checkin, n));
       if (!noite || !noite.livre) {
         completa = false;

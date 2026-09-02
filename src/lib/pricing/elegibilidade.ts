@@ -221,6 +221,98 @@ export function checkoutSugerido(slug: string, checkin: string): string | null {
 }
 
 
+/**
+ * Saída válida para uma chegada, respeitando as regras do PRÓPRIO pacote.
+ *
+ * `checkoutSugerido()` acerta o dia da semana, mas quem chama nem sempre o usa:
+ * havia três lugares somando `checkin + noitesMin` direto, e o Final de Ano
+ * abria em 29/12 → 01/01 (terça a sexta) enquanto a mesma tela avisava que a
+ * saída precisa ser sábado, domingo ou segunda. Sugestão que o próprio pacote
+ * recusa é pior que sugestão nenhuma: ensina a data errada.
+ *
+ * Ordem de preferência:
+ *   1. a duração que o hóspede já tinha escolhido (não mexer no que ele decidiu);
+ *   2. o dia de saída sugerido pelo pacote (`checkoutSugeridoDow`);
+ *   3. a menor duração válida a partir do mínimo.
+ *
+ * Devolve `null` quando nenhuma duração fecha — quem chama decide o que dizer.
+ */
+export function checkoutParaChegada(
+  slug: string,
+  propertySlug: string,
+  checkin: string,
+  noitesPreferidas?: number,
+): string | null {
+  const m = motorDoPacote(slug);
+  if (!m) return null;
+
+  const noitesMin = m.motor === "v2" ? m.pacote.noitesMin : m.pacote.nights;
+  const noitesMax = m.motor === "v2" ? (m.pacote.noitesMax ?? noitesMin) : m.pacote.nights;
+
+  const aceita = (checkout: string) =>
+    datasElegiveis(slug, propertySlug, checkin, checkout).elegivel;
+
+  // 1) Duração já escolhida pelo hóspede.
+  if (noitesPreferidas && noitesPreferidas >= noitesMin && noitesPreferidas <= noitesMax) {
+    const alvo = somarDiasIso(checkin, noitesPreferidas);
+    if (aceita(alvo)) return alvo;
+  }
+
+  // 2) Dia de saída que o pacote sugere.
+  const sugerido = checkoutSugerido(slug, checkin);
+  if (sugerido && aceita(sugerido)) return sugerido;
+
+  // 3) Varredura da menor duração válida para cima. Cobre o caso em que o dia
+  //    sugerido cai fora da janela do pacote mas outra duração fecha.
+  for (let n = noitesMin; n <= noitesMax; n++) {
+    const alvo = somarDiasIso(checkin, n);
+    if (aceita(alvo)) return alvo;
+  }
+
+  return null;
+}
+
+/**
+ * O espelho: chegada válida para uma saída fixa.
+ *
+ * Existe porque o atalho "ver a próxima data que fecha este pacote" movia sempre
+ * a chegada. Se o hóspede acabou de escolher a SAÍDA, é a chegada que deve ceder
+ * — mover o campo que ele acabou de preencher apaga a decisão dele.
+ */
+export function checkinParaSaida(
+  slug: string,
+  propertySlug: string,
+  checkout: string,
+  noitesPreferidas?: number,
+): string | null {
+  const m = motorDoPacote(slug);
+  if (!m) return null;
+
+  const noitesMin = m.motor === "v2" ? m.pacote.noitesMin : m.pacote.nights;
+  const noitesMax = m.motor === "v2" ? (m.pacote.noitesMax ?? noitesMin) : m.pacote.nights;
+
+  const aceita = (checkin: string) =>
+    datasElegiveis(slug, propertySlug, checkin, checkout).elegivel;
+
+  if (noitesPreferidas && noitesPreferidas >= noitesMin && noitesPreferidas <= noitesMax) {
+    const alvo = somarDiasIso(checkout, -noitesPreferidas);
+    if (aceita(alvo)) return alvo;
+  }
+
+  for (let n = noitesMin; n <= noitesMax; n++) {
+    const alvo = somarDiasIso(checkout, -n);
+    if (aceita(alvo)) return alvo;
+  }
+
+  return null;
+}
+
+function somarDiasIso(base: string, dias: number): string {
+  const d = new Date(base + "T12:00:00");
+  d.setDate(d.getDate() + dias);
+  return iso(d);
+}
+
 // ---------------------------------------------------------------------------
 // ALTERNATIVA — sempre uma URL real, nunca um rótulo de tipo
 // ---------------------------------------------------------------------------
@@ -282,4 +374,96 @@ export function alternativaPara(slug: string, aPartirDe: string): Alternativa {
 
 function iso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
+// ÂNCORA — mover o campo que o hóspede NÃO acabou de escolher
+// ---------------------------------------------------------------------------
+
+export type AlternativaAncorada = Alternativa & {
+  checkin: string;
+  checkout: string;
+  /** Qual campo o atalho mexeu. Vai escrito na tela. */
+  mudou: "checkin" | "checkout" | "ambos";
+};
+
+/**
+ * Alternativa que PRESERVA o campo preenchido por último.
+ *
+ * "Ver a próxima data que fecha este pacote" movia sempre a chegada, inclusive
+ * quando o hóspede tinha acabado de escolhê-la. Quem escolheu o check-in quer
+ * manter o check-in; é a saída que cede. Mover a decisão recém-tomada é como
+ * responder outra pergunta — e o risco real é o hóspede só descobrir depois de
+ * ter viajado em outra data.
+ *
+ * `ancora: null` (nenhum campo tocado) libera os dois, que é o comportamento
+ * antigo e continua correto nesse caso.
+ */
+export function alternativaAncorada(params: {
+  slug: string;
+  propertySlug: string;
+  checkin: string;
+  checkout: string;
+  ancora: "checkin" | "checkout" | null;
+  guests?: number;
+}): AlternativaAncorada | null {
+  const { slug, propertySlug, checkin, checkout, ancora, guests } = params;
+
+  const noites =
+    checkin && checkout
+      ? Math.round(
+          (new Date(checkout + "T12:00:00").getTime() - new Date(checkin + "T12:00:00").getTime()) /
+            86400000,
+        )
+      : undefined;
+
+  const montar = (
+    ci: string,
+    co: string,
+    mudou: AlternativaAncorada["mudou"],
+    rotulo: string,
+  ): AlternativaAncorada => ({
+    rotulo,
+    href:
+      `/pacotes/${slug}?checkin=${ci}&checkout=${co}&casa=${propertySlug}` +
+      (guests ? `&guests=${guests}` : ""),
+    checkin: ci,
+    checkout: co,
+    mudou,
+  });
+
+  if (ancora === "checkin" && checkin) {
+    const co = checkoutParaChegada(slug, propertySlug, checkin, noites);
+    if (co && co !== checkout) {
+      return montar(checkin, co, "checkout", `Manter a chegada e sair em ${porExtenso(co)}`);
+    }
+  }
+
+  if (ancora === "checkout" && checkout) {
+    const ci = checkinParaSaida(slug, propertySlug, checkout, noites);
+    if (ci && ci !== checkin) {
+      return montar(ci, checkout, "checkin", `Manter a saída e chegar em ${porExtenso(ci)}`);
+    }
+  }
+
+  // Nenhum campo tocado, ou a âncora não fecha nenhuma combinação: os dois
+  // podem se mover. O rótulo diz isso — o hóspede não pode achar que só um mudou.
+  const prox = proximaDataElegivel(slug, checkin || isoDeHoje());
+  if (!prox) return null;
+  return montar(
+    prox.checkin,
+    prox.checkout,
+    "ambos",
+    `Ver ${porExtenso(prox.checkin)} → ${porExtenso(prox.checkout)}, a próxima data que fecha este pacote`,
+  );
+}
+
+/** `2026-12-29` → `29/12`. Curto: o rótulo é um link, não um parágrafo. */
+function porExtenso(iso: string): string {
+  const [, mes, dia] = (iso || "").split("-");
+  return mes && dia ? `${dia}/${mes}` : iso;
+}
+
+function isoDeHoje(): string {
+  return iso(new Date());
 }

@@ -8,7 +8,11 @@ import { PROPERTIES } from "@/config/properties";
 import { getExtra, type PacoteV2 } from "@/config/precos-e-extras";
 import PersonalizeSuaEstadia from "@/components/extras/PersonalizeSuaEstadia";
 import type { ExtraExibivel } from "@/lib/pricing/extras";
-import { checkoutSugerido, datasElegiveis, alternativaPara } from "@/lib/pricing/elegibilidade";
+import {
+  datasElegiveis,
+  checkoutParaChegada,
+  alternativaAncorada,
+} from "@/lib/pricing/elegibilidade";
 import { trackPacoteDatasSelecionadas, trackPacoteCtaReserva } from "@/lib/analytics/tracking";
 import { pushBeginCheckout } from "@/lib/analytics/dataLayer";
 import { iniciarCheckoutId } from "@/lib/analytics/checkout-id";
@@ -33,7 +37,13 @@ type Resposta =
       subtotal: number;
       absorvido: number;
     }
-  | { compativel: false; motivo: string; alternativa?: { rotulo: string; href: string } | null };
+  | {
+      compativel: false;
+      motivo: string;
+      alternativa?: { rotulo: string; href: string } | null;
+      /** Chegada bloqueada com véspera E dia seguinte livres: as duas aparecem. */
+      alternativas?: { rotulo: string; href: string }[] | null;
+    };
 
 function iso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -109,41 +119,53 @@ export default function PackageBookingV2({
   const maxISO = useMemo(() => isoMais(540), []);
 
   // Duração fixa: o check-out acompanha o check-in e não é editável.
-  // Duração variável: sugere a saída pela REGRA do pacote — somar as noites
-  // mínimas caía em dia que o próprio pacote recusa.
+  // Duração variável: a saída sai da REGRA do pacote, nunca de `chegada + mínimo`.
   // Guarda a chegada anterior para saber quantas noites o cliente tinha escolhido.
   const checkinAnteriorRef = useRef<string>("");
+
+  // Campo que o hóspede preencheu POR ÚLTIMO. É o que o atalho de alternativa
+  // preserva: quem acabou de escolher a chegada não quer vê-la trocada.
+  const [ancora, setAncora] = useState<"checkin" | "checkout" | null>(
+    iniciais?.checkin ? "checkin" : iniciais?.checkout ? "checkout" : null,
+  );
 
   useEffect(() => {
     if (!checkin) return;
 
-    if (duracaoFixa) {
-      setCheckout(somaDias(checkin, pacote.noitesMin));
-      checkinAnteriorRef.current = checkin;
-      return;
-    }
-
     const anterior = checkinAnteriorRef.current;
     checkinAnteriorRef.current = checkin;
 
-    // Duração variável: ao TROCAR a chegada, a saída acompanha mantendo o mesmo
-    // número de noites que o cliente já tinha escolhido. Antes a saída ficava
-    // parada e só era recalculada se tivesse ficado no passado — no Dois Casais
-    // isso dava a impressão de que a data não atualizava.
-    if (anterior && checkout && checkout > anterior) {
-      const noitesEscolhidas = Math.round(
-        (new Date(checkout + "T12:00:00").getTime() - new Date(anterior + "T12:00:00").getTime()) /
-          86400000,
-      );
-      setCheckout(somaDias(checkin, noitesEscolhidas));
+    if (duracaoFixa) {
+      // Duração fixa não tem escolha de noites, mas ainda pode ter dia de saída
+      // proibido — o helper resolve os dois casos.
+      const co = checkoutParaChegada(pacote.slug, propertySlug, checkin);
+      if (co) setCheckout(co);
       return;
     }
 
-    if (!checkout || checkout <= checkin) {
-      setCheckout(checkoutSugerido(pacote.slug, checkin) ?? somaDias(checkin, pacote.noitesMin));
+    // Ao TROCAR a chegada, a saída acompanha mantendo o número de noites que o
+    // cliente já tinha escolhido. `checkoutParaChegada` respeita essa preferência
+    // e, se ela cair num dia que o pacote recusa, procura a válida mais próxima —
+    // antes o deslocamento era cego e podia pousar em dia proibido.
+    const noitesEscolhidas =
+      anterior && checkout && checkout > anterior
+        ? Math.round(
+            (new Date(checkout + "T12:00:00").getTime() -
+              new Date(anterior + "T12:00:00").getTime()) /
+              86400000,
+          )
+        : undefined;
+
+    // Sem chegada anterior e com saída já válida, não mexe: o par veio de um
+    // link personalizado e é do hóspede.
+    if (!noitesEscolhidas && checkout && checkout > checkin) {
+      if (datasElegiveis(pacote.slug, propertySlug, checkin, checkout).elegivel) return;
     }
+
+    const co = checkoutParaChegada(pacote.slug, propertySlug, checkin, noitesEscolhidas);
+    if (co) setCheckout(co);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkin, duracaoFixa, pacote.noitesMin, pacote.slug]);
+  }, [checkin, duracaoFixa, pacote.slug, propertySlug]);
 
   const capacidadeCasa = casasElegiveis.find((p) => p.slug === propertySlug)?.capacity.max ?? 4;
   const hospedesMin = pacote.hospedesMin ?? 1;
@@ -169,7 +191,16 @@ export default function PackageBookingV2({
       setResposta({
         compativel: false,
         motivo: eleg.motivo,
-        alternativa: alternativaPara(pacote.slug, checkin),
+        // Preserva o campo que o hóspede acabou de preencher. O atalho antigo
+        // movia sempre a chegada, inclusive quando era ela a decisão recente.
+        alternativa: alternativaAncorada({
+          slug: pacote.slug,
+          propertySlug,
+          checkin,
+          checkout,
+          ancora,
+          guests,
+        }),
       });
       trackPacoteDatasSelecionadas({
         pacoteId: pacote.id,
@@ -219,7 +250,7 @@ export default function PackageBookingV2({
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [pacote.id, pacote.slug, propertySlug, checkin, checkout, guests, removidos, selecao]);
+  }, [pacote.id, pacote.slug, propertySlug, checkin, checkout, guests, removidos, selecao, ancora]);
 
   const ok = resposta?.compativel === true ? resposta : null;
   const incompativel = resposta?.compativel === false ? resposta : null;
@@ -329,7 +360,10 @@ export default function PackageBookingV2({
               value={checkin}
               min={hojeISO}
               max={maxISO}
-              onChange={(e) => setCheckin(e.target.value)}
+              onChange={(e) => {
+                setCheckin(e.target.value);
+                setAncora("checkin");
+              }}
               className="w-full cursor-pointer border-b border-charcoal/10 bg-transparent py-1 pr-8 font-serif text-lg text-charcoal outline-none focus:border-copper"
             />
             <Calendar className="pointer-events-none absolute right-1 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal/40" />
@@ -346,7 +380,10 @@ export default function PackageBookingV2({
             max={maxISO}
             disabled={duracaoFixa}
             readOnly={duracaoFixa}
-            onChange={(e) => setCheckout(e.target.value)}
+            onChange={(e) => {
+              setCheckout(e.target.value);
+              setAncora("checkout");
+            }}
             className={`mt-1 w-full border-b border-charcoal/10 bg-transparent py-1 font-serif text-lg text-charcoal outline-none ${
               duracaoFixa ? "opacity-70" : "cursor-pointer focus:border-copper"
             }`}
@@ -376,17 +413,31 @@ export default function PackageBookingV2({
         </select>
       </div>
 
+      {/* Chegada bloqueada pelo PMS: aviso imediato, sem esperar a rede. O
+          componente estava importado e nunca renderizado — o hóspede só via o
+          CTA desabilitado, sem explicação. */}
+      <AvisoChegadaBloqueada checkin={checkin} diasBloqueados={diasSemChegada} />
+
       {incompativel && (
         <div className="mt-4 border border-copper/30 bg-copper/5 p-3">
           <p className="font-sans text-xs leading-relaxed text-charcoal">{incompativel.motivo}</p>
-          {incompativel.alternativa && (
+          {/* `alternativas` (plural) tem precedência: a chegada bloqueada pode
+              ter véspera E dia seguinte livres, e mostrar só uma esconde metade
+              da saída. */}
+          {(incompativel.alternativas?.length
+            ? incompativel.alternativas
+            : incompativel.alternativa
+              ? [incompativel.alternativa]
+              : []
+          ).map((alt) => (
             <a
-              href={incompativel.alternativa.href}
-              className="mt-2 inline-block font-sans text-xs uppercase tracking-[0.2em] text-copper"
+              key={alt.href}
+              href={alt.href}
+              className="mt-2 block font-sans text-xs uppercase tracking-[0.2em] text-copper"
             >
-              {incompativel.alternativa.rotulo}
+              {alt.rotulo}
             </a>
-          )}
+          ))}
         </div>
       )}
       {erro && <p className="mt-3 font-sans text-xs text-copper">{erro}</p>}

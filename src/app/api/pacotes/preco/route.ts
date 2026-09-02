@@ -100,6 +100,9 @@ export async function POST(req: NextRequest) {
         alternativa:
           calc.alternativa ??
           (calc.status === 400 ? alternativaPara(pacote.slug, body.checkin!) : null),
+        // Chegada bloqueada pode ter véspera E dia seguinte livres. Oferecer só
+        // a primeira esconderia metade da saída.
+        alternativas: calc.alternativas ?? null,
       },
       { status: calc.status },
     );
