@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAccessToken } from "@/lib/hostaway";
+import { exigirAdminForaDeProducao } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,10 +76,12 @@ async function tryCancel(token: string, reservationId: number): Promise<{ status
 }
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  if (searchParams.get("key") !== "lucas2026") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 404 });
-  }
+  // A MAIS PERIGOSA das rotas de debug: dispara seis tentativas de CRIAÇÃO de
+  // reserva contra a conta de produção da Hostaway (listing 316007), uma delas
+  // com `status: confirmed` e `isPaid: true`. Era guardada por `?key=lucas2026`,
+  // com a chave escrita neste arquivo, em repositório público.
+  const negado = exigirAdminForaDeProducao(req);
+  if (negado) return negado;
 
   const token = await getAccessToken(true);
   if (!token) {

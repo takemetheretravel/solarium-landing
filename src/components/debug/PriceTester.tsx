@@ -37,7 +37,10 @@ function todayPlus(days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-export default function PriceTester({ properties, debugKey }: { properties: Property[]; debugKey: string }) {
+export default function PriceTester({ properties }: { properties: Property[] }) {
+  // Token digitado por quem usa. Embutir no HTML entregaria o segredo a
+  // qualquer um que abrisse o "ver código-fonte" da página.
+  const [adminToken, setAdminToken] = useState("");
   const [propertyId, setPropertyId] = useState(properties[0]?.id ?? 0);
   const [checkin, setCheckin] = useState(todayPlus(30));
   const [checkout, setCheckout] = useState(todayPlus(33));
@@ -50,9 +53,9 @@ export default function PriceTester({ properties, debugKey }: { properties: Prop
     setLoading(true);
     setError(null);
     setResponse(null);
-    const url = `/api/debug/price-test?key=${debugKey}&propertyId=${propertyId}&checkin=${checkin}&checkout=${checkout}&guests=${guests}`;
+    const url = `/api/debug/price-test?propertyId=${propertyId}&checkin=${checkin}&checkout=${checkout}&guests=${guests}`;
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: { "x-admin-token": adminToken } });
       if (!res.ok) {
         setError(`HTTP ${res.status}`);
         return;
@@ -65,10 +68,23 @@ export default function PriceTester({ properties, debugKey }: { properties: Prop
     }
   }
 
-  const requestUrl = `/api/debug/price-test?key=${debugKey}&propertyId=${propertyId}&checkin=${checkin}&checkout=${checkout}&guests=${guests}`;
+  const requestUrl = `/api/debug/price-test?propertyId=${propertyId}&checkin=${checkin}&checkout=${checkout}&guests=${guests}`;
 
   return (
     <div className="space-y-4 font-sans text-sm">
+      <label className="block">
+        <span className="block text-xs uppercase tracking-widest text-charcoal/50">
+          ADMIN_API_TOKEN
+        </span>
+        <input
+          type="password"
+          value={adminToken}
+          onChange={(e) => setAdminToken(e.target.value)}
+          placeholder="cole o token; ele nao e salvo nem enviado na URL"
+          className="mt-1 w-full border border-charcoal/20 bg-white px-2 py-1"
+        />
+      </label>
+
       <div className="grid gap-3 sm:grid-cols-4">
         <label className="block">
           <span className="block text-xs uppercase tracking-widest text-charcoal/50">Propriedade</span>

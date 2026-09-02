@@ -4,14 +4,14 @@ import PriceTester from "@/components/debug/PriceTester";
 
 export const dynamic = "force-dynamic";
 
-const DEBUG_KEY = "lucas2026";
-
-export default async function HostawayDebugPage({
-  searchParams,
-}: {
-  searchParams: { key?: string };
-}) {
-  if (searchParams?.key !== DEBUG_KEY) notFound();
+/**
+ * Ferramenta de desenvolvimento. Era guardada por `?key=lucas2026`, com a chave
+ * escrita neste arquivo, em repositório PÚBLICO — ou seja, sem guarda nenhuma.
+ * Agora simplesmente NÃO EXISTE em produção, e o token das rotas que ela chama é
+ * digitado por quem usa, nunca embutido no HTML.
+ */
+export default async function HostawayDebugPage() {
+  if (process.env.VERCEL_ENV === "production") notFound();
 
   const listings = await getListings();
   const detail = listings[0] ? await getListing(listings[0].id) : null;
@@ -22,7 +22,7 @@ export default async function HostawayDebugPage({
       <div className="mx-auto max-w-5xl px-6 sm:px-10 lg:px-16">
         <h1 className="font-serif text-4xl text-charcoal">Hostaway — Diagnóstico</h1>
         <p className="mt-2 font-sans text-sm text-charcoal/60">
-          Página privada. Não compartilhe a URL com a chave.
+          Ferramenta de desenvolvimento — indisponível em produção.
         </p>
 
         <section className="mt-10 border border-charcoal/10 bg-white p-6">
@@ -59,8 +59,7 @@ export default async function HostawayDebugPage({
           </dl>
 
           <form action="/api/debug/regenerate-token" method="POST" className="mt-6">
-            <input type="hidden" name="key" value={DEBUG_KEY} />
-            <input type="hidden" name="redirect" value={`/debug/hostaway?key=${DEBUG_KEY}`} />
+            <input type="hidden" name="redirect" value="/debug/hostaway" />
             <button
               type="submit"
               className="border border-charcoal bg-charcoal px-4 py-2 font-sans text-xs uppercase tracking-widest text-cream hover:bg-serra"
@@ -114,7 +113,7 @@ export default async function HostawayDebugPage({
           <div className="mt-4">
             <PriceTester
               properties={listings.map((l) => ({ id: l.id, name: l.name }))}
-              debugKey={DEBUG_KEY}
+              
             />
           </div>
         </section>

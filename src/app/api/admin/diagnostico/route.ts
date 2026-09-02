@@ -7,6 +7,7 @@ import {
   lerConversoesDaReserva,
   type ConversionSent,
 } from "@/lib/kv-store";
+import { exigirAdmin } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,33 +23,12 @@ export const dynamic = "force-dynamic";
  */
 
 /** Comparação em tempo constante — evita vazar o token por tempo de resposta. */
-function tokenConfere(recebido: string, esperado: string): boolean {
-  if (recebido.length !== esperado.length) return false;
-  let diff = 0;
-  for (let i = 0; i < recebido.length; i++) {
-    diff |= recebido.charCodeAt(i) ^ esperado.charCodeAt(i);
-  }
-  return diff === 0;
-}
-
 export async function GET(req: Request) {
-  // `.trim()` nos DOIS lados. A comparação é byte-a-byte, e um valor colado no
-  // painel da Vercel costuma carregar quebra de linha ou espaço invisível na
-  // ponta — isso derrubava um token correto em 401. Só as extremidades são
-  // normalizadas: aspas e qualquer outro caractere continuam significativos.
-  const esperado = (process.env.ADMIN_API_TOKEN || "").trim();
-  // Sem token configurado o endpoint fica FECHADO, nunca aberto.
-  if (!esperado) {
-    return NextResponse.json({ error: "ADMIN_API_TOKEN não configurado" }, { status: 503 });
-  }
-
-  const recebido = (
-    req.headers.get("x-admin-token") ||
-    (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "")
-  ).trim();
-  if (!recebido || !tokenConfere(recebido, esperado)) {
-    return NextResponse.json({ error: "não autorizado" }, { status: 401 });
-  }
+  // Mesma porta da simulação e das rotas de debug — a checagem mora em
+  // `@/lib/admin-auth`, com comparação em tempo constante e `.trim()` nos dois
+  // lados (valor colado no painel da Vercel carrega quebra de linha invisível).
+  const negado = exigirAdmin(req);
+  if (negado) return negado;
 
   // `?transaction_id=` responde sobre UMA reserva; sem ele, as ultimas 50.
   const filtro = new URL(req.url).searchParams.get("transaction_id")?.trim();

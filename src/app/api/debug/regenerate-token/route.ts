@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clearTokenCache } from "@/lib/hostaway";
-
-const DEBUG_KEY = "lucas2026";
+import { exigirAdminForaDeProducao } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  // Era `?key=lucas2026` em repo público — e esta rota derruba o token de acesso
+  // da Hostaway de PRODUÇÃO, forçando reemissão. Agora exige ADMIN_API_TOKEN.
+  const negado = exigirAdminForaDeProducao(req);
+  if (negado) return negado;
+
   const form = await req.formData();
-  const key = String(form.get("key") || "");
   const redirect = String(form.get("redirect") || "/");
-  if (key !== DEBUG_KEY) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
   clearTokenCache();
   return NextResponse.redirect(new URL(redirect, req.url), { status: 303 });
 }
