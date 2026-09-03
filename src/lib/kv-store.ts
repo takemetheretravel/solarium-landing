@@ -907,3 +907,99 @@ export function podeTentarFinalizacao(r: FinalizacaoHostaway, agora = Date.now()
   const esperaMin = BACKOFF_FINALIZACAO_MIN[Math.min(r.attempts, BACKOFF_FINALIZACAO_MIN.length - 1)];
   return agora - ultima >= esperaMin * 60_000;
 }
+
+// ---------------------------------------------------------------------------
+// Falha de pagamento: anti-flood da notificação, e contador de bloqueios de
+// antifraude por draft.
+//
+// Mesma camada de `webhook_events`, como pedido: um só Redis, um só padrão de
+// chave, um só lugar para investigar.
+const FALHA_NOTIF_PREFIX = "falha_pagamento_notificada:";
+/** Uma notificação por draft a cada 15 minutos. */
+export const JANELA_ANTIFLOOD_MS = 15 * 60 * 1000;
+const FALHA_NOTIF_TTL = 60 * 60 * 24; // 24h — muito além da janela, barato
+
+/**
+ * `true` = pode notificar AGORA (e a janela foi reservada).
+ *
+ * As seis tentativas do incidente de 28/08 gerariam seis e-mails idênticos em
+ * 18 minutos. Seis alertas iguais não informam mais que um — informam menos,
+ * porque ensinam a ignorar o remetente.
+ *
+ * Usa `SET NX EX`: a reserva da janela é atômica, então duas tentativas
+ * simultâneas do mesmo draft não passam as duas.
+ *
+ * Falha de Redis é fail-OPEN (deixa notificar): perder o aviso de uma falha
+ * terminal é pior que mandar um e-mail repetido.
+ */
+export async function podeNotificarFalha(draftId: string): Promise<boolean> {
+  const id = (draftId || "").trim();
+  if (!id) return true;
+  try {
+    const res = await getRedis().set(`${FALHA_NOTIF_PREFIX}${id}`, new Date().toISOString(), {
+      nx: true,
+      ex: Math.floor(JANELA_ANTIFLOOD_MS / 1000),
+    });
+    return res !== null;
+  } catch (err) {
+    console.error("[kv-store:podeNotificarFalha] Failed (fail-open):", err);
+    return true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bloqueios de antifraude por draft. Base da decisão de fallback (Bloco 2).
+const AF_BLOQUEIO_PREFIX = "af_bloqueio:";
+const AF_BLOQUEIO_TTL = 60 * 60 * 24; // acompanha a vida útil de um checkout
+
+/** Incrementa e devolve o total de bloqueios de antifraude deste draft. */
+export async function registrarBloqueioAntifraude(draftId: string): Promise<number> {
+  const id = (draftId || "").trim();
+  if (!id) return 0;
+  try {
+    const redis = getRedis();
+    const chave = `${AF_BLOQUEIO_PREFIX}${id}`;
+    const total = await redis.incr(chave);
+    // TTL renovado a cada bloqueio: o contador acompanha a tentativa em curso.
+    await redis.expire(chave, AF_BLOQUEIO_TTL);
+    return typeof total === "number" ? total : 0;
+  } catch (err) {
+    // Fail-safe para o LADO CONSERVADOR: sem contador confiável, devolve 0 e o
+    // fallback não dispara. Trocar de gateway por engano é pior que não trocar.
+    console.error("[kv-store:registrarBloqueioAntifraude] Failed:", err);
+    return 0;
+  }
+}
+
+export async function lerBloqueiosAntifraude(draftId: string): Promise<number> {
+  const id = (draftId || "").trim();
+  if (!id) return 0;
+  try {
+    const v = await getRedis().get<number | string>(`${AF_BLOQUEIO_PREFIX}${id}`);
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Recusas de emissor por draft. A SEGUNDA consecutiva é falha terminal: uma
+// recusa isolada costuma ser dedo errado; duas seguidas no mesmo draft é cartão
+// que não vai passar, e o hóspede vai desistir sem falar com ninguém.
+const RECUSA_PREFIX = "recusa_emissor:";
+const RECUSA_TTL = 60 * 60 * 24;
+
+export async function registrarRecusaEmissor(draftId: string): Promise<number> {
+  const id = (draftId || "").trim();
+  if (!id) return 0;
+  try {
+    const redis = getRedis();
+    const chave = `${RECUSA_PREFIX}${id}`;
+    const total = await redis.incr(chave);
+    await redis.expire(chave, RECUSA_TTL);
+    return typeof total === "number" ? total : 0;
+  } catch (err) {
+    console.error("[kv-store:registrarRecusaEmissor] Failed:", err);
+    return 0;
+  }
+}

@@ -550,6 +550,58 @@ function linhasQueCasam(conteudo, regex) {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 17. As rotas de cron respondem 401 sem header e 200 com header valido.
+//
+// `/api/hostaway/finalizar-pagamentos` respondeu 401 em 144 de 144 execucoes e
+// `pix-reconcile` em 100% das diarias. Duas filas paradas por semanas sem que
+// nada reprovasse. Esta checagem so roda quando ha servidor de pe e segredo no
+// ambiente (CRON_SECRET ou HOSTAWAY_FINALIZE_SECRET); sem isso ela e PULADA, e
+// nunca reprova o build por falta de ambiente.
+//
+// PowerShell:
+//   $env:SMOKE_BASE_URL = "http://localhost:3000"
+//   $env:CRON_SECRET = "<valor>"
+//   npm run smoke
+// ---------------------------------------------------------------------------
+{
+  const base = (process.env.SMOKE_BASE_URL || "").trim().replace(/\/+$/, "");
+  const segredo = (process.env.CRON_SECRET || process.env.HOSTAWAY_FINALIZE_SECRET || "").trim();
+  const ROTAS = ["/api/hostaway/finalizar-pagamentos", "/api/payments/braspag/pix-reconcile"];
+
+  if (!base || !segredo) {
+    aprovar(
+      "crons: checagem HTTP pulada (defina SMOKE_BASE_URL e CRON_SECRET para exercitar)",
+    );
+  } else {
+    const problemas = [];
+    for (const rota of ROTAS) {
+      try {
+        const semHeader = await fetch(base + rota);
+        if (semHeader.status !== 401) {
+          problemas.push(rota + " sem header respondeu " + semHeader.status + ", esperado 401");
+        }
+        const comHeader = await fetch(base + rota, {
+          headers: { Authorization: "Bearer " + segredo },
+        });
+        if (comHeader.status !== 200) {
+          problemas.push(
+            rota + " com header valido respondeu " + comHeader.status + ", esperado 200",
+          );
+        }
+      } catch (err) {
+        problemas.push(rota + " inacessivel: " + err.message);
+      }
+    }
+    if (problemas.length) {
+      reprovar("rota de cron com autorizacao quebrada", problemas);
+    } else {
+      aprovar("crons respondem 401 sem header e 200 com header valido");
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 4. Os quatro totais golden continuam corretos.
 //
 // São o contrato de preço do motor de pacotes. Se um deles mudar, o valor

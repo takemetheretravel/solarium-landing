@@ -17,6 +17,7 @@ import {
   resetBraspag3ds,
   type ThreeDSResult,
 } from "@/lib/braspag-3ds-client";
+import { emitirTelemetria, TIMEOUT_3DS_MS as TELEMETRIA_TIMEOUT_3DS_MS } from "@/lib/telemetria-pagamento";
 
 const MSG_3DS_FALHOU =
   "Não foi possível validar seu cartão com o banco emissor. Nenhum valor foi cobrado — tente novamente, use outro cartão ou pague via Pix.";
@@ -83,6 +84,11 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   const [installments, setInstallments] = useState(1);
   const [cardProcessing, setCardProcessing] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
+  // Telemetria: `pagina_abandonada` só faz sentido entre o 3DS ter começado e a
+  // cobrança ter sido pedida. Refs, não estado — mudar isto não pode rerenderizar
+  // a tela de pagamento.
+  const marcou3dsRef = useRef(false);
+  const marcouSubmitRef = useRef(false);
 
   // ---- Caminho Braspag (só quando PAYMENT_PROVIDER=braspag) ----
   // Enquanto não carrega, assume "cielo" → comportamento idêntico ao atual.
@@ -208,6 +214,11 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
           installments,
           onReady: () => {
             if (!cancelado) setBraspagReady(true);
+            // A sessao 3DS existe. Daqui ate `submit_iniciado` fica o trecho que
+            // era invisivel: em 02/09 nasceram 8 sessoes e zero cobrancas foram
+            // pedidas, sem uma linha de log.
+            marcou3dsRef.current = true;
+            emitirTelemetria({ draftId: params.draftId, provider: "braspag", etapa: "3ds_iniciado" });
           },
           onResult: (r) => {
             threeDSResultRef.current = r;
@@ -329,6 +340,28 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     };
   }, [pixStatus, params.draftId, router, provider]);
 
+  // Abandono entre o 3DS e a cobrança.
+  //
+  // É a assinatura do incidente de 02/09: sessão 3DS criada, nenhuma cobrança
+  // pedida, hóspede sumiu. Efeito PRÓPRIO, com handler próprio — o handler de
+  // `visibilitychange` do polling do Pix continua exatamente como está.
+  useEffect(() => {
+    const aoEsconder = () => {
+      if (document.visibilityState !== "hidden") return;
+      if (!marcou3dsRef.current || marcouSubmitRef.current) return;
+      // Uma vez por página: reaparecer e sair de novo não é um novo abandono.
+      marcou3dsRef.current = false;
+      emitirTelemetria({
+        draftId: params.draftId,
+        provider: provider || "desconhecido",
+        etapa: "pagina_abandonada",
+        detalhe: "saiu entre 3ds_iniciado e submit_iniciado",
+      });
+    };
+    document.addEventListener("visibilitychange", aoEsconder);
+    return () => document.removeEventListener("visibilitychange", aoEsconder);
+  }, [params.draftId, provider]);
+
   useEffect(() => {
     if (pixStatus !== "pending") return;
     const timer = setTimeout(() => setShowManualCheck(true), 30000);
@@ -374,6 +407,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     }
 
     try {
+      marcouSubmitRef.current = true;
+      emitirTelemetria({ draftId: params.draftId, provider: "cielo", etapa: "submit_iniciado" });
       const res = await fetch("/api/payments/credit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -394,6 +429,14 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         setCardError(data.returnMessage || data.error || "Pagamento não aprovado. Verifique os dados e tente novamente.");
       }
     } catch (err) {
+      // O `fetch` rejeitou ANTES de haver resposta HTTP: rede caiu, DNS, CORS.
+      // É o desfecho que some do log do servidor — ele nunca soube da tentativa.
+      emitirTelemetria({
+        draftId: params.draftId,
+        provider: "cielo",
+        etapa: "submit_erro_rede",
+        detalhe: (err as Error)?.name || "erro de rede",
+      });
       setCardError((err as Error)?.message || "Erro de conexão. Verifique sua internet e tente novamente.");
     } finally {
       setCardProcessing(false);
@@ -507,7 +550,34 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         setCardError("Pagamento seguro ainda não pronto. Aguarde e tente novamente.");
         return;
       }
+      // O desafio foi despachado ao SDK. A partir daqui corre o relógio da
+      // telemetria (120s), que é SÓ observação: o prazo funcional do fluxo
+      // continua sendo o `TIMEOUT_3DS_MS` de 5 min, intocado.
+      emitirTelemetria({
+        draftId: params.draftId,
+        provider: "braspag",
+        etapa: "3ds_desafio_exibido",
+      });
+      let avisouTimeout = false;
+      const relogioTelemetria = setTimeout(() => {
+        avisouTimeout = true;
+        emitirTelemetria({
+          draftId: params.draftId,
+          provider: "braspag",
+          etapa: "3ds_timeout",
+          detalhe: "sem retorno do SDK em 120s",
+        });
+      }, TELEMETRIA_TIMEOUT_3DS_MS);
+
       const r3ds = await resultadoPromise;
+      clearTimeout(relogioTelemetria);
+
+      emitirTelemetria({
+        draftId: params.draftId,
+        provider: "braspag",
+        etapa: r3ds.event === "onSuccess" ? "3ds_retorno_sucesso" : "3ds_retorno_falha",
+        detalhe: `${r3ds.event}${avisouTimeout ? " (apos aviso de 120s)" : ""}`,
+      });
 
       // 2) Só o onSuccess segue para a cobrança. Demais = falha amigável + retry.
       if (r3ds.event !== "onSuccess") {
@@ -525,6 +595,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       }
 
       // 3) Cobrança real (autoriza + antifraude + captura separada no servidor).
+      marcouSubmitRef.current = true;
+      emitirTelemetria({ draftId: params.draftId, provider: "braspag", etapa: "submit_iniciado" });
       const res = await fetch("/api/payments/braspag/credit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -556,6 +628,14 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         setCardError(data.returnMessage || data.error || "Pagamento não aprovado. Verifique os dados e tente novamente.");
       }
     } catch (err) {
+      // Rejeição antes de haver resposta HTTP. O servidor nunca soube da
+      // tentativa — sem esta linha, ela não existe em lugar nenhum.
+      emitirTelemetria({
+        draftId: params.draftId,
+        provider: "braspag",
+        etapa: "submit_erro_rede",
+        detalhe: (err as Error)?.name || "erro de rede",
+      });
       setCardError((err as Error)?.message || "Erro de conexão. Verifique sua internet e tente novamente.");
     } finally {
       // Único ponto que destrava o botão. Vale inclusive no caminho aprovado:

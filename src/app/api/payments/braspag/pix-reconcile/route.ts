@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { scanAllDrafts, scanOrphanReservations } from "@/lib/kv-store";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
 import { reprocessOrphan, type OrphanRecord } from "@/lib/reservation-recovery";
+import { logarAuthDoCron } from "@/lib/cron-auth-log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,9 @@ export async function GET(req: Request) {
   const isVercelCron = !!cronSecret && authHeader === `Bearer ${cronSecret}`;
   const isManual = !!reconcileSecret && provided === reconcileSecret;
   if (!isVercelCron && !isManual) {
+    // 401 em 100% das execuções diárias, sem diagnóstico. Ver comentário
+    // equivalente em `/api/hostaway/finalizar-pagamentos`.
+    logarAuthDoCron("/api/payments/braspag/pix-reconcile", req);
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

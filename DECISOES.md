@@ -684,3 +684,137 @@ Os eventos suportados são `reservation created`, `reservation updated` e
 `new message received`. **Não existe** evento de "reserva pronta para receber
 cobrança". A fila `hostaway_pending_finalization` com retry e backoff continua
 sendo a abordagem correta — a busca por um webhook que avise está encerrada.
+
+## Observabilidade de falha de pagamento (PR 1)
+
+Três incidentes em produção, todos invisíveis até alguém exportar log da Vercel
+à mão. O que faltava não era corrigir — era **enxergar**.
+
+### CSP: o corpo do relatório passou a ser lido
+
+`/api/csp-report` recebeu 151 relatórios, respondeu 204 e descartou todos. Agora
+cada violação vira uma linha `[CSP:violacao]` com `disposition`,
+`effectiveDirective`, `blockedURL`, `documentURL`, `sourceFile`, `lineNumber`,
+`statusCode` e `isPaymentRoute`.
+
+`disposition` é o campo que importa: separa "isto bloqueou e quebrou o checkout
+de alguém" de "isto quebraria se a política estivesse ligada". Ausente resolve
+para `report`, **nunca** para `enforce` — afirmar bloqueio que não houve manda a
+operação caçar problema inexistente.
+
+**Deduplicação em memória, 60 segundos**, por chave
+`disposition|effectiveDirective|blockedURL|isPaymentRoute`. Uma campanha já
+gerou 147 linhas idênticas; o que interessa é o conjunto de origens distintas
+mais a contagem. Em memória de propósito: o objetivo é enxugar log, e uma
+instância nova recomeçando a contagem é mais barato que uma ida ao Redis por
+relatório recebido.
+
+A rota continua **sem autenticação e fora de qualquer middleware** — quem posta
+é o navegador do visitante, que não tem credencial. Coletor protegido não recebe
+nada e a cegueira volta.
+
+Este ciclo **não altera a CSP**. O objetivo é descobrir o que ela bloqueia.
+
+### Telemetria do 3DS: timeout de 120 segundos
+
+Em 02/09 o mesmo dispositivo criou 8 sessões 3DS e fez **zero** chamadas de
+cobrança. O fluxo morreu no navegador e não existe uma linha de log sobre isso.
+
+`POST /api/payments/telemetry` registra oito etapas, de `3ds_iniciado` a
+`pagina_abandonada`. Responde 204 sempre, nunca lança, nunca bloqueia o cliente:
+medição que atrapalha pagamento é pior que medição nenhuma. Etapa fora da lista
+é descartada em silêncio — o endpoint é público e não pode virar um canal para
+escrever texto arbitrário no log.
+
+**120 segundos** para o `3ds_timeout`, contados a partir de
+`3ds_desafio_exibido`. Folgado de propósito: o desafio pode envolver o hóspede
+abrindo o app do banco, e um limite curto marcaria como falha um fluxo que ainda
+ia completar — poluindo justamente o sinal que estamos criando.
+
+Este relógio é **só observação**. O prazo funcional do fluxo continua sendo o
+`TIMEOUT_3DS_MS` de 5 minutos, intocado.
+
+PII: só `draftId`, `provider`, `etapa` e um `detalhe` de até 200 caracteres.
+Nunca cartão, e-mail, telefone ou nome — este log é o mais fácil de exportar.
+
+### Notificação de falha terminal: 1 por draft a cada 15 minutos
+
+Só o caminho de sucesso notificava alguém. Agora `enviarAlertaFalhaTerminal()`
+usa o **mesmo Resend, mesmo destinatário e mesmo remetente** do alerta de
+aprovação — nenhuma dependência nova.
+
+Falha terminal = o hóspede não tem mais caminho automático nesta tentativa:
+
+- `3ds_timeout` ou `submit_erro_rede` (via telemetria);
+- **segunda** recusa consecutiva do emissor no mesmo draft;
+- exceção não tratada em qualquer das duas rotas de cobrança;
+- `AF-bloqueio` depois de o fallback também ter falhado (PR 2).
+
+`3ds_retorno_falha` **não** entra: tem retry automático na tela, e notificar
+cada uma traria de volta a enxurrada que o anti-flood existe para evitar.
+
+**Anti-flood de 15 minutos**, chave `falha_pagamento_notificada:<draftId>` na
+mesma camada de `webhook_events`. Usa `SET NX EX` — a reserva da janela é
+atômica, então duas tentativas simultâneas do mesmo draft não passam as duas.
+As seis tentativas do incidente de 28/08 (18 minutos) geram no máximo 2 e-mails.
+
+Falha de Redis é **fail-open** (deixa notificar): perder o aviso de uma falha
+terminal é pior que mandar um e-mail repetido.
+
+A segunda recusa é o corte porque uma recusa isolada costuma ser dígito errado;
+duas seguidas no mesmo draft é cartão que não vai passar. Erro de requisição
+(HTTP não-2xx da Braspag) **não** conta: é problema nosso de credencial ou
+payload, não do cartão do hóspede.
+
+## Conciliação Hostaway: endpoint de cobranças
+
+`GET /v1/reservations/{id}/offlineCharges` responde **404 consistentemente** em
+produção (reservas 65714576 e 65375857), embora a documentação o descreva. A
+cobrança existe: na 65714576 ela tem id `32909068`, tipo `CHARGE`, nome
+"Pagamento no Cartão", status `DUE`, valor 5800,00.
+
+A documentação também dá `PUT /v1/offlineCharges/{id}` para atualizar — caminho
+**diferente** do que o código assumia (`PUT /reservations/{id}/offlineCharges/{chargeId}`).
+Mas o **schema do corpo não está publicado**, e o endpoint de listagem que
+funciona não foi determinado.
+
+Decisão, pela regra "na dúvida, a opção conservadora":
+
+1. `listarCobrancasHostaway` tenta o endpoint documentado primeiro — se a
+   Hostaway habilitar o recurso na conta, é por ali que volta a funcionar.
+2. Não funcionando, lê a própria reserva com `includeResources=1` (sem esse
+   parâmetro a Hostaway não devolve recursos aninhados) e procura a coleção
+   entre os nomes candidatos.
+3. Não achando nenhuma, registra
+   `[Hostaway:conciliacao] endpoint indeterminado reservation_id=<id>` com a
+   lista de chaves que a reserva devolveu, dispara a notificação de falha e
+   devolve `null`.
+
+`null`, não `[]`. Não é "não há cobranças" — é "não sei onde elas estão".
+Devolver lista vazia faria o chamador registrar uma cobrança que talvez já
+exista, e cobrança duplicada exige estorno e conversa com o hóspede. Pendente
+só espera.
+
+**Impasse registrado:** o nome da coleção de cobranças e o schema do corpo do
+`PUT` continuam sem confirmação. É pergunta para o suporte da Hostaway, não
+para tentativa e erro contra a conta de produção.
+
+## Diagnóstico do 401 nos crons
+
+`/api/hostaway/finalizar-pagamentos`: 401 em **144 de 144** execuções.
+`/api/payments/braspag/pix-reconcile`: 401 em 100% das diárias. Duas filas
+paradas há semanas, e o log não dizia nada além do 401.
+
+Antes de cada 401, sai `[Cron:auth] rota=<rota> header_presente=<bool>
+secret_configurado=<bool> match=<bool>`, mais os **comprimentos** do recebido e
+do esperado. Só booleanos e tamanhos — nunca o segredo nem parte dele. O
+comprimento entra porque é o que denuncia espaço ou quebra de linha invisível na
+ponta, causa que já derrubou um token correto neste projeto.
+
+Os três booleanos separam as causas em **uma** execução: header ausente (a
+Vercel não está mandando, logo `CRON_SECRET` não existe no projeto), segredo não
+configurado no runtime, ou valores divergentes.
+
+A verificação 17 do smoke exercita as duas rotas por HTTP quando
+`SMOKE_BASE_URL` e o segredo estão no ambiente; sem eles é **pulada**, nunca
+reprovada — falta de ambiente não pode quebrar o build.

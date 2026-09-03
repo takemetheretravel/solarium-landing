@@ -962,11 +962,45 @@ export type CobrancaHostaway = {
 export async function listarCobrancasHostaway(
   reservationId: number,
 ): Promise<CobrancaHostaway[] | null> {
-  const json = await authFetch<{ result?: CobrancaHostaway[] }>(
+  // CAMINHO 1 — o endpoint que a documentação descreve.
+  //
+  // Em produção ele responde 404 de forma consistente (reservas 65714576 e
+  // 65375857). Continua sendo tentado primeiro: se a Hostaway habilitar o
+  // recurso na conta, é por aqui que passa a funcionar de novo.
+  const direto = await authFetch<{ result?: CobrancaHostaway[] }>(
     `/reservations/${reservationId}/offlineCharges`,
   );
-  if (json === null) return null;
-  return json.result ?? [];
+  if (direto !== null) return direto.result ?? [];
+
+  // CAMINHO 2 — a própria reserva, com `includeResources=1`.
+  //
+  // Sem esse parâmetro a Hostaway NÃO devolve os recursos aninhados. A cobrança
+  // existe: na reserva 65714576 ela tem id 32909068, tipo CHARGE, status DUE.
+  // O nome da coleção não está publicado, então procuramos nos candidatos em
+  // vez de fixar um — e, não achando, dizemos que não sabemos.
+  const reserva = await authFetch<{ result?: Record<string, unknown> }>(
+    `/reservations/${reservationId}?includeResources=1`,
+  );
+  if (reserva === null) return null;
+
+  const r = reserva.result ?? {};
+  for (const chave of ["offlineCharges", "charges", "guestPayments", "reservationCharges"]) {
+    const lista = r[chave];
+    if (Array.isArray(lista)) {
+      console.log(`[Hostaway:conciliacao] cobranças encontradas em "${chave}" reservation_id=${reservationId}`);
+      return lista as CobrancaHostaway[];
+    }
+  }
+
+  // Consultou e não achou lista nenhuma. Isso NÃO é "não há cobranças" — é "não
+  // sei onde elas estão". Devolver `[]` faria o chamador registrar uma cobrança
+  // que talvez já exista, e cobrança duplicada na contabilidade exige estorno e
+  // conversa com o hóspede. `null` mantém a entrada na fila.
+  console.error(
+    `[Hostaway:conciliacao] endpoint indeterminado reservation_id=${reservationId} ` +
+      `chaves_da_reserva=${Object.keys(r).slice(0, 40).join(",")}`,
+  );
+  return null;
 }
 
 /**

@@ -26,6 +26,8 @@ import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
 import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
+import { notificarFalhaTerminal } from "@/lib/notificar-falha";
+import { registrarRecusaEmissor } from "@/lib/kv-store";
 import { revalidarDraftAntesDeCobrar } from "@/lib/pricing/revalidar-draft";
 
 export const runtime = "nodejs";
@@ -46,6 +48,9 @@ function detectCardBrand(num: string): string {
 // Espelha o contrato/pós-pagamento da rota Cielo (/api/payments/credit) SEM
 // tocá-la. Braspag EXIGE 3DS (ExternalAuthentication) e fingerprint (2A).
 export async function POST(req: Request) {
+  // Fora do `try` para o `catch` conseguir nomear o draft na notificação. Sem
+  // isto, o aviso de exceção não tratada sairia sem dizer de quem é.
+  let draftIdParaAlerta = "";
   try {
     const body = (await req.json()) as {
       draftId?: string;
@@ -84,6 +89,7 @@ export async function POST(req: Request) {
 
     // ---- Validação de entrada (Braspag exige 3DS + fingerprint) ----
     if (!draftId) return NextResponse.json({ error: "draftId required" }, { status: 400 });
+    draftIdParaAlerta = draftId;
     if (!cardNumber || !cardHolder || !cardExpiration || !cardCvv) {
       return NextResponse.json({ error: "Dados do cartão incompletos" }, { status: 400 });
     }
@@ -356,6 +362,22 @@ export async function POST(req: Request) {
         merchantOrderId: tentativaId,
         diagnostico,
       });
+      // SEGUNDA recusa consecutiva do mesmo draft = falha terminal. Erro de
+      // requisição NÃO conta: é problema nosso de credencial ou payload, não do
+      // cartão do hóspede, e já tem rótulo próprio no log.
+      if (httpOk) {
+        const recusas = await registrarRecusaEmissor(draftId);
+        if (recusas >= 2) {
+          await notificarFalhaTerminal({
+            draftId,
+            provider: "braspag",
+            motivo: `${recusas}ª recusa consecutiva do emissor`,
+            paymentId: auth.paymentId ?? undefined,
+            cardLast4,
+            detalhe: motivoInterno,
+          });
+        }
+      }
       return NextResponse.json({ approved: false, returnMessage: mensagemCliente }, { status: 402 });
     }
 
@@ -574,6 +596,12 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[/api/payments/braspag/credit] Exception:", err);
+    await notificarFalhaTerminal({
+      draftId: draftIdParaAlerta,
+      provider: "braspag",
+      motivo: "excecao nao tratada na rota de cobranca",
+      detalhe: (err as Error)?.message?.slice(0, 200),
+    });
     const message =
       (err as Error)?.message?.startsWith("Braspag:")
         ? (err as Error).message.replace("Braspag: ", "")

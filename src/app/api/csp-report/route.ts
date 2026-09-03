@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { recordCspViolation } from "@/lib/kv-store";
+import {
+  extrairRelatorios,
+  normalizarViolacao,
+  DedupeCsp,
+  type ViolacaoNormalizada,
+} from "@/lib/csp-normalizar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,57 +14,50 @@ export const dynamic = "force-dynamic";
  * Coletor de relatórios de violação da CSP.
  *
  * Sem autenticação: quem posta é o navegador do visitante, que não tem nem
- * envia credencial. A defesa contra abuso é o limite de tamanho do corpo e o
- * fato de a escrita ser deduplicada — mil relatórios forjados da mesma origem
- * viram uma chave com contador alto, não mil chaves.
+ * envia credencial. **Não pôr atrás de middleware de autenticação** — um
+ * coletor protegido não recebe nada e a cegueira volta.
  *
  * Responde 204 SEMPRE. Um coletor que devolve erro faz o navegador reenviar, e
  * nada aqui vale atrapalhar o carregamento de uma página de pagamento.
+ *
+ * A rota recebeu 151 relatórios e descartava todos. Agora cada violação vira
+ * linha de log — com `disposition`, que é o que responde se a política está
+ * bloqueando de verdade ou só observando.
  */
 
 /** Acima disso o corpo é descartado sem análise. */
 const LIMITE_CORPO_BYTES = 16 * 1024;
 
+/** Teto de relatórios processados por requisição. */
+const MAX_RELATORIOS = 20;
+
 const VAZIO = new NextResponse(null, { status: 204 });
 
-/** Um relatório, nos dois formatos que os navegadores usam hoje. */
-type RelatorioCsp = {
-  "blocked-uri"?: string;
-  blockedURL?: string;
-  "violated-directive"?: string;
-  effectiveDirective?: string;
-  "effective-directive"?: string;
-  "document-uri"?: string;
-  documentURL?: string;
-};
+// Vive no módulo: uma instância da função reaproveita entre requisições, que é
+// exatamente o escopo em que a rajada de linhas idênticas acontece.
+const dedupe = new DedupeCsp();
 
-function normalizar(r: RelatorioCsp): {
-  blocked_uri: string;
-  violated_directive: string;
-  document_uri: string;
-} | null {
-  const blocked = r["blocked-uri"] ?? r.blockedURL ?? "";
-  const directive = r["violated-directive"] ?? r.effectiveDirective ?? r["effective-directive"] ?? "";
-  const doc = r["document-uri"] ?? r.documentURL ?? "";
-  if (!blocked && !directive) return null;
-  return {
-    // `inline`, `eval` e `data` chegam como palavra solta; o resto é URL, e só
-    // a origem interessa (o caminho completo carregaria querystring do emissor).
-    blocked_uri: soOrigem(blocked) || "(desconhecido)",
-    violated_directive: directive.slice(0, 120) || "(desconhecida)",
-    document_uri: soOrigem(doc) || "",
-  };
-}
-
-function soOrigem(valor: string): string {
-  const v = (valor || "").trim();
-  if (!v) return "";
-  if (!v.includes("://")) return v.slice(0, 200);
-  try {
-    return new URL(v).origin;
-  } catch {
-    return v.slice(0, 200);
-  }
+/**
+ * Uma linha por violação.
+ *
+ * `console.warn` de propósito, não `error`: violação em `report` é observação,
+ * não incidente. O que separa os dois é o campo `disposition` dentro do JSON.
+ */
+function logar(v: ViolacaoNormalizada, userAgent: string): void {
+  console.warn(
+    "[CSP:violacao] " +
+      JSON.stringify({
+        disposition: v.disposition,
+        effectiveDirective: v.effectiveDirective,
+        blockedURL: v.blockedURL,
+        documentURL: v.documentURL,
+        sourceFile: v.sourceFile,
+        lineNumber: v.lineNumber,
+        statusCode: v.statusCode,
+        isPaymentRoute: v.isPaymentRoute,
+        userAgent,
+      }),
+  );
 }
 
 export async function POST(req: Request) {
@@ -70,26 +69,33 @@ export async function POST(req: Request) {
     if (!texto || texto.length > LIMITE_CORPO_BYTES) return VAZIO;
 
     const corpo = JSON.parse(texto) as unknown;
+    // Único header lido. NUNCA cookies, nunca Authorization: o corpo de um
+    // relatório de CSP não deve carregar credencial e o log não pode virar um
+    // lugar onde ela apareça.
     const userAgent = (req.headers.get("user-agent") || "").slice(0, 200);
 
-    // Dois formatos convivem: `application/csp-report` manda um objeto com a
-    // chave "csp-report"; `application/reports+json` manda um array de
-    // relatórios com o conteúdo em "body".
-    const relatorios: RelatorioCsp[] = [];
-    if (Array.isArray(corpo)) {
-      for (const item of corpo) {
-        const b = (item as { body?: RelatorioCsp })?.body;
-        if (b) relatorios.push(b);
-      }
-    } else if (corpo && typeof corpo === "object") {
-      const r = (corpo as { "csp-report"?: RelatorioCsp })["csp-report"];
-      relatorios.push(r ?? (corpo as RelatorioCsp));
-    }
+    for (const bruto of extrairRelatorios(corpo).slice(0, MAX_RELATORIOS)) {
+      const v = normalizarViolacao(bruto);
+      if (!v) continue;
 
-    for (const bruto of relatorios.slice(0, 20)) {
-      const normalizado = normalizar(bruto);
-      if (!normalizado) continue;
-      await recordCspViolation({ ...normalizado, user_agent: userAgent });
+      const d = dedupe.registrar(v);
+      if (d.acao === "integral") {
+        logar(v, userAgent);
+      } else if (d.acao === "agregado") {
+        console.warn(`[CSP:violacao:agregado] ${d.chave} ocorrencias=${d.ocorrencias}`);
+      }
+
+      // A escrita no Redis segue como estava — é ela que alimenta o
+      // diagnóstico. Só a primeira ocorrência da janela grava: o registro lá já
+      // tem contador próprio e não precisa de uma ida por relatório recebido.
+      if (d.acao === "integral") {
+        await recordCspViolation({
+          blocked_uri: v.blockedURL,
+          violated_directive: v.effectiveDirective,
+          document_uri: v.documentURL,
+          user_agent: userAgent,
+        });
+      }
     }
   } catch {
     // Corpo malformado, Redis fora, o que for: o coletor nunca reclama.

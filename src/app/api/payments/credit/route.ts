@@ -17,11 +17,16 @@ import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
+import { notificarFalhaTerminal } from "@/lib/notificar-falha";
+import { registrarRecusaEmissor } from "@/lib/kv-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // Fora do `try` para o `catch` conseguir nomear o draft na notificação. Sem
+  // isto, o aviso de exceção não tratada sairia sem dizer de quem é.
+  let draftIdParaAlerta = "";
   try {
     const { draftId, cardNumber, cardHolder, cardExpiration, cardCvv, installments, amountOverride } =
       (await req.json()) as {
@@ -35,6 +40,7 @@ export async function POST(req: Request) {
       };
 
     if (!draftId) return NextResponse.json({ error: "draftId required" }, { status: 400 });
+    draftIdParaAlerta = draftId;
     if (!cardNumber || !cardHolder || !cardExpiration || !cardCvv) {
       return NextResponse.json({ error: "Dados do cartão incompletos" }, { status: 400 });
     }
@@ -103,6 +109,22 @@ export async function POST(req: Request) {
         mensagemCliente: result.mensagemAmigavel,
         draftId,
       });
+
+      // SEGUNDA recusa consecutiva do mesmo draft = falha terminal. Uma recusa
+      // isolada costuma ser dígito errado; duas seguidas é cartão que não vai
+      // passar, e daí o hóspede desiste sem falar com ninguém.
+      const recusas = await registrarRecusaEmissor(draftId);
+      if (recusas >= 2) {
+        await notificarFalhaTerminal({
+          draftId,
+          provider: "cielo",
+          motivo: `${recusas}ª recusa consecutiva do emissor`,
+          paymentId: result.paymentId,
+          cardLast4: cardNumber?.replace(/\s/g, "").slice(-4),
+          detalhe: motivoInterno,
+        });
+      }
+
       return NextResponse.json(
         { approved: false, returnMessage: result.mensagemAmigavel },
         { status: 402 },
@@ -279,6 +301,14 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[/api/payments/credit] Exception:", err);
+    // Excecao nao tratada e falha terminal por definicao: ninguem sabe o que
+    // aconteceu e o hospede ficou sem caminho.
+    await notificarFalhaTerminal({
+      draftId: (draftIdParaAlerta || "").trim(),
+      provider: "cielo",
+      motivo: "excecao nao tratada na rota de cobranca",
+      detalhe: (err as Error)?.message?.slice(0, 200),
+    });
     const message =
       (err as Error)?.message?.startsWith("Cielo:")
         ? (err as Error).message.replace("Cielo: ", "")

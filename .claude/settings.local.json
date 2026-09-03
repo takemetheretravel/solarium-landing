@@ -155,7 +155,8 @@
       "Bash(git commit -m 'Simulacao de pos-pagamento sem cobrar cartao, isolada de dado real *)",
       "Bash(node --check scripts/hostaway-contrato.mjs)",
       "Bash(node --check scripts/simular-reserva.mjs)",
-      "Bash(git commit -m 'Tratamento de 429 da Hostaway, script de contrato da API e DECISOES *)"
+      "Bash(git commit -m 'Tratamento de 429 da Hostaway, script de contrato da API e DECISOES *)",
+      "Bash(git commit -m 'Observabilidade de falha de pagamento e conciliacao Hostaway *)"
     ]
   }
 }

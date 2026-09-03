@@ -225,3 +225,77 @@ function blocoExtrasProvidenciar(
       <ul style="margin:0">${linhas}</ul>
     </div>`;
 }
+
+/**
+ * Falha TERMINAL de pagamento: o hóspede não tem mais caminho automático nesta
+ * tentativa.
+ *
+ * POR QUE EXISTE. Só o caminho de sucesso notificava alguém. Em 28/08 seis
+ * tentativas foram bloqueadas pelo antifraude em 18 minutos, o hóspede migrou
+ * sozinho para a Cielo 44 minutos depois, e ninguém soube até alguém exportar
+ * log da Vercel à mão. Falha silenciosa é venda perdida sem testemunha.
+ *
+ * Mesmo Resend, mesmo destinatário e mesmo remetente do alerta de aprovação —
+ * nenhuma dependência nova.
+ *
+ * O ANTI-FLOOD NÃO MORA AQUI. Quem chama pergunta a `podeNotificarFalha()`
+ * antes: a decisão de silenciar é de negócio e precisa ser testável sem mandar
+ * e-mail.
+ *
+ * NUNCA inclui número completo de cartão, CVV ou validade.
+ */
+export async function enviarAlertaFalhaTerminal(dados: {
+  draftId: string;
+  provider: string;
+  motivo: string;
+  paymentId?: string;
+  cardLast4?: string;
+  valor?: number;
+  listing?: string;
+  checkin?: string;
+  checkout?: string;
+  hospede?: string;
+  contato?: string;
+}) {
+  try {
+    const resend = getResend();
+    if (!resend) return;
+
+    const linha = (rotulo: string, valor?: string | number) =>
+      valor === undefined || valor === "" || valor === null
+        ? ""
+        : `<p><strong>${rotulo}:</strong> ${valor}</p>`;
+
+    const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+    await resend.emails.send({
+      from: ALERTA_DE,
+      to: ALERTA_PARA,
+      subject: `[Solarium] Falha no pagamento — ${dados.draftId}`,
+      html: `
+        <h2>Falha terminal de pagamento</h2>
+        <p>O hóspede não tem mais caminho automático nesta tentativa. Vale contato.</p>
+        ${linha("Draft", dados.draftId)}
+        ${linha("Gateway", dados.provider)}
+        ${linha("Motivo", dados.motivo)}
+        ${linha("PaymentId", dados.paymentId)}
+        ${linha("Cartão (últimos 4)", dados.cardLast4 ? `•••• ${dados.cardLast4}` : undefined)}
+        ${linha("Valor", dados.valor !== undefined ? `R$ ${dados.valor.toFixed(2)}` : undefined)}
+        ${linha("Listing", dados.listing)}
+        ${linha("Datas", dados.checkin && dados.checkout ? `${dados.checkin} → ${dados.checkout}` : undefined)}
+        ${linha("Hóspede", dados.hospede)}
+        ${linha("Contato", dados.contato)}
+        ${linha("Horário", quando)}
+        <hr />
+        <p style="font-size:12px;color:#666">
+          No máximo um aviso por draft a cada 15 minutos. Se o hóspede tentar seis
+          vezes, chegam no máximo dois e-mails.
+        </p>
+      `,
+    });
+    console.log(`[Email] alerta de falha terminal enviado draftId=${dados.draftId}`);
+  } catch (err) {
+    // Notificação NUNCA derruba o fluxo de pagamento.
+    console.error("[Email:falhaTerminal] Failed:", err);
+  }
+}

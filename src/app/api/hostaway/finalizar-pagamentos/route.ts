@@ -6,6 +6,7 @@ import {
   podeTentarFinalizacao,
 } from "@/lib/kv-store";
 import { listarCobrancasHostaway, registrarPagamentoHostaway } from "@/lib/hostaway";
+import { logarAuthDoCron } from "@/lib/cron-auth-log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,11 @@ async function drenar(req: Request) {
     return NextResponse.json({ error: "endpoint sem segredo configurado" }, { status: 503 });
   }
   if (!autorizado(req)) {
+    // 401 em 144 de 144 execuções, sem nada que dissesse por quê. Estes três
+    // booleanos separam as causas EM UMA execução: header ausente (a Vercel não
+    // está mandando, logo CRON_SECRET não existe lá), segredo não configurado no
+    // runtime, ou valor divergente. SÓ booleanos — nunca o segredo nem parte dele.
+    logarAuthDoCron("/api/hostaway/finalizar-pagamentos", req);
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
 
