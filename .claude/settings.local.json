@@ -156,7 +156,10 @@
       "Bash(node --check scripts/hostaway-contrato.mjs)",
       "Bash(node --check scripts/simular-reserva.mjs)",
       "Bash(git commit -m 'Tratamento de 429 da Hostaway, script de contrato da API e DECISOES *)",
-      "Bash(git commit -m 'Observabilidade de falha de pagamento e conciliacao Hostaway *)"
+      "Bash(git commit -m 'Observabilidade de falha de pagamento e conciliacao Hostaway *)",
+      "Bash(gh pr *)",
+      "Bash(cp /tmp/pr1.md docs/pr/pr1-observabilidade.md)",
+      "Bash(git commit -m 'Fallback automatico Braspag para Cielo no segundo bloqueio do antifraude *)"
     ]
   }
 }

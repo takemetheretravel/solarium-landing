@@ -108,6 +108,14 @@ export type ReservationDraft = {
     landing_page?: string;
     capturado_em?: string;
   } | null;
+  /**
+   * Gateway FORCADO para este draft, por decisao do fallback automatico.
+   *
+   * Escrito no SEGUNDO bloqueio de antifraude. `/api/payments/provider` respeita
+   * este campo acima da configuracao global — e a unica coisa que sobrepoe a
+   * flag, e so para o draft em questao.
+   */
+  provider_forcado?: "cielo" | "braspag";
   status: "pending" | "paid" | "failed" | "expired";
   cieloPaymentId?: string;
   braspagPaymentId?: string;

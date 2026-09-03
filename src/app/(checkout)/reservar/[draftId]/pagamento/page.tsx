@@ -150,13 +150,22 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
 
   // Descobre o provider (flag). Default "cielo" até responder → sem efeito no
   // modo cielo. NENHUM script Braspag é tocado aqui.
+  // `trocouParaCielo` reexecuta este efeito depois do fallback: a rota devolve
+  // o `provider_forcado` gravado no draft, e a tela se remonta apontando para a
+  // Cielo sem que o hóspede recomece a reserva.
+  const [trocouParaCielo, setTrocouParaCielo] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/payments/provider")
+    // `draftId` faz a rota respeitar o `provider_forcado` deste draft.
+    fetch(`/api/payments/provider?draftId=${encodeURIComponent(params.draftId)}`)
       .then((r) => r.json())
       .then((d) => {
         if (cancelled) return;
+        // Explícito nos dois sentidos: sem isto, o fallback devolveria "cielo"
+        // e o estado continuaria em "braspag", porque só havia o `if` de subida.
         if (d?.provider === "braspag") setProvider("braspag");
+        else if (d?.provider === "cielo") setProvider("cielo");
         if (d?.sandbox === true) setSandbox(true);
         setProviderLoaded(true);
       })
@@ -164,7 +173,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [params.draftId, trocouParaCielo]);
 
   // Valor efetivamente cobrado, calculado junto dos demais hooks para que a
   // sessao 3DS possa nascer com ele. Espelha exatamente a lista de parcelas
@@ -626,6 +635,18 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
         router.push(`/reservar/${params.draftId}/confirmacao`);
       } else {
         setCardError(data.returnMessage || data.error || "Pagamento não aprovado. Verifique os dados e tente novamente.");
+
+        // FALLBACK: o servidor já marcou o draft para a Cielo. Reconsultar o
+        // provider remonta a tela no outro caminho, com os dados do cartão que
+        // o hóspede acabou de digitar ainda no formulário — ele só reenvia.
+        //
+        // Nenhum dado de cartão trafega para lugar novo: o formulário é o mesmo
+        // e o próximo POST vai para `/api/payments/credit`, que já revalida
+        // preço e disponibilidade e já dispara conversão server-side.
+        if (data.fallbackDisponivel === true) {
+          console.warn("[Braspag:checkout] fallback para Cielo acionado pelo servidor");
+          setTrocouParaCielo((n) => n + 1);
+        }
       }
     } catch (err) {
       // Rejeição antes de haver resposta HTTP. O servidor nunca soube da

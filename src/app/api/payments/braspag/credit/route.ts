@@ -27,6 +27,7 @@ import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
 import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
 import { notificarFalhaTerminal } from "@/lib/notificar-falha";
+import { registrarBloqueioEAvaliarFallback } from "@/lib/fallback-gateway";
 import { registrarRecusaEmissor } from "@/lib/kv-store";
 import { revalidarDraftAntesDeCobrar } from "@/lib/pricing/revalidar-draft";
 
@@ -419,11 +420,37 @@ export async function POST(req: Request) {
         mensagemCliente: "Antifraude não aprovou; nenhum valor cobrado.",
         draftId,
       });
+      // FALLBACK AUTOMÁTICO. No SEGUNDO bloqueio do mesmo draft, o padrão está
+      // estabelecido: não é azar, é uma regra que vai reprovar de novo. O draft
+      // passa a apontar para a Cielo e o front reapresenta o formulário — sem
+      // que o hóspede precise recomeçar a reserva.
+      //
+      // A primeira tentativa não muda nada: a Braspag continua primária.
+      const fb = await registrarBloqueioEAvaliarFallback(draftId);
+
+      if (fb.fallbackDisponivel) {
+        // Falha terminal SÓ aqui: o caminho automático acabou de ser trocado e,
+        // se este também falhar, não sobra nada. Notificar no primeiro bloqueio
+        // seria alarme para algo que o próprio sistema ainda vai resolver.
+        await notificarFalhaTerminal({
+          draftId,
+          provider: "braspag",
+          motivo: `antifraude bloqueou ${fb.bloqueios}x — fallback para Cielo acionado`,
+          paymentId: auth.paymentId ?? undefined,
+          cardLast4,
+          detalhe: `${afLabel} score ${auth.fraudScore ?? "?"} reason ${auth.fraudReasonCode ?? "?"}`,
+        });
+      }
+
       return NextResponse.json(
         {
           approved: false,
-          returnMessage:
-            "Não foi possível concluir o pagamento. Nenhum valor foi cobrado — tente novamente ou fale conosco no WhatsApp.",
+          returnMessage: fb.fallbackDisponivel
+            ? "Não foi possível concluir por este meio. Nenhum valor foi cobrado — preparamos outra forma de pagamento para você."
+            : "Não foi possível concluir o pagamento. Nenhum valor foi cobrado — tente novamente ou fale conosco no WhatsApp.",
+          // O front usa isto para reapresentar o formulário já apontando para a
+          // Cielo, preservando o draft.
+          fallbackDisponivel: fb.fallbackDisponivel,
         },
         { status: 402 },
       );

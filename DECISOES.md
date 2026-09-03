@@ -818,3 +818,55 @@ configurado no runtime, ou valores divergentes.
 A verificação 17 do smoke exercita as duas rotas por HTTP quando
 `SMOKE_BASE_URL` e o segredo estão no ambiente; sem eles é **pulada**, nunca
 reprovada — falta de ambiente não pode quebrar o build.
+
+## Fallback automático Braspag → Cielo (PR 2)
+
+Quando o antifraude reprova, o hóspede era deixado sozinho na tela. Nos dois
+incidentes reais ele tentou 6 e 8 vezes antes de conseguir — e no primeiro só
+concluiu migrando **à mão** para a Cielo, 44 minutos depois de começar.
+
+### A regra: segundo bloqueio
+
+- A **primeira** tentativa não muda nada. A Braspag continua sendo a rota
+  primária, e um bloqueio isolado pode ser transitório.
+- No **segundo** `AF-bloqueio` do mesmo draft, o padrão está estabelecido: não é
+  azar, é uma regra que vai reprovar de novo (reason 481 com score 28 sendo
+  rejeitado indica regra fixa de perfil, do lado da Braspag). O draft ganha
+  `provider_forcado = "cielo"`.
+- A troca vale **só para aquele draft**. Nada de configuração global.
+
+Contador em `af_bloqueio:<draftId>`, mesma camada de `webhook_events`.
+
+`/api/payments/provider?draftId=<id>` passa a respeitar o `provider_forcado`
+acima da flag global — é a única coisa que a sobrepõe. Sem `draftId`, ou com
+draft ilegível, cai na flag: uma falha de leitura não pode deixar a tela de
+pagamento sem gateway nenhum.
+
+A resposta 402 da segunda tentativa carrega `fallbackDisponivel: true`. O front
+reconsulta o provider e remonta a tela apontando para a Cielo, com os dados que
+o hóspede acabou de digitar ainda no formulário — ele só reenvia, sem recomeçar
+a reserva.
+
+### Fail-safe para o lado conservador
+
+`registrarBloqueioAntifraude` devolve `0` quando o Redis falha, e `0` não
+dispara nada. Sem contador confiável, o conservador é **não trocar**: mandar o
+hóspede para a Cielo por engano é pior que deixá-lo tentar de novo na Braspag.
+Mesma coisa se a gravação do draft falhar — `fallbackDisponivel` volta `false`.
+
+Isto é o oposto do fail-open da notificação, e de propósito: notificar demais
+custa um e-mail, trocar de gateway indevidamente custa uma transação.
+
+### O que NÃO muda
+
+A rota Cielo já revalida preço e disponibilidade antes de cobrar, já usa o
+número da reserva Hostaway como `transaction_id` (GA4) e `event_id` (Meta CAPI),
+e já dispara conversão exclusivamente server-side. O fallback só redireciona
+para ela: nenhuma instrumentação duplicada, nada movido para o cliente.
+
+### Notificação
+
+A falha terminal por antifraude só dispara **quando o fallback é acionado** — o
+caminho automático acabou de ser trocado e, se este também falhar, não sobra
+nada. Notificar no primeiro bloqueio seria alarme para algo que o próprio
+sistema ainda vai resolver.
