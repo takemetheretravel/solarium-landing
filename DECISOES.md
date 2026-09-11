@@ -870,3 +870,167 @@ A falha terminal por antifraude só dispara **quando o fallback é acionado** �
 caminho automático acabou de ser trocado e, se este também falhar, não sobra
 nada. Notificar no primeiro bloqueio seria alarme para algo que o próprio
 sistema ainda vai resolver.
+
+## Galeria sobre Cloudinary (rodada 1)
+
+O site servia as 26 fotos das casas como JPG de `/public`, com `unoptimized` em
+toda imagem externa e `sizes` ausente ou errado. O efeito combinado: a miniatura
+de 200px baixava a mesma variante que o hero de tela cheia.
+
+### Cloudinary como fonte de verdade, curadoria fora do JSON
+
+`content/galerias/{casa}.json` é **gerado**, nunca escrito à mão. A curadoria —
+legenda, ambiente, estação, destaque — vive em `scripts/curadoria-casas.mjs`,
+vai para o Cloudinary como `context.alt` e tags no `npm run upload:casas`, e de
+lá o `npm run galeria:sync` monta o manifesto.
+
+A curadoria não mora no JSON porque o JSON é regenerado: a primeira sync depois
+de uma foto nova apagaria todas as legendas. No Cloudinary o metadado sobrevive
+ao ciclo inteiro.
+
+O gerador preserva **`ordem`**. É o único campo que pode ser editado à mão no
+manifesto, justamente para recurar a sequência sem perder o trabalho na próxima
+sync. Foto nova entra no fim. Duas execuções seguidas produzem bytes idênticos.
+
+Tags usam hífen (`ambiente-vista`), não dois-pontos: dois-pontos em tag do
+Cloudinary atravessa URL de listagem da Admin API e vira aresta desnecessária.
+
+### O schema quebra o build, e isso é o ponto
+
+`src/config/galeria.ts` roda o `parse` do zod no escopo do módulo. As páginas de
+casa importam esse módulo, então manifesto inválido derruba o `next build` com o
+arquivo, o campo e os valores aceitos na mensagem. Verificado na prática: um
+`ambiente` inventado aborta o build com exit 1.
+
+### `blurDataURL` embutido, com `strip_profile`
+
+O placeholder vai como data URI dentro do manifesto, não como URL. Uma URL
+custaria uma requisição por foto que só chegaria **depois** do layout — que é
+exatamente quando o placeholder já não serve para nada.
+
+`fl_strip_profile` não é detalhe: sem ele o Cloudinary carrega o perfil ICC do
+original junto da miniatura de 20px, e ela sai com 3,4KB em vez de 290 bytes. O
+manifesto do Completo caiu de 80KB para 20KB só com essa flag.
+
+### Teto de 2048px no loader
+
+`sizes` descreve a largura do **layout**; o browser ainda multiplica pelo
+devicePixelRatio antes de escolher no `srcset`. Um hero `100vw` numa tela de
+1366 a dpr 1.5 já pede a variante de 3840 — e como os originais têm até 4000px
+de lado, o Cloudinary entregaria os 4000 inteiros.
+
+O teto ficou no loader, não em `images.deviceSizes`: deviceSizes é global e
+mudaria também o `srcset` de `/reservar/[draftId]/pagamento`, que esta rodada
+não podia tocar.
+
+### `SmartImage` virou client component
+
+Não foi escolha de estilo. `loader` é uma função, e função não atravessa a
+fronteira de um Server Component para um Client Component — `next/image` é
+client, então passar o loader de um componente de servidor quebrava o build
+inteiro com "Functions cannot be passed directly to Client Components".
+
+A alternativa era registrar o loader global em `next.config.mjs`. Descartada
+pelo mesmo motivo do teto: mexeria na rota de pagamento.
+
+O componente continua sendo renderizado no SSR, inclusive o `<link rel=preload>`
+do `priority`.
+
+### `priority` só no hero
+
+O logo do header perdeu `priority` e ganhou `loading="eager"`. Com `priority`
+ele saía marcado `fetchPriority="high"` e disputava a faixa de prioridade alta
+com o hero, que é quem decide o LCP. O Next ainda emite um preload para ele;
+são ~8KB e o custo é aceitável perto de deixar o header piscando.
+
+A foto da cachoeira em `/experiencias` também perdeu `priority` — não era hero
+de nada, estava no meio da página.
+
+### A grade duplicada
+
+As páginas de casa mostravam as fotos 1 a 6 **duas vezes**: uma grade de
+miniaturas ao lado do vídeo e a galeria logo abaixo, na mesma rolagem. A grade
+saiu; o vídeo ocupa a seção sozinho, centralizado.
+
+### Solarium Completo: o acervo inteiro
+
+Os três grupos fixos ("Solarium 1", "Solarium 2", "Visões do conjunto", quatro
+fotos cada) viraram o filtro por ambiente. O manifesto do Completo agrega as
+três pastas do Cloudinary: a reserva é das duas casas, então a galeria dela é o
+acervo inteiro — 26 fotos, não uma amostra de doze.
+
+A ordem provisória segue a ordem dos prefixos, não a alfabética. Alfabética pura
+jogaria as fotos do Solarium 1 na frente das do conjunto na página do Completo,
+que é justamente o que aquela página não é.
+
+### Deep-link que não mente
+
+`?foto={id}` sincroniza por `history.replaceState`, nunca por `router.push`:
+navegar pelo Next re-renderizaria a rota a cada seta, o histórico encheria de
+uma entrada por foto, e o botão "voltar" andaria foto a foto em vez de sair da
+galeria.
+
+Um `id` que não existe **não** abre a lightbox numa foto arbitrária — a página
+carrega normal e o parâmetro é limpo. Abrir a foto errada é pior que não abrir
+nada.
+
+### Google Drive como CDN de imagem: eliminado
+
+A home usava um link do Drive como `og:image` e todas as páginas o usavam no
+`twitter:image`. Drive responde com redirecionamento, exige que o arquivo siga
+público para sempre, e vários crawlers de rede social não seguem esse redirect —
+o link compartilhado saía sem miniatura.
+
+Agora cada página tem `og:image` e `twitter:image` próprios, em 1200x630 pelo
+Cloudinary. `f_jpg` explícito e não `f_auto`: crawler de rede social não negocia
+formato como browser, e vários ignoram um AVIF.
+
+`DriveImage.tsx` e `drive-image.ts` eram código morto — nenhum import em lugar
+nenhum. Foram removidos junto.
+
+### O teste que trava a migração
+
+`src/lib/galeria/sem-legado.test.ts` varre `src/` e `content/` atrás de
+`/images/solarium-` e de `drive.google.com`, e confere que as pastas de JPG
+saíram de `/public`.
+
+Varre o **código-fonte**, não o `.next/`: o bundle só existe depois do build, e
+um teste que depende de build roda tarde demais para impedir o commit. Tudo que
+é varrido atravessa para o bundle quando é referenciado, então origem limpa é
+bundle limpo. Arquivos `.test.ts` ficam de fora — não entram no bundle, e
+precisam citar os padrões proibidos para poder afirmar que a aplicação não os usa.
+
+### Eventos de galeria
+
+`gallery_open`, `gallery_photo_view`, `gallery_filter_ambiente`, todos pelo
+módulo `dataLayer` existente, sem chamada direta a pixel.
+
+Nenhum carrega `value` ou `transaction_id`: olhar foto não é receita e não
+existe reserva nesta etapa. E nenhum tem guarda de idempotência, ao contrário de
+`begin_checkout` — abrir a galeria de novo é uma abertura nova, e a repetição é
+o próprio sinal que interessa medir.
+
+Nada mudou em `/reservar/[draftId]/pagamento`.
+
+### Medição
+
+Lighthouse 12, preset desktop, build de produção em `next start`, execução
+aquecida (a primeira passada de cada página foi descartada para não medir cache
+frio do otimizador).
+
+| página            | LCP antes | LCP depois | imagens antes | imagens depois | requisições |
+|-------------------|-----------|------------|---------------|----------------|-------------|
+| solarium-1        | 1,77s     | 0,76s      | 372KB         | 302KB          | 18 → 13     |
+| solarium-2        | 0,99s     | 0,80s      | 344KB         | 330KB          | 18 → 13     |
+| solarium-completo | 0,92s     | 0,77s      | 355KB         | 257KB          | 22 → 13     |
+
+Média de LCP: 1,23s → 0,77s (−37%). Bytes de imagem somados: 1072KB → 889KB
+(−17%), com o Completo mostrando 26 fotos onde antes mostrava 12.
+
+O ganho do Solarium 1 é o maior porque era a única casa cujo hero ainda vinha de
+`/public` sem recorte no servidor.
+
+Uma medição intermediária, antes do `recorte`, mostrou os bytes de imagem do
+Solarium 2 **subindo 124%**: o hero saía de 146KB para 586KB porque `c_limit`
+entregava o retrato de 3000x4000 inteiro para preencher uma faixa que o CSS ia
+cortar. Foi o que motivou o recorte no servidor.

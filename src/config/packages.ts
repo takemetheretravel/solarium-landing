@@ -36,7 +36,7 @@ export const PACKAGES: PackageConfig[] = [
     name: "Data Especial",
     tagline: "Aniversário, pedido, celebração — preparamos tudo antes de vocês chegarem.",
     description: "Duas noites com a casa preparada para a ocasião: decoração romântica na chegada, cesta de café da manhã Di.Luia e espumante gelado. Vocês chegam, e o momento já está pronto.",
-    image: imageUrl("solarium/experiencias/decoracao-romantica", { width: 1200, height: 900 }),
+    image: "solarium/experiencias/decoracao-romantica",
     properties: ["solarium-1", "solarium-2"],
     nights: 2,
     weekdaysOnly: false,

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
+import { ogImageUrl } from "@/lib/cloudinary";
 
 /**
  * Peças comuns aos dois layouts raiz do App Router.
@@ -25,10 +26,19 @@ export const sans = Inter({
 
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://solariummantiqueira.com";
 
-const siteTitle = "Solarium Mantiqueira | Refúgio de Design na Serra";
-const siteDescription =
+export const siteTitle = "Solarium Mantiqueira | Refúgio de Design na Serra";
+export const siteDescription =
   "Refúgio de design e experiência na Serra da Mantiqueira. Duas casas exclusivas, pensadas para casais que buscam imersão em natureza com tecnologia e conforto.";
-const ogImage = `https://drive.google.com/thumbnail?id=1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8&sz=w1600`;
+/**
+ * og:image padrão do site — a mesma foto do hero da home, servida pelo
+ * Cloudinary em 1200x630.
+ *
+ * Era um link do Google Drive. Drive não é CDN de imagem: responde com
+ * redirecionamento, exige que o arquivo siga público para sempre, e vários
+ * crawlers de rede social simplesmente não seguem esse redirect — o link
+ * compartilhado saía sem imagem nenhuma.
+ */
+const ogImage = ogImageUrl("solarium/comum/hero-banheira-por-do-sol");
 
 export const metadataBase: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -42,7 +52,7 @@ export const metadataBase: Metadata = {
     siteName: "Solarium Mantiqueira",
     locale: "pt_BR",
     type: "website",
-    images: [{ url: ogImage, width: 1600, height: 900, alt: "Solarium Mantiqueira" }],
+    images: [{ url: ogImage, width: 1200, height: 630, alt: "Solarium Mantiqueira" }],
   },
   twitter: {
     card: "summary_large_image",

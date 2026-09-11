@@ -6,6 +6,7 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import { PARTNERS, instagramLink } from "@/config/site";
+import { RECORTE_HERO } from "@/lib/cloudinary";
 
 export const metadata: Metadata = {
   title: "Parceiros",
@@ -26,10 +27,11 @@ export default function ParceirosPage() {
     <main>
       <section className="relative h-[55vh] min-h-[400px] w-full overflow-hidden">
         <SmartImage
-          src="/images/solarium-1/07-nevoeiro-plantas.jpg"
+          src="solarium/casas/solarium-1/07-nevoeiro-plantas"
           alt="Detalhes da casa em integração com a serra"
           priority
           sizes="100vw"
+          recorte={RECORTE_HERO}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 to-charcoal/70" />
         <div className="relative z-10 flex h-full flex-col items-center justify-end px-6 pb-16 text-center text-cream">

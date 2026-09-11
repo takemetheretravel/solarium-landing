@@ -199,3 +199,53 @@ export function pushGenerateLead(params: { leadSource: string }): boolean {
 export function pushWhatsAppClick(params: { origem: string }): void {
   push({ event: "whatsapp_click", origem: params.origem });
 }
+
+// ---------------------------------------------------------------------------
+// Galeria
+//
+// Nenhum destes eventos carrega `value` ou `transaction_id`: olhar foto não é
+// receita e não existe reserva nesta etapa. São eventos de comportamento, para
+// responder quais ambientes seguram atenção — não entram em funil de conversão.
+//
+// Sem guarda de idempotência, também de propósito: abrir a galeria de novo é
+// uma abertura nova, e a repetição é o próprio sinal que interessa medir.
+
+/** Abertura da lightbox, com o tamanho real do acervo daquela casa. */
+export function pushGalleryOpen(params: { casa: string; totalFotos: number; origem: string }): void {
+  push({
+    event: "gallery_open",
+    casa: params.casa,
+    total_fotos: params.totalFotos,
+    origem: params.origem,
+  });
+}
+
+/** Foto exibida na lightbox — uma por foto efetivamente vista. */
+export function pushGalleryPhotoView(params: {
+  casa: string;
+  fotoId: string;
+  ambiente: string;
+  posicao: number;
+}): void {
+  push({
+    event: "gallery_photo_view",
+    casa: params.casa,
+    foto_id: params.fotoId,
+    ambiente: params.ambiente,
+    posicao: params.posicao,
+  });
+}
+
+/** Filtro de ambiente acionado. `ambiente: null` = voltou para "Todas". */
+export function pushGalleryFilterAmbiente(params: {
+  casa: string;
+  ambiente: string | null;
+  resultados: number;
+}): void {
+  push({
+    event: "gallery_filter_ambiente",
+    casa: params.casa,
+    ambiente: params.ambiente ?? "todas",
+    resultados: params.resultados,
+  });
+}

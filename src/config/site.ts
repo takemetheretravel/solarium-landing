@@ -17,7 +17,7 @@ export const LOGO = {
   square: "/images/comum/logo-quadrado.png",
 };
 
-export const HERO_IMAGE = "/images/comum/hero-banheira-por-do-sol.jpg";
+export const HERO_IMAGE = "solarium/comum/hero-banheira-por-do-sol";
 
 // Hero video — TODO: preencher com path local quando baixar o vídeo "headline" da pasta landing_page do Drive.
 // Enquanto vazio, o HeroVideo cai automaticamente no fallback (foto da banheira).

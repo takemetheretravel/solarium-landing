@@ -259,7 +259,7 @@ export default async function ReservarPage({ searchParams }: { searchParams: Sea
             slug: property.slug,
             name: property.name,
             badge: property.badge,
-            heroImage: property.heroImage,
+            heroImage: property.heroPublicId,
           }}
           checkin={checkin}
           checkout={checkout}
@@ -351,7 +351,7 @@ function ChooseProperty({
                 className="group flex flex-col bg-cream transition-all hover:-translate-y-1"
               >
                 <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
-                  <SmartImage src={p.cardImage} alt={p.name} sizes="(max-width: 1024px) 100vw, 33vw" />
+                  <SmartImage src={p.cardPublicId} alt={p.name} sizes="(max-width: 1024px) 100vw, 33vw" />
                 </div>
                 <div className="border-t border-charcoal/10 p-6">
                   <Kicker className="mb-2">{p.badge}</Kicker>

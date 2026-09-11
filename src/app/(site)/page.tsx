@@ -33,8 +33,47 @@ import {
   whatsappLink,
 } from "@/config/site";
 import { formatBRL } from "@/lib/cn";
+import { RECORTE_HERO, ogImageUrl } from "@/lib/cloudinary";
+import { SITE_URL, siteDescription, siteTitle } from "@/lib/layout-base";
+import type { Metadata } from "next";
 
 export const revalidate = 300;
+
+const OG_HOME = ogImageUrl("solarium/comum/hero-banheira-por-do-sol");
+
+/**
+ * og:image explícito da home, mesmo coincidindo hoje com o padrão do layout.
+ * Declarado aqui para que trocar o padrão global não mude silenciosamente a
+ * imagem que aparece quando alguém compartilha a página principal.
+ *
+ * `openGraph` vem completo, e não só com `images`: o merge de metadata do Next
+ * substitui o objeto inteiro em vez de mesclar campo a campo, então declarar
+ * apenas a imagem apagaria título, descrição e `siteName` herdados do layout.
+ */
+export const metadata: Metadata = {
+  openGraph: {
+    title: siteTitle,
+    description: siteDescription,
+    url: SITE_URL,
+    siteName: "Solarium Mantiqueira",
+    locale: "pt_BR",
+    type: "website",
+    images: [
+      {
+        url: OG_HOME,
+        width: 1200,
+        height: 630,
+        alt: "SPA com piscina infinita aquecida e vista para a Serra da Mantiqueira",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteTitle,
+    description: siteDescription,
+    images: [OG_HOME],
+  },
+};
 
 const ONSITE_ICONS = { coffee: Coffee, spa: Flower2, heart: Heart };
 
@@ -54,10 +93,11 @@ export default async function Home() {
       {/* HERO */}
       <section className="relative h-screen min-h-[640px] w-full overflow-hidden">
         <SmartImage
-          src="/images/comum/hero-banheira-por-do-sol.jpg"
+          src="solarium/comum/hero-banheira-por-do-sol"
           alt="SPA com piscina infinita aquecida e vista para a Serra da Mantiqueira ao pôr do sol"
           priority
           sizes="100vw"
+          recorte={RECORTE_HERO}
           className="object-[70%_center] md:object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/55 via-charcoal/20 to-transparent sm:from-charcoal/40" />
@@ -175,7 +215,7 @@ export default async function Home() {
                 >
                   <div className="relative aspect-[4/5] overflow-hidden bg-charcoal/5">
                     <SmartImage
-                      src={p.cardImage}
+                      src={p.cardPublicId}
                       alt={p.name}
                       sizes="(max-width: 1024px) 100vw, 33vw"
                     />
@@ -378,7 +418,7 @@ export default async function Home() {
           <div className="grid gap-16 lg:grid-cols-2 lg:gap-20">
             <div className="relative aspect-[4/5] overflow-hidden">
               <SmartImage
-                src="/images/solarium-1/03-cafe-na-rede.jpg"
+                src="solarium/casas/solarium-1/03-cafe-na-rede"
                 alt="Café da manhã na rede com vista para a serra"
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />

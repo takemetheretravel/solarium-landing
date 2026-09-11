@@ -103,7 +103,7 @@ function avisoDatasV2(p: PacoteV2): string | null {
 /** Imagem de acervo da casa elegível, quando o pacote não tem uma própria. */
 function imagemDeFallback(p: PacoteV2): string {
   const casa = PROPERTIES.find((x) => x.slug === p.properties[0]);
-  return casa?.heroImage ?? "/images/comum/hero-banheira-por-do-sol.jpg";
+  return casa?.heroPublicId ?? "solarium/comum/hero-banheira-por-do-sol";
 }
 
 export function vistaPacote(slug: string, v2Ativo: boolean): VistaPacote | null {

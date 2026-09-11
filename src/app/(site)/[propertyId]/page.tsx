@@ -7,15 +7,12 @@ import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
-import Gallery from "@/components/property/Gallery";
+import Galeria from "@/components/property/Galeria";
 import AmenitiesGrouped from "@/components/property/AmenitiesGrouped";
 import PropertyBookingLayout from "@/components/booking/PropertyBookingLayout";
 import VideoBlock from "@/components/ui/VideoBlock";
-import {
-  PROPERTIES,
-  getPropertyBySlug,
-  SOLARIUM_COMPLETO_GALLERY_GROUPS,
-} from "@/config/properties";
+import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
+import { RECORTE_HERO, ogImageUrl } from "@/lib/cloudinary";
 import { REVIEWS, SITE, AIRBNB_LINKS, whatsappLink } from "@/config/site";
 import { getListing } from "@/lib/hostaway";
 import TrackViewContent from "@/components/tracking/TrackViewContent";
@@ -40,14 +37,19 @@ export async function generateMetadata({
   const property = getPropertyBySlug(params.propertyId);
   if (!property) return { title: "Não encontrado" };
   const title = SEO_TITLES[property.slug] ?? property.name;
+  const descricao = property.description.slice(0, 160);
+  // og:image próprio da casa — compartilhar o link do Solarium 2 mostra o
+  // Solarium 2, não a foto genérica da home.
+  const og = ogImageUrl(property.heroPublicId);
   return {
     title,
-    description: property.description.slice(0, 160),
+    description: descricao,
     openGraph: {
       title,
-      description: property.description.slice(0, 160),
-      images: [{ url: property.heroImage, width: 1600, height: 900, alt: property.name }],
+      description: descricao,
+      images: [{ url: og, width: 1200, height: 630, alt: property.name }],
     },
+    twitter: { card: "summary_large_image", title, description: descricao, images: [og] },
   };
 }
 
@@ -68,7 +70,6 @@ export default async function PropertyPage({
   const fullAmenities = apiAmenities.length > 0 ? apiAmenities : property.amenitiesFallback;
   const propertyReviews = REVIEWS.filter((r) => r.property === property.slug);
   const initialGuests = searchParams?.guests ? Number(searchParams.guests) : property.capacity.ideal;
-  const isCompleto = property.slug === "solarium-completo";
 
   const airbnbUrl = AIRBNB_LINKS[property.slug] || "";
   const jsonLd = {
@@ -77,7 +78,7 @@ export default async function PropertyPage({
     name: `${property.name} — Solarium Mantiqueira`,
     description: property.description.slice(0, 300),
     url: `${process.env.NEXT_PUBLIC_SITE_URL || "https://solariummantiqueira.com"}/${property.slug}`,
-    image: property.heroImage,
+    image: ogImageUrl(property.heroPublicId),
     address: {
       "@type": "PostalAddress",
       addressLocality: "Itanhandu",
@@ -107,7 +108,13 @@ export default async function PropertyPage({
 
       {/* HERO — full width, fora do grid de 2 colunas */}
       <section className="relative h-[80vh] min-h-[560px] w-full overflow-hidden">
-        <SmartImage src={property.heroImage} alt={property.name} priority sizes="100vw" />
+        <SmartImage
+          src={property.heroPublicId}
+          alt={property.name}
+          priority
+          sizes="100vw"
+          recorte={RECORTE_HERO}
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-transparent to-charcoal/70" />
         <div className="relative z-10 flex h-full flex-col items-start justify-end px-6 pb-20 text-cream sm:px-16 sm:pb-24">
           <Kicker tone="cream" className="mb-4 opacity-90">
@@ -133,7 +140,12 @@ export default async function PropertyPage({
         initialCheckout={searchParams?.checkout}
         initialGuests={initialGuests}
       >
-        {/* VÍDEO + GALERIA PRÉVIA (6 fotos) */}
+        {/*
+          VÍDEO
+          A grade de 6 miniaturas que ficava ao lado saiu: eram exatamente as
+          fotos 1 a 6 que a galeria logo abaixo já mostrava, duplicadas na mesma
+          rolagem. O vídeo agora ocupa a seção sozinho, centralizado.
+        */}
         {property.videoPublicId && (
           <div className="border-t border-charcoal/10 py-12 md:py-16">
             <div className="mb-8 text-center">
@@ -142,40 +154,15 @@ export default async function PropertyPage({
                 Um vislumbre do {property.name}
               </Heading>
             </div>
-            <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[300px_1fr]">
-              <div className="mx-auto w-full max-w-xs xl:max-w-none">
-                <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {property.galleryImages.slice(0, 6).map((src, i) => (
-                  <div key={src} className="relative aspect-square overflow-hidden bg-charcoal/5">
-                    <SmartImage
-                      src={src}
-                      alt={`${property.name} — prévia ${i + 1}`}
-                      fill
-                      sizes="(max-width: 1280px) 50vw, 20vw"
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="mx-auto w-full max-w-sm">
+              <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
             </div>
           </div>
         )}
 
-        {/* GALERIA COMPLETA */}
+        {/* GALERIA */}
         <div className="border-t border-charcoal/10 py-10 md:py-12">
-          {isCompleto ? (
-            <div className="space-y-12">
-              {SOLARIUM_COMPLETO_GALLERY_GROUPS.map((group) => (
-                <div key={group.title}>
-                  <h3 className="mb-5 font-serif text-xl text-charcoal/70">{group.title}</h3>
-                  <Gallery images={group.images} altPrefix={`${property.name} — ${group.title}`} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Gallery images={property.galleryImages} altPrefix={property.name} />
-          )}
+          <Galeria casa={property.slug} />
         </div>
 
         {/* DESCRIÇÃO + DIFERENCIAIS */}

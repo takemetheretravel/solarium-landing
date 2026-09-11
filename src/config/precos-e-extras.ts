@@ -480,7 +480,7 @@ export const PACOTES_V2: PacoteV2[] = [
     descricao: "Sexta a domingo, com a tarde de domingo inteira ainda pela frente.",
     descricaoLonga:
       "A saída vai até às 18h de domingo, então o último dia não é dia de arrumar mala às pressas. O café de sábado chega no horário que vocês pedirem, e a manhã começa na varanda.",
-    imagem: "/images/solarium-1/09-deck-por-do-sol.jpg",
+    imagem: "solarium/casas/solarium-1/09-deck-por-do-sol",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 2,
     noitesMax: 2,
@@ -502,7 +502,7 @@ export const PACOTES_V2: PacoteV2[] = [
     descricao: "As duas casas, cada casal com a sua, e a mesma vista das duas varandas.",
     descricaoLonga:
       "Cozinha, spa e varanda independentes em cada casa, para o encontro acontecer quando vocês quiserem e não porque o espaço obriga. O café da primeira manhã chega nas duas portas.",
-    imagem: "/images/solarium-1/04-vista-traseira.jpg",
+    imagem: "solarium/casas/solarium-1/04-vista-traseira",
     imagemPlaceholder: {
       criadoEm: "2026-08-13",
       nota: "PLACEHOLDER — substituir por foto de dois casais",
@@ -537,7 +537,7 @@ export const PACOTES_V2: PacoteV2[] = [
     descricao: "Três noites de feriado, e no último dia a saída vai até às 18h, sem correria.",
     descricaoLonga:
       "Feriado na serra costuma ser estrada cheia na volta. Com a saída até às 18h, vocês pegam a descida depois que o movimento passa, e a última manhã ainda cabe inteira no dia.",
-    imagem: "/images/solarium-1/07-nevoeiro-plantas.jpg",
+    imagem: "solarium/casas/solarium-1/07-nevoeiro-plantas",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 3,
     noitesMax: 3,
@@ -559,7 +559,7 @@ export const PACOTES_V2: PacoteV2[] = [
     descricao: "Emende a comemoração com o fim de semana, e volte sem pressa.",
     descricaoLonga:
       "Comemoração de fim de ano costuma acabar com todo mundo olhando o relógio, calculando a hora de pegar a estrada. Aqui a data cai no começo da semana e a estadia segue até o fim de semana seguinte: o dia depois da comemoração é de café sem hora e piscina aquecida, não de arrumar mala. Saindo no domingo, o check-out vai até às 18h — a última tarde é inteira sua, e a descida acontece quando a estrada já esvaziou. O espumante espera gelado na chegada.",
-    imagem: "/images/solarium-1/08-fire-pit.jpg",
+    imagem: "solarium/casas/solarium-1/08-fire-pit",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 3,
     // 7 noites: a saida na segunda a partir de 28/12 precisa caber. A tabela
@@ -598,7 +598,7 @@ export const PACOTES_V2: PacoteV2[] = [
     descricao: "Três manhãs de café com vista, sem pressa e sem multidão.",
     descricaoLonga:
       "Três noites durante a semana, quando a serra está mais silenciosa, com a cesta de café da manhã do Café Café servida nas três manhãs. Você só escolhe as datas — o resto é com a gente.",
-    imagem: imageUrl("solarium/experiencias/cesta-cafe-preparada", { width: 1200, height: 900 }),
+    imagem: "solarium/experiencias/cesta-cafe-preparada",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 3,
     noitesMax: 3,
@@ -621,7 +621,7 @@ export const PACOTES_V2: PacoteV2[] = [
     descricao: "Quatro noites, café todas as manhãs e a serra de quadriciclo.",
     descricaoLonga:
       "Quatro noites de semana com café da manhã servido todos os dias e um passeio de quadriciclo até a Cachoeira da Gomeira. A experiência completa da Mantiqueira, organizada em uma reserva só.",
-    imagem: imageUrl("solarium/experiencias/cachoeira", { width: 1200, height: 900 }),
+    imagem: "solarium/experiencias/cachoeira",
     properties: ["solarium-1", "solarium-2"],
     noitesMin: 4,
     noitesMax: 4,

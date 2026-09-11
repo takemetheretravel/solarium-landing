@@ -5,10 +5,17 @@ import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
-import { imageUrl } from "@/lib/cloudinary";
+import { RECORTE_HERO } from "@/lib/cloudinary";
 
-const EXP = (name: string, w?: number, h?: number) =>
-  imageUrl(`solarium/experiencias/${name}`, w && h ? { width: w, height: h } : undefined);
+/**
+ * publicId do Cloudinary, não URL pronta.
+ *
+ * Antes o helper devolvia uma URL com largura fixa, o que forçava
+ * `unoptimized` e fazia o `sizes` de cada chamada virar decoração: o browser
+ * baixava o mesmo arquivo de 1920px no card de 33vw. Com o publicId, o loader
+ * monta o `srcset` e o `sizes` volta a mandar.
+ */
+const EXP = (name: string) => `solarium/experiencias/${name}`;
 
 export const metadata: Metadata = {
   title: "Experiências",
@@ -66,11 +73,12 @@ export default function ExperienciasPage() {
       {/* ── SEÇÃO 1: Hero ──────────────────────────────────────────── */}
       <section className="relative h-[60vh] min-h-[440px] w-full overflow-hidden">
         <SmartImage
-          src={EXP("cesta-cafe-preparada", 1920, 1080)}
+          src={EXP("cesta-cafe-preparada")}
           alt="Café da manhã preparado com produtos locais — Solarium Mantiqueira"
           priority
           fill
           sizes="100vw"
+          recorte={RECORTE_HERO}
           className="object-top"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-charcoal/20 to-charcoal/75" />
@@ -98,7 +106,7 @@ export default function ExperienciasPage() {
             <div className="flex flex-col border-r border-charcoal/10">
               <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
                 <SmartImage
-                  src={EXP("cesta-cafe", 800, 600)}
+                  src={EXP("cesta-cafe")}
                   alt="Cesta de café da manhã com produtos locais"
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
@@ -124,7 +132,7 @@ export default function ExperienciasPage() {
             <div className="flex flex-col border-r border-charcoal/10">
               <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
                 <SmartImage
-                  src={EXP("massagem", 800, 600)}
+                  src={EXP("massagem")}
                   alt="Sessão de massagem no deck com vista para a Serra"
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
@@ -150,7 +158,7 @@ export default function ExperienciasPage() {
             <div className="flex flex-col">
               <div className="relative aspect-[4/3] overflow-hidden bg-charcoal/5">
                 <SmartImage
-                  src={EXP("decoracao-romantica", 800, 600)}
+                  src={EXP("decoracao-romantica")}
                   alt="Decoração especial para momentos românticos"
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
@@ -181,7 +189,7 @@ export default function ExperienciasPage() {
           <div className="grid grid-cols-1 items-stretch lg:grid-cols-2">
             <div className="relative aspect-[4/3] overflow-hidden lg:aspect-auto">
               <SmartImage
-                src={EXP("bike", 1200, 900)}
+                src={EXP("bike")}
                 alt="Passeio de bike pela Serra da Mantiqueira"
                 fill
                 sizes="(max-width: 1024px) 100vw, 50vw"
@@ -215,11 +223,10 @@ export default function ExperienciasPage() {
       {/* ── SEÇÃO 4: Cachoeiras — foto full-width overlay ─────────── */}
       <div className="relative h-[55vh] min-h-[380px] w-full overflow-hidden">
         <SmartImage
-          src={EXP("cachoeira", 1920, 1080)}
+          src={EXP("cachoeira")}
           alt="Cachoeira na Serra da Mantiqueira"
           fill
           sizes="100vw"
-          priority
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-charcoal/55 px-4 text-center">
           <Kicker tone="cream" className="mb-4 opacity-90">Natureza e Cachoeiras</Kicker>
@@ -300,7 +307,7 @@ export default function ExperienciasPage() {
             </div>
             <div className="relative aspect-[4/3] overflow-hidden lg:order-2 lg:aspect-auto">
               <SmartImage
-                src={EXP("montanha", 1200, 900)}
+                src={EXP("montanha")}
                 alt="Vista aérea da Serra da Mantiqueira"
                 fill
                 sizes="(max-width: 1024px) 100vw, 50vw"
@@ -313,7 +320,7 @@ export default function ExperienciasPage() {
       {/* ── SEÇÃO 6: Rota do Queijo — foto full-width + lista ──────── */}
       <div className="relative h-[45vh] min-h-[320px] w-full overflow-hidden">
         <SmartImage
-          src={EXP("queijaria", 1920, 1080)}
+          src={EXP("queijaria")}
           alt="Rota do queijo artesanal na Serra da Mantiqueira"
           fill
           sizes="100vw"
@@ -375,7 +382,7 @@ export default function ExperienciasPage() {
           </div>
           <div className="relative mx-auto mt-10 aspect-[16/9] max-w-3xl overflow-hidden">
             <SmartImage
-              src={EXP("maria-fumaca", 1600, 900)}
+              src={EXP("maria-fumaca")}
               alt="Maria Fumaça na Estrada Real em Passa Quatro"
               fill
               sizes="(max-width: 768px) 100vw, 800px"

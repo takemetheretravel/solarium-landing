@@ -1,0 +1,126 @@
+{
+  "casa": "solarium-1",
+  "geradoPor": "npm run galeria:sync",
+  "fotos": [
+    {
+      "id": "solarium-1-01-banheira-por-do-sol",
+      "publicId": "solarium/casas/solarium-1/01-banheira-por-do-sol",
+      "alt": "Banheira de hidromassagem no deck do Solarium 1 ao pôr do sol, com a Serra da Mantiqueira ao fundo",
+      "ambiente": "spa",
+      "estacao": "indiferente",
+      "largura": 1200,
+      "altura": 1600,
+      "ordem": 1,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AAAICgAgAAICggAP/9k="
+    },
+    {
+      "id": "solarium-1-02-banheira-serra-fina",
+      "publicId": "solarium/casas/solarium-1/02-banheira-serra-fina",
+      "alt": "Banheira do Solarium 1 voltada para a Serra Fina em dia claro",
+      "ambiente": "spa",
+      "estacao": "indiferente",
+      "largura": 1600,
+      "altura": 2400,
+      "ordem": 2,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAlgCWAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAeABQDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AAgCiAIqAKIA/9k="
+    },
+    {
+      "id": "solarium-1-03-cafe-na-rede",
+      "publicId": "solarium/casas/solarium-1/03-cafe-na-rede",
+      "alt": "Café da manhã servido na rede da varanda do Solarium 1, de frente para o vale",
+      "ambiente": "externa",
+      "estacao": "indiferente",
+      "largura": 3024,
+      "altura": 4032,
+      "ordem": 3,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCKgAAAAAiioAIoqAP/2Q=="
+    },
+    {
+      "id": "solarium-1-04-vista-traseira",
+      "publicId": "solarium/casas/solarium-1/04-vista-traseira",
+      "alt": "Vista a partir dos fundos do Solarium 1 para as montanhas do Parque Nacional do Itatiaia",
+      "ambiente": "vista",
+      "estacao": "indiferente",
+      "largura": 1200,
+      "altura": 1600,
+      "ordem": 4,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AAAAAAAIAAAAAD//2Q=="
+    },
+    {
+      "id": "solarium-1-05-banheira",
+      "publicId": "solarium/casas/solarium-1/05-banheira",
+      "alt": "Banheira de hidromassagem do Solarium 1 vista de perto, com borda voltada para a serra",
+      "ambiente": "spa",
+      "estacao": "indiferente",
+      "largura": 1076,
+      "altura": 1336,
+      "ordem": 5,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAlgCWAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAZABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AAAICgAgAAAAAAP/2Q=="
+    },
+    {
+      "id": "solarium-1-06-redario",
+      "publicId": "solarium/casas/solarium-1/06-redario",
+      "alt": "Redário do Solarium 1 armado no deck externo",
+      "ambiente": "externa",
+      "estacao": "indiferente",
+      "largura": 1800,
+      "altura": 2400,
+      "ordem": 6,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAlgCWAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCIqKgACoCKAA//2Q=="
+    },
+    {
+      "id": "solarium-1-07-nevoeiro-plantas",
+      "publicId": "solarium/casas/solarium-1/07-nevoeiro-plantas",
+      "alt": "Nevoeiro passando entre a vegetação no entorno do Solarium 1",
+      "ambiente": "externa",
+      "estacao": "verde",
+      "largura": 3000,
+      "altura": 4000,
+      "ordem": 7,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAlgCWAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwAqAACACKCKAAgAAP/Z"
+    },
+    {
+      "id": "solarium-1-08-fire-pit",
+      "publicId": "solarium/casas/solarium-1/08-fire-pit",
+      "alt": "Fire pit aceso na área externa do Solarium 1 ao anoitecer",
+      "ambiente": "externa",
+      "estacao": "indiferente",
+      "largura": 3020,
+      "altura": 2153,
+      "ordem": 8,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAlgCWAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAOABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AIAACAAA/9k="
+    },
+    {
+      "id": "solarium-1-09-deck-por-do-sol",
+      "publicId": "solarium/casas/solarium-1/09-deck-por-do-sol",
+      "alt": "Deck do Solarium 1 no fim da tarde, com o sol baixo sobre a serra",
+      "ambiente": "externa",
+      "estacao": "indiferente",
+      "largura": 2400,
+      "altura": 1600,
+      "ordem": 9,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAlgCWAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAANABQDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAQAC/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/EABUBAQEAAAAAAAAAAAAAAAAAAAAB/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AyWSKUEg//9k="
+    },
+    {
+      "id": "solarium-1-10-frente-rede-banheira",
+      "publicId": "solarium/casas/solarium-1/10-frente-rede-banheira",
+      "alt": "Fachada do Solarium 1 com a rede e a banheira de hidromassagem em primeiro plano",
+      "ambiente": "externa",
+      "estacao": "indiferente",
+      "largura": 2400,
+      "altura": 1350,
+      "ordem": 10,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAlgCWAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAALABQDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAQAC/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwALJAoIH//Z"
+    }
+  ]
+}

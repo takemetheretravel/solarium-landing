@@ -1,0 +1,126 @@
+{
+  "casa": "solarium-2",
+  "geradoPor": "npm run galeria:sync",
+  "fotos": [
+    {
+      "id": "solarium-2-01-deck-serra-fina",
+      "publicId": "solarium/casas/solarium-2/01-deck-serra-fina",
+      "alt": "Deck do Solarium 2 com vista aberta para a Serra Fina",
+      "ambiente": "vista",
+      "estacao": "indiferente",
+      "largura": 1800,
+      "altura": 2400,
+      "ordem": 1,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAlgCWAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCACKIACAqiAP/Z"
+    },
+    {
+      "id": "solarium-2-02-banheira-por-do-sol",
+      "publicId": "solarium/casas/solarium-2/02-banheira-por-do-sol",
+      "alt": "Banheira do Solarium 2 ao pôr do sol, de frente para o vale",
+      "ambiente": "spa",
+      "estacao": "indiferente",
+      "largura": 2048,
+      "altura": 1536,
+      "ordem": 2,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAPABQDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AAAAAACD/9k="
+    },
+    {
+      "id": "solarium-2-03-frente-por-do-sol",
+      "publicId": "solarium/casas/solarium-2/03-frente-por-do-sol",
+      "alt": "Fachada do Solarium 2 iluminada pela luz do fim de tarde",
+      "ambiente": "externa",
+      "estacao": "indiferente",
+      "largura": 2799,
+      "altura": 3691,
+      "ordem": 3,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAaABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AAIAAAAACAAAAA//2Q=="
+    },
+    {
+      "id": "solarium-2-04-cinema-por-do-sol",
+      "publicId": "solarium/casas/solarium-2/04-cinema-por-do-sol",
+      "alt": "Sala de cinema integrada do Solarium 2 com o pôr do sol visível pela vidraça",
+      "ambiente": "cinema",
+      "estacao": "indiferente",
+      "largura": 2048,
+      "altura": 1536,
+      "ordem": 4,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAPABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAQD/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AAEAAgAQP//Z"
+    },
+    {
+      "id": "solarium-2-05-spa-teto-retratil",
+      "publicId": "solarium/casas/solarium-2/05-spa-teto-retratil",
+      "alt": "SPA de imersão do Solarium 2 com o teto retrátil aberto para o céu",
+      "ambiente": "spa",
+      "estacao": "indiferente",
+      "largura": 3000,
+      "altura": 4000,
+      "ordem": 5,
+      "destaque": true,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AAAICggAAAAIAAD/2Q=="
+    },
+    {
+      "id": "solarium-2-06-spa-teto-retratil-2",
+      "publicId": "solarium/casas/solarium-2/06-spa-teto-retratil-2",
+      "alt": "Outro ângulo do SPA do Solarium 2 com o teto retrátil aberto",
+      "ambiente": "spa",
+      "estacao": "indiferente",
+      "largura": 3000,
+      "altura": 4000,
+      "ordem": 6,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AICgAgAAAAAAIAD/2Q=="
+    },
+    {
+      "id": "solarium-2-07-quarto-por-do-sol",
+      "publicId": "solarium/casas/solarium-2/07-quarto-por-do-sol",
+      "alt": "Quarto do Solarium 2 com a cama voltada para a janela e o pôr do sol na serra",
+      "ambiente": "quarto",
+      "estacao": "indiferente",
+      "largura": 3000,
+      "altura": 4000,
+      "ordem": 7,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAEC/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwDIAAAAAAAAIAAD/9k="
+    },
+    {
+      "id": "solarium-2-08-cinema-deck",
+      "publicId": "solarium/casas/solarium-2/08-cinema-deck",
+      "alt": "Cinema do Solarium 2 aberto para o deck externo",
+      "ambiente": "cinema",
+      "estacao": "indiferente",
+      "largura": 3000,
+      "altura": 4000,
+      "ordem": 8,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAEC/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwDAAAAAAIAAAAAD/9k="
+    },
+    {
+      "id": "solarium-2-09-deck-tv",
+      "publicId": "solarium/casas/solarium-2/09-deck-tv",
+      "alt": "Área de estar do Solarium 2 com Smart TV voltada para o deck",
+      "ambiente": "sala",
+      "estacao": "indiferente",
+      "largura": 4284,
+      "altura": 5712,
+      "ordem": 9,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAEC/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/EABUBAQEAAAAAAAAAAAAAAAAAAAAB/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AyACqiIoCgIooCCKAA//Z"
+    },
+    {
+      "id": "solarium-2-10-quarto-decorado",
+      "publicId": "solarium/casas/solarium-2/10-quarto-decorado",
+      "alt": "Quarto do Solarium 2 preparado com decoração para data especial",
+      "ambiente": "quarto",
+      "estacao": "indiferente",
+      "largura": 3000,
+      "altura": 4000,
+      "ordem": 10,
+      "destaque": false,
+      "blurDataURL": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAbABQDAREAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAEC/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/EABUBAQEAAAAAAAAAAAAAAAAAAAAB/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AwACgAAAICgAgAij/2Q=="
+    }
+  ]
+}

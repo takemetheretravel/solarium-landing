@@ -10,6 +10,7 @@ import { PACKAGES } from "@/config/packages";
 import { pacotesV2Ativo } from "@/config/flags";
 import { vistaPacote, slugsDePacote, textoNoites } from "@/lib/pricing/vista-pacote";
 import { JANELA_CANCELAMENTO_EXTRAS_DIAS } from "@/config/precos-e-extras";
+import { RECORTE_HERO, ogImageUrl } from "@/lib/cloudinary";
 
 export const revalidate = 300;
 
@@ -25,14 +26,18 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const vista = vistaPacote(params.slug, pacotesV2Ativo());
   if (!vista) return { title: "Não encontrado" };
+  const titulo = `${vista.nome} — Solarium Mantiqueira`;
+  const descricao = vista.descricao.slice(0, 160);
+  const og = ogImageUrl(vista.imagem);
   return {
-    title: `${vista.nome} — Solarium Mantiqueira`,
-    description: vista.descricao.slice(0, 160),
+    title: titulo,
+    description: descricao,
     openGraph: {
-      title: `${vista.nome} — Solarium Mantiqueira`,
-      description: vista.descricao.slice(0, 160),
-      images: [{ url: vista.imagem, width: 1200, height: 900, alt: vista.nome }],
+      title: titulo,
+      description: descricao,
+      images: [{ url: og, width: 1200, height: 630, alt: vista.nome }],
     },
+    twitter: { card: "summary_large_image", title: titulo, description: descricao, images: [og] },
   };
 }
 
@@ -71,7 +76,13 @@ export default function PackagePage({
     <main>
       {/* HERO */}
       <section className="relative h-[70vh] min-h-[480px] w-full overflow-hidden">
-        <SmartImage src={vista.imagem} alt={vista.nome} priority sizes="100vw" />
+        <SmartImage
+          src={vista.imagem}
+          alt={vista.nome}
+          priority
+          sizes="100vw"
+          recorte={RECORTE_HERO}
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-transparent to-charcoal/70" />
         <div className="relative z-10 flex h-full flex-col items-start justify-end px-6 pb-20 text-cream sm:px-16 sm:pb-24">
           <Kicker tone="cream" className="mb-4 opacity-90">

@@ -68,7 +68,15 @@ export default function Header() {
             alt="Solarium Mantiqueira"
             width={200}
             height={56}
-            priority
+            sizes="200px"
+            // `loading="eager"` no lugar de `priority`. O logo precisa aparecer
+            // de imediato, mas não é o LCP de página nenhuma: com `priority`
+            // ele saía marcado `fetchPriority="high"` e disputava a faixa de
+            // prioridade alta com o hero, que é quem decide o LCP.
+            //
+            // O Next ainda emite um <link rel="preload"> para ele; são ~8KB e
+            // o custo é aceitável perto de deixar o header piscando.
+            loading="eager"
             className="h-10 w-auto object-contain md:h-12"
           />
         </Link>

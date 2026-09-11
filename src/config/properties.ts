@@ -23,9 +23,19 @@ export type PropertyConfig = {
   differentials: string[];
   amenitiesFallback: string[];
   amenityGroups: AmenityGroup[];
+  /** publicId do Cloudinary do hero da página da casa. */
+  heroPublicId: string;
+  /** publicId do Cloudinary do card da casa nas listagens. */
+  cardPublicId: string;
+  /**
+   * URL completa do hero, já transformada.
+   *
+   * Sobrevive só por causa de `/reservar/[draftId]/pagamento`, que monta a
+   * imagem com `next/image` cru e está fora do escopo desta rodada. Todo o
+   * resto do site usa `heroPublicId` com o loader do Cloudinary, que entrega a
+   * largura certa por breakpoint em vez de 1200px fixos.
+   */
   heroImage: string;
-  cardImage: string;
-  galleryImages: string[];
   videoPublicId?: string;
   /** Preço-âncora "a partir de / noite" — editável manualmente (não consulta calendário). */
   fromPriceNightly: number;
@@ -103,20 +113,12 @@ const SOLARIUM_1: PropertyConfig = {
     "Churrasqueira a gás",
   ],
   amenityGroups: [TEC(["Smart TV e som integrado"]), BEM_ESTAR, NATUREZA, COZINHA("Churrasqueira a gás")],
-  heroImage: "/images/solarium-1/01-banheira-por-do-sol.jpg",
-  cardImage: "/images/solarium-1/01-banheira-por-do-sol.jpg",
-  galleryImages: [
-    "/images/solarium-1/01-banheira-por-do-sol.jpg",
-    "/images/solarium-1/02-banheira-serra-fina.jpg",
-    "/images/solarium-1/03-cafe-na-rede.jpg",
-    "/images/solarium-1/04-vista-traseira.jpg",
-    "/images/solarium-1/05-banheira.jpg",
-    "/images/solarium-1/06-redario.jpg",
-    "/images/solarium-1/07-nevoeiro-plantas.jpg",
-    "/images/solarium-1/08-fire-pit.jpg",
-    "/images/solarium-1/09-deck-por-do-sol.jpg",
-    "/images/solarium-1/10-frente-rede-banheira.jpg",
-  ],
+  heroPublicId: "solarium/casas/solarium-1/01-banheira-por-do-sol",
+  cardPublicId: "solarium/casas/solarium-1/01-banheira-por-do-sol",
+  heroImage: imageUrl("solarium/casas/solarium-1/01-banheira-por-do-sol", {
+    width: 1200,
+    height: 900,
+  }),
   videoPublicId: "solarium/solarium-1-apresentacao",
 };
 
@@ -157,21 +159,10 @@ const SOLARIUM_2: PropertyConfig = {
     NATUREZA,
     COZINHA("Churrasqueira a gás e a carvão"),
   ],
+  heroPublicId: "solarium/casas/solarium-2-hero",
+  cardPublicId: "solarium/casas/solarium-2-hero",
   heroImage: imageUrl("solarium/casas/solarium-2-hero", { width: 1200, height: 900 }),
-  cardImage: imageUrl("solarium/casas/solarium-2-hero", { width: 1200, height: 900 }),
   videoPublicId: "solarium/solarium-2-apresentacao",
-  galleryImages: [
-    "/images/solarium-2/01-deck-serra-fina.jpg",
-    "/images/solarium-2/02-banheira-por-do-sol.jpg",
-    "/images/solarium-2/03-frente-por-do-sol.jpg",
-    "/images/solarium-2/04-cinema-por-do-sol.jpg",
-    "/images/solarium-2/05-spa-teto-retratil.jpg",
-    "/images/solarium-2/06-spa-teto-retratil-2.jpg",
-    "/images/solarium-2/07-quarto-por-do-sol.jpg",
-    "/images/solarium-2/08-cinema-deck.jpg",
-    "/images/solarium-2/09-deck-tv.jpg",
-    "/images/solarium-2/10-quarto-decorado.jpg",
-  ],
 };
 
 const SOLARIUM_COMPLETO: PropertyConfig = {
@@ -205,17 +196,10 @@ const SOLARIUM_COMPLETO: PropertyConfig = {
     NATUREZA,
     COZINHA("Duas churrasqueiras (a gás e a carvão)"),
   ],
+  heroPublicId: "solarium/casas/solarium-completo-hero",
+  cardPublicId: "solarium/casas/solarium-completo-hero",
   heroImage: imageUrl("solarium/casas/solarium-completo-hero", { width: 1200, height: 900 }),
-  cardImage: imageUrl("solarium/casas/solarium-completo-hero", { width: 1200, height: 900 }),
   videoPublicId: "solarium/solarium-completo-apresentacao",
-  galleryImages: [
-    "/images/solarium-completo/01-frente-externa.jpg",
-    "/images/solarium-completo/02-noite-com-lua.jpg",
-    "/images/solarium-completo/03-final-de-tarde.jpg",
-    "/images/solarium-completo/04-drone-serra-itatiaia.jpg",
-    "/images/solarium-completo/05-drone-itatiaia.jpg",
-    "/images/solarium-completo/06-drone-serra-papagaio.jpg",
-  ],
 };
 
 export const PROPERTIES: PropertyConfig[] = [SOLARIUM_1, SOLARIUM_2, SOLARIUM_COMPLETO];
@@ -228,32 +212,11 @@ export function getPropertyById(id: number): PropertyConfig | undefined {
   return PROPERTIES.find((p) => p.id === id);
 }
 
-export const SOLARIUM_COMPLETO_GALLERY_GROUPS: { title: string; images: string[] }[] = [
-  {
-    title: "Solarium 1",
-    images: [
-      "/images/solarium-1/01-banheira-por-do-sol.jpg",
-      "/images/solarium-1/02-banheira-serra-fina.jpg",
-      "/images/solarium-1/04-vista-traseira.jpg",
-      "/images/solarium-1/08-fire-pit.jpg",
-    ],
-  },
-  {
-    title: "Solarium 2",
-    images: [
-      "/images/solarium-2/01-deck-serra-fina.jpg",
-      "/images/solarium-2/05-spa-teto-retratil.jpg",
-      "/images/solarium-2/04-cinema-por-do-sol.jpg",
-      "/images/solarium-2/08-cinema-deck.jpg",
-    ],
-  },
-  {
-    title: "Visões do conjunto",
-    images: [
-      "/images/solarium-completo/01-frente-externa.jpg",
-      "/images/solarium-completo/02-noite-com-lua.jpg",
-      "/images/solarium-completo/04-drone-serra-itatiaia.jpg",
-      "/images/solarium-completo/05-drone-itatiaia.jpg",
-    ],
-  },
-];
+/*
+ * `SOLARIUM_COMPLETO_GALLERY_GROUPS` saiu daqui.
+ *
+ * Os três grupos fixos ("Solarium 1", "Solarium 2", "Visões do conjunto") viraram
+ * o filtro por ambiente da galeria nova, e o manifesto de `solarium-completo`
+ * agrega as três pastas do Cloudinary — a reserva é das duas casas, então a
+ * galeria dela é o acervo inteiro, não uma amostra de quatro fotos por grupo.
+ */

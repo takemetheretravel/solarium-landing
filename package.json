@@ -11,6 +11,8 @@
     "download:videos": "node scripts/download-videos.mjs",
     "upload:videos": "node scripts/upload-videos-to-cloudinary.mjs",
     "upload:images": "node scripts/upload-images-to-cloudinary.mjs",
+    "upload:casas": "node scripts/upload-casas-cloudinary.mjs",
+    "galeria:sync": "node scripts/gerar-manifesto.mjs",
     "sync:images": "node scripts/sync-drive-cloudinary.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -28,7 +30,8 @@
     "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
-    "resend": "^6.12.4"
+    "resend": "^6.12.4",
+    "zod": "^4.6.1"
   },
   "devDependencies": {
     "@types/node": "^20",

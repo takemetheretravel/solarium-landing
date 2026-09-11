@@ -1,12 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    // Os domínios do Google Drive saíram junto com a migração das fotos para o
+    // Cloudinary: nada no site carrega de lá, e uma origem liberada que ninguém
+    // usa só serve para alguém reintroduzir o Drive sem perceber.
     remotePatterns: [
-      { protocol: "https", hostname: "drive.google.com" },
-      { protocol: "https", hostname: "lh3.googleusercontent.com" },
-      { protocol: "https", hostname: "lh4.googleusercontent.com" },
-      { protocol: "https", hostname: "lh5.googleusercontent.com" },
-      { protocol: "https", hostname: "lh6.googleusercontent.com" },
       { protocol: "https", hostname: "hostaway-platform.s3.us-west-2.amazonaws.com" },
       { protocol: "https", hostname: "res.cloudinary.com" },
     ],
