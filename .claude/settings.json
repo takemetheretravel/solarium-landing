@@ -1,0 +1,59 @@
+{
+
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run build)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run galeria:sync)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx vitest:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Read(//**)",
+      "Edit(src/**)",
+      "Edit(content/**)",
+      "Edit(scripts/**)",
+      "Edit(DECISOES.md)",
+      "Edit(docs/**)",
+      "Write(content/**)",
+      "Write(docs/**)"
+    ],
+
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(gh:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Edit(package.json)",
+      "Edit(next.config.mjs)",
+      "Edit(vercel.json)",
+      "Edit(middleware.ts)"
+    ],
+
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(vercel:*)",
+      "Read(.env)",
+      "Read(.env.local)",
+      "Read(.env.production)",
+      "Edit(.env*)",
+      "Edit(src/app/reservar/**)",
+      "Edit(src/lib/braspag/**)",
+      "Edit(src/lib/cielo/**)"
+    ]
+  }
+}
