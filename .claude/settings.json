@@ -38,7 +38,9 @@
       "Edit(package.json)",
       "Edit(next.config.mjs)",
       "Edit(vercel.json)",
-      "Edit(middleware.ts)"
+      "Edit(middleware.ts)",
+      "Edit(src/app/reservar/**)",
+      "Edit(src/lib/braspag/**)"
     ],
 
     "deny": [
@@ -51,8 +53,6 @@
       "Read(.env.local)",
       "Read(.env.production)",
       "Edit(.env*)",
-      "Edit(src/app/reservar/**)",
-      "Edit(src/lib/braspag/**)",
       "Edit(src/lib/cielo/**)"
     ]
   }
