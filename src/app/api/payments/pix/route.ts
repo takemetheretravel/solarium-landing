@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDraft, updateDraft } from "@/lib/kv-store";
 import { createPixPayment } from "@/lib/cielo";
+import { barrarSeEmAnalise } from "@/lib/bloqueio-analise";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,8 @@ export async function POST(req: Request) {
 
     const draft = await getDraft(draftId);
     if (!draft) return NextResponse.json({ error: "Draft não encontrado ou expirado" }, { status: 404 });
+    const bloqueio = await barrarSeEmAnalise(draft, draftId, "/api/payments/pix");
+    if (bloqueio) return bloqueio;
     if (draft.paymentMethod !== "pix") return NextResponse.json({ error: "Método inválido" }, { status: 400 });
 
     const amountCents = Math.round(draft.finalTotal * 100);

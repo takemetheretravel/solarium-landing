@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
+import { getDraft } from "@/lib/kv-store";
+import { barrarSeEmAnalise } from "@/lib/bloqueio-analise";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +15,11 @@ export async function GET(req: Request) {
   if (!draftId) return NextResponse.json({ status: "error" });
 
   try {
+    const draft = await getDraft(draftId);
+    if (draft) {
+      const bloqueioAnalise = await barrarSeEmAnalise(draft, draftId, "/api/payments/braspag/pix/status");
+      if (bloqueioAnalise) return bloqueioAnalise;
+    }
     const result = await confirmPixPaymentIfPaid(draftId);
     return NextResponse.json(result);
   } catch (err) {

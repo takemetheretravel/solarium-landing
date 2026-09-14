@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDraft, updateDraft } from "@/lib/kv-store";
 import { createBraspagPixPayment } from "@/lib/braspag";
 import { pixChargeFromDraft } from "@/lib/pix-pricing";
+import { barrarSeEmAnalise } from "@/lib/bloqueio-analise";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ export async function POST(req: Request) {
 
     const draft = await getDraft(draftId);
     if (!draft) return NextResponse.json({ error: "Draft não encontrado ou expirado" }, { status: 404 });
+    const bloqueioAnalise = await barrarSeEmAnalise(draft, draftId, "/api/payments/braspag/pix");
+    if (bloqueioAnalise) return bloqueioAnalise;
 
     // Reuso: se já existe um Pix gerado para este draft, não gera outra cobrança.
     if (draft.braspagPaymentId && draft.status === "pending") {

@@ -6,6 +6,7 @@ import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
+import { barrarSeEmAnalise } from "@/lib/bloqueio-analise";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ export async function GET(req: Request) {
   const draft = await getDraft(draftId);
   console.log("[Pix:status] draftId:", draftId, "cieloPaymentId:", draft?.cieloPaymentId, "status:", draft?.status);
   if (!draft) return NextResponse.json({ status: "expired" });
+  const bloqueioAnalise = await barrarSeEmAnalise(draft, draftId, "/api/payments/pix/status");
+  if (bloqueioAnalise) return bloqueioAnalise;
   if (!draft.cieloPaymentId) return NextResponse.json({ status: "pending" });
 
   if (draft.status === "paid") {

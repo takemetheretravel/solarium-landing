@@ -7,6 +7,7 @@ import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
+import { barrarSeEmAnalise } from "@/lib/bloqueio-analise";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,8 @@ export async function POST(req: Request) {
 
     const draft = await getDraft(draftId);
     if (!draft) return NextResponse.json({ error: "Draft não encontrado ou expirado" }, { status: 404 });
+    const bloqueioAnalise = await barrarSeEmAnalise(draft, draftId, "/api/payments/credit");
+    if (bloqueioAnalise) return bloqueioAnalise;
 
     if (draft.nights === 1 && (installments || 1) > 1) {
       return NextResponse.json(

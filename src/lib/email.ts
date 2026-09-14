@@ -276,6 +276,40 @@ export async function enviarAlertaEmAnalise(dados: {
   }
 }
 
+// Rodada AF1: chamada a uma rota de pagamento para um draft em análise, barrada
+// no servidor. Sem nome, e-mail ou CPF do hóspede.
+export async function enviarAlertaBloqueioAnalise(dados: {
+  rota: string;
+  draftId: string;
+  paymentId: string | null;
+  propriedade: string;
+  resolver: string;
+}) {
+  try {
+    const resend = getResend();
+    if (!resend) return;
+    await resend.emails.send({
+      from: ALERTA_DE,
+      to: ALERTA_PARA,
+      subject: `⛔ Pagamento barrado: draft em análise do antifraude — ${dados.propriedade}`,
+      html: `
+        <h2 style="color:#c60">⛔ Nova tentativa de pagamento barrada</h2>
+        <p>O draft está em <strong>aguardando_analise</strong>: já existe uma autorização de cartão
+        viva, não capturada, à espera da decisão do antifraude. A rota abaixo foi chamada para o
+        mesmo draft e <strong>recusada no servidor</strong>, sem chamar gateway nenhum.</p>
+        <p><strong>Rota:</strong> ${dados.rota}</p>
+        <p><strong>Casa:</strong> ${dados.propriedade}</p>
+        <p><strong>PaymentId em análise:</strong> ${dados.paymentId ?? "—"}</p>
+        <p><strong>Para liberar:</strong> resolver a análise por <code>${dados.resolver}</code>.
+        Só depois disso outra forma de pagamento (inclusive Cielo manual) é aceita para este draft.</p>
+        <p style="color:#888;font-size:12px">Draft: ${dados.draftId}</p>
+      `,
+    });
+  } catch (e) {
+    console.error("[Email] Falha ao enviar alerta de bloqueio por análise:", e);
+  }
+}
+
 /**
  * E-mail AO HÓSPEDE (rodada A2b). Usa o mesmo cliente Resend dos alertas, com
  * remetente próprio: `onboarding@resend.dev`, o remetente dos alertas, só entrega

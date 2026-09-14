@@ -8,6 +8,64 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada AF1 — Bloqueio server-side de draft em análise (set/2026)
+
+Branch `fix/af1-bloqueio-analise`, a partir de `origin/main` (`0463bf5`).
+Dividida da S1 (credenciais em rotas de debug), que vai em PR próprio.
+
+### Rotas levantadas
+
+Toda rota que recebe `draftId` e cria ou confirma pagamento:
+
+| Rota | Gateway | Antes |
+|---|---|---|
+| `POST /api/payments/pix` | Cielo (cria Pix) | sem trava |
+| `GET /api/payments/pix/status` | Cielo (consulta, marca `paid`, cria reserva) | sem trava |
+| `POST /api/payments/credit` | Cielo (cartão) | sem trava |
+| `POST /api/payments/braspag/pix` | Braspag (cria Pix) | sem trava |
+| `GET /api/payments/braspag/pix/status` | Braspag (consulta e confirma) | sem trava |
+| `POST /api/payments/braspag/credit` | Braspag (cartão) | **já barrava** (A2a), não mexida |
+
+Não existe endpoint de nova tentativa separado: a nova tentativa é chamar de
+novo uma dessas. `pix-reconcile` só pega drafts `pending` e os webhooks não
+recebem `draftId` do chamador.
+
+### Decisões
+
+1. **Um helper, `barrarSeEmAnalise`, em `src/lib/bloqueio-analise.ts`,** chamado
+   logo depois de ler o draft e antes de qualquer gateway. Com a flag de Review
+   ligada ou desligada: o estado pode existir de antes de alguém desligá-la.
+2. **HTTP 409** com um corpo que atende todos os contratos existentes: `error`
+   (lido pela tela de Pix), `approved: false` e `returnMessage` (cartão),
+   `estado: "aguardando_analise"` e `redirectTo` (tela A2b).
+3. **Texto ao hóspede é o `TEXTO_ESPERA` da A2b** ("Recebemos sua reserva. O
+   pagamento foi autorizado e estamos finalizando a confirmação…"). O prompt
+   sugeria "pagamento em processamento", mas "em processamento" está na lista
+   proibida do CLAUDE.md. Venceu o CLAUDE.md, e o texto já é o que a tela mostra.
+4. **Log `[Bloqueio:aguardando_analise]`** com rota, draftId, PaymentId em
+   análise, o motivo e a saída (`POST /api/admin/antifraude`). Sem nome, e-mail
+   ou CPF.
+5. **Alerta por e-mail ao operador** (`enviarAlertaBloqueioAnalise`), **uma vez
+   por draft e rota a cada 24h** via `reservarEnvioUnico`. A rota de status é
+   chamada em polling; sem a janela, seria um e-mail a cada 5s.
+6. **Status de Pix também é barrado.** Se o hóspede pagou um Pix antes de ir para
+   o cartão que caiu em Review, a confirmação desse Pix fica parada até a análise
+   ser resolvida. Liberar criaria uma segunda reserva quando o cartão fosse
+   aceito. O alerta deixa o caso visível, e a decisão é humana.
+7. **`src/lib/cielo` não foi tocado.** A checagem está nas rotas.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **Webhooks de Pix não passam pela trava.** `confirmPixPaymentIfPaid`, chamado
+   pelos webhooks Braspag e Cielo, não olha `aguardando_analise`. Hoje ele só
+   age em draft com `paymentMethod: "pix"` e `braspagPaymentId`; um draft que
+   gerou Pix e depois foi para cartão em Review pode cair aí. Decidir se a trava
+   entra também no helper de confirmação, que é compartilhado.
+2. **`DECISOES.md` vai conflitar com o PR da S1.** As duas rodadas inserem a
+   seção no mesmo ponto. A resolução é manter as duas seções.
+
+---
+
 ## Rodada A3 — Desfecho da análise (set/2026)
 
 Branch `feat/a3-desfecho-analise`, a partir da A2b. Tudo continua atrás de
