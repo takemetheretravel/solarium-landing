@@ -6,12 +6,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const redis = vi.hoisted(() => {
   process.env.KV_REST_API_URL = "http://redis-falso";
   process.env.KV_REST_API_TOKEN = "falso";
+  process.env.HOSTAWAY_ACCOUNT_ID = "123";
+  process.env.HOSTAWAY_API_KEY = "chave-falsa";
   const kv = new Map<string, string | string[] | Record<string, number>>();
-  const api: Record<string, unknown> & { kv: typeof kv } = {
+  const ttls = new Map<string, number | undefined>();
+  const api: Record<string, unknown> & { kv: typeof kv; ttls: typeof ttls } = {
     kv,
-    async set(k: string, v: unknown, o?: { nx?: boolean }) {
+    ttls,
+    async set(k: string, v: unknown, o?: { nx?: boolean; ex?: number }) {
       if (o?.nx && kv.has(k)) return null;
       kv.set(k, String(v));
+      ttls.set(k, o?.ex);
       return "OK";
     },
     async get(k: string) {
@@ -85,15 +90,26 @@ const mocks = vi.hoisted(() => ({
   createHostawayReservation: vi.fn(async () => ({ reservationId: 777 })),
   enviarAlertaRecusa: vi.fn(async () => undefined),
   enviarAlertaAprovacao: vi.fn(async () => undefined),
+  enviarAlertaEmAnalise: vi.fn(async () => undefined),
+  blockCalendarNight: vi.fn(async (_listingId: number, _noite: string) => true),
+  unblockCalendarNight: vi.fn(async (_listingId: number, _noite: string) => true),
 }));
 
-vi.mock("@/lib/hostaway", () => ({ createHostawayReservation: mocks.createHostawayReservation }));
+// Parcial: noitesDaEstadia é a real; o que fala com a Hostaway é simulado.
+vi.mock("@/lib/hostaway", async (original) => ({
+  ...(await original<typeof import("@/lib/hostaway")>()),
+  createHostawayReservation: mocks.createHostawayReservation,
+  blockCalendarNight: mocks.blockCalendarNight,
+  unblockCalendarNight: mocks.unblockCalendarNight,
+}));
 vi.mock("@/lib/op-extras-server", () => ({
   blockOpExtraNights: vi.fn(async () => ({ todasBloqueadas: true, resultados: [] })),
+  noitesABloquear: () => [],
 }));
 vi.mock("@/lib/email", () => ({
   enviarAlertaRecusa: mocks.enviarAlertaRecusa,
   enviarAlertaAprovacao: mocks.enviarAlertaAprovacao,
+  enviarAlertaEmAnalise: mocks.enviarAlertaEmAnalise,
 }));
 vi.mock("@/lib/reservation-recovery", () => ({ registerOrphanAndAlert: vi.fn(async () => undefined) }));
 vi.mock("@/lib/reserva-pacote", () => ({ paramsDePacote: () => ({}), extrasProvidenciar: () => [] }));
@@ -101,7 +117,6 @@ vi.mock("@/lib/braspag-pix-confirm", () => ({ confirmPixPaymentIfPaid: vi.fn(asy
 
 import {
   normalizarFraudStatus,
-  fraudStatusParaDecisao,
   rotuloFraudStatus,
   redigirParaRegistro,
   resumoAntifraude,
@@ -115,7 +130,11 @@ import {
   campoContagemWebhook,
   getDraft,
   readAuthLog,
+  DRAFT_TTL_ANALISE,
 } from "@/lib/kv-store";
+import { antifraudeReviewAtivo } from "@/config/flags";
+import { noitesDaEstadia } from "@/lib/hostaway";
+import { getPropertyBySlug } from "@/config/properties";
 import { POST as postCredito } from "@/app/api/payments/braspag/credit/route";
 import { POST as postWebhook } from "@/app/api/webhooks/braspag/route";
 
@@ -177,17 +196,82 @@ describe("rotuloFraudStatus", () => {
   });
 });
 
-describe("fraudStatusParaDecisao — equivalência com o cast antigo", () => {
-  // O if da rota é `fraudStatus !== 1`. Antes: `fa.Status as number`.
-  const decisaoAntiga = (cru: unknown) => ((cru as number) !== 1 ? "recusa" : "captura");
-  const decisaoNova = (cru: unknown) => (fraudStatusParaDecisao(cru) !== 1 ? "recusa" : "captura");
+describe("antifraudeReviewAtivo", () => {
+  afterEach(() => {
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+  });
 
-  it.each([0, 1, 2, 3, 4, 5, 7, "1", "Accept", "accept", "3", "Review", undefined, null, 1.0])(
-    "valor %s decide igual",
-    (cru) => {
-      expect(decisaoNova(cru)).toBe(decisaoAntiga(cru));
-    },
-  );
+  it("é desligada por padrão e só liga com true explícito", () => {
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+    expect(antifraudeReviewAtivo()).toBe(false);
+    for (const v of ["false", "1", "yes", "", "ligada"]) {
+      process.env.ANTIFRAUDE_REVIEW_ENABLED = v;
+      expect(antifraudeReviewAtivo()).toBe(false);
+    }
+    for (const v of ["true", "TRUE", " true "]) {
+      process.env.ANTIFRAUDE_REVIEW_ENABLED = v;
+      expect(antifraudeReviewAtivo()).toBe(true);
+    }
+  });
+});
+
+describe("noitesDaEstadia", () => {
+  it("vai do check-in à véspera do check-out, atravessando mês", () => {
+    expect(noitesDaEstadia("2026-10-30", "2026-11-02")).toEqual(["2026-10-30", "2026-10-31", "2026-11-01"]);
+    expect(noitesDaEstadia("2026-10-10", "2026-10-10")).toEqual([]);
+  });
+});
+
+describe("unblockCalendarNight (real, com a Hostaway simulada)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("envia isAvailable 1, é idempotente e tolera noite já liberada", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const real = await vi.importActual<typeof import("@/lib/hostaway")>("@/lib/hostaway");
+    const corpos: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        if (String(url).endsWith("/accessTokens")) {
+          return new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 });
+        }
+        corpos.push({ url: String(url), metodo: init?.method, corpo: JSON.parse(String(init?.body)) });
+        // A Hostaway responde 200 mesmo quando a noite já está livre.
+        return new Response(JSON.stringify({ status: "success" }), { status: 200 });
+      }),
+    );
+
+    expect(await real.unblockCalendarNight(316007, "2026-10-10")).toBe(true);
+    expect(await real.unblockCalendarNight(316007, "2026-10-10")).toBe(true);
+    expect(corpos).toHaveLength(2);
+    expect(corpos[0]).toEqual(corpos[1]);
+    expect(corpos[0]).toMatchObject({
+      metodo: "PUT",
+      corpo: { startDate: "2026-10-10", endDate: "2026-10-10", isAvailable: 1 },
+    });
+
+    // O bloqueio segue mandando 0.
+    expect(await real.blockCalendarNight(316007, "2026-10-10")).toBe(true);
+    expect(corpos[2]).toMatchObject({ corpo: { isAvailable: 0 } });
+    vi.restoreAllMocks();
+  });
+
+  it("devolve false sem lançar quando a Hostaway falha", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const real = await vi.importActual<typeof import("@/lib/hostaway")>("@/lib/hostaway");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        if (String(url).endsWith("/accessTokens")) {
+          return new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 });
+        }
+        throw new Error("rede caiu");
+      }),
+    );
+    await expect(real.unblockCalendarNight(316007, "2026-10-10")).resolves.toBe(false);
+    vi.restoreAllMocks();
+  });
 });
 
 describe("redigirParaRegistro", () => {
@@ -340,12 +424,12 @@ function requisicaoCredito(): Request {
   });
 }
 
-function semearDraft() {
+function semearDraft(propertyId = "solarium-1") {
   redis.kv.set(
     `draft:${DRAFT_ID}`,
     JSON.stringify({
       id: DRAFT_ID,
-      propertyId: "solarium-1",
+      propertyId,
       propertyName: "Solarium 1",
       checkin: "2026-10-10",
       checkout: "2026-10-12",
@@ -365,56 +449,100 @@ function semearDraft() {
   );
 }
 
-describe("rota de crédito — decisão idêntica à anterior", () => {
+const RECUSA_402 = {
+  approved: false,
+  returnMessage: "Não foi possível concluir o pagamento. Nenhum valor foi cobrado — tente novamente ou fale conosco no WhatsApp.",
+};
+
+function prepararRota(propertyId = "solarium-1") {
+  redis.kv.clear();
+  redis.ttls.clear();
+  semearDraft(propertyId);
+  vi.spyOn(console, "log").mockImplementation(() => undefined);
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  mocks.createHostawayReservation.mockClear();
+  mocks.enviarAlertaRecusa.mockClear();
+  mocks.enviarAlertaEmAnalise.mockClear();
+  mocks.blockCalendarNight.mockReset();
+  mocks.blockCalendarNight.mockImplementation(async () => true);
+  mocks.unblockCalendarNight.mockReset();
+  mocks.unblockCalendarNight.mockImplementation(async () => true);
+}
+
+type Desfecho = "captura" | "recusa" | "analise";
+
+// Desde a A2a o if lê o status normalizado: "1" e "Accept" em texto capturam.
+// Review só muda de desfecho com a flag ligada.
+const casosDecisao: Array<[string, CenarioGateway, Desfecho, Desfecho]> = [
+  //  nome                    gateway                        flag off   flag on
+  ["Unknown (0)", { fraudStatus: 0 }, "recusa", "recusa"],
+  ["Accept (1)", { fraudStatus: 1 }, "captura", "captura"],
+  ["Reject (2)", { fraudStatus: 2 }, "recusa", "recusa"],
+  ["Review (3)", { fraudStatus: 3 }, "recusa", "analise"],
+  ["Aborted (4)", { fraudStatus: 4 }, "recusa", "recusa"],
+  ["Unfinished (5)", { fraudStatus: 5 }, "recusa", "recusa"],
+  ['"1" como texto', { fraudStatus: "1" }, "captura", "captura"],
+  ['"Accept" como texto', { fraudStatus: "Accept" }, "captura", "captura"],
+  ['"accept" em minúsculas', { fraudStatus: "accept" }, "captura", "captura"],
+  ['"Review" como texto', { fraudStatus: "Review" }, "recusa", "analise"],
+  ['"2" como texto', { fraudStatus: "2" }, "recusa", "recusa"],
+  ["bloco ausente", { semBloco: true }, "recusa", "recusa"],
+];
+
+async function conferirDesfecho(esperado: Desfecho, chamadas: string[], res: Response) {
+  const corpo = await res.json();
+  if (esperado === "captura") {
+    expect(chamadas).toEqual(["autorizacao", "captura"]);
+    expect(res.status).toBe(200);
+    expect(corpo.approved).toBe(true);
+    expect(mocks.createHostawayReservation).toHaveBeenCalledTimes(1);
+    expect((await getDraft(DRAFT_ID))?.status).toBe("paid");
+  } else if (esperado === "recusa") {
+    expect(chamadas).toEqual(["autorizacao", "void"]);
+    expect(res.status).toBe(402);
+    expect(corpo).toEqual(RECUSA_402);
+    expect(mocks.createHostawayReservation).not.toHaveBeenCalled();
+    expect(mocks.blockCalendarNight).not.toHaveBeenCalled();
+    const motivo = (mocks.enviarAlertaRecusa.mock.calls[0] as unknown as [{ motivo: string }])[0].motivo;
+    expect(motivo).not.toMatch(/undefined/);
+    expect((await getDraft(DRAFT_ID))?.status).toBe("pending");
+  } else {
+    expect(chamadas).toEqual(["autorizacao"]); // sem void e sem captura
+    expect(res.status).toBe(202);
+    expect(corpo).toEqual({
+      approved: false,
+      estado: "aguardando_analise",
+      paymentId: PAYMENT_ID,
+      redirectTo: `/reservar/${DRAFT_ID}/confirmacao`,
+      returnMessage: expect.any(String),
+    });
+    expect(mocks.createHostawayReservation).not.toHaveBeenCalled();
+    expect(mocks.enviarAlertaRecusa).not.toHaveBeenCalled();
+    expect(mocks.enviarAlertaEmAnalise).toHaveBeenCalledTimes(1);
+    expect((await getDraft(DRAFT_ID))?.status).toBe("aguardando_analise");
+  }
+}
+
+describe("rota de crédito — flag ANTIFRAUDE_REVIEW_ENABLED desligada", () => {
   beforeEach(() => {
-    redis.kv.clear();
-    semearDraft();
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    mocks.createHostawayReservation.mockClear();
-    mocks.enviarAlertaRecusa.mockClear();
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+    prepararRota();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  // Antes da A1: só o NÚMERO 1 capturava; todo o resto dava void e 402.
-  const casos: Array<[string, CenarioGateway, "captura" | "recusa"]> = [
-    ["Unknown (0)", { fraudStatus: 0 }, "recusa"],
-    ["Accept (1)", { fraudStatus: 1 }, "captura"],
-    ["Reject (2)", { fraudStatus: 2 }, "recusa"],
-    ["Review (3)", { fraudStatus: 3 }, "recusa"],
-    ["Aborted (4)", { fraudStatus: 4 }, "recusa"],
-    ["Unfinished (5)", { fraudStatus: 5 }, "recusa"],
-    ['"1" como texto', { fraudStatus: "1" }, "recusa"],
-    ['"Accept" como texto', { fraudStatus: "Accept" }, "recusa"],
-    ['"Review" como texto', { fraudStatus: "Review" }, "recusa"],
-    ["bloco ausente", { semBloco: true }, "recusa"],
-  ];
-
-  it.each(casos)("%s", async (_nome, cenario, esperado) => {
+  it.each(casosDecisao)("%s", async (_nome, cenario, flagOff) => {
     const chamadas = simularGateway(cenario);
-    const res = await postCredito(requisicaoCredito());
-    const corpo = await res.json();
+    await conferirDesfecho(flagOff, chamadas, await postCredito(requisicaoCredito()));
+  });
 
-    if (esperado === "captura") {
-      expect(chamadas).toEqual(["autorizacao", "captura"]);
-      expect(res.status).toBe(200);
-      expect(corpo.approved).toBe(true);
-      expect(mocks.createHostawayReservation).toHaveBeenCalledTimes(1);
-    } else {
-      expect(chamadas).toEqual(["autorizacao", "void"]);
-      expect(res.status).toBe(402);
-      expect(corpo).toEqual({
-        approved: false,
-        returnMessage: "Não foi possível concluir o pagamento. Nenhum valor foi cobrado — tente novamente ou fale conosco no WhatsApp.",
-      });
-      expect(mocks.createHostawayReservation).not.toHaveBeenCalled();
-      const motivo = (mocks.enviarAlertaRecusa.mock.calls[0] as unknown as [{ motivo: string }])[0].motivo;
-      expect(motivo).not.toMatch(/undefined/);
-    }
+  it('"false" explícito também mantém o void em Review', async () => {
+    process.env.ANTIFRAUDE_REVIEW_ENABLED = "false";
+    const chamadas = simularGateway({ fraudStatus: 3 });
+    await conferirDesfecho("recusa", chamadas, await postCredito(requisicaoCredito()));
   });
 
   it("registra o resultado do antifraude sem dado do hóspede", async () => {
@@ -453,6 +581,123 @@ describe("rota de crédito — decisão idêntica à anterior", () => {
     await postCredito(requisicaoCredito());
     const obs = await lerObservabilidadeAntifraude();
     expect(obs.janela24h.voidsSemSucesso).toBe(0);
+  });
+});
+
+describe("rota de crédito — flag ANTIFRAUDE_REVIEW_ENABLED ligada", () => {
+  const ID_SOL1 = getPropertyBySlug("solarium-1")!.id;
+  const ID_SOL2 = getPropertyBySlug("solarium-2")!.id;
+  const ID_COMPLETO = getPropertyBySlug("solarium-completo")!.id;
+
+  beforeEach(() => {
+    process.env.ANTIFRAUDE_REVIEW_ENABLED = "true";
+    prepararRota();
+  });
+  afterEach(() => {
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it.each(casosDecisao)("%s", async (_nome, cenario, _flagOff, flagOn) => {
+    const chamadas = simularGateway(cenario);
+    await conferirDesfecho(flagOn, chamadas, await postCredito(requisicaoCredito()));
+  });
+
+  it("Review: draft em análise com PaymentId, valor, entrada e TTL estendido", async () => {
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+
+    const draft = await getDraft(DRAFT_ID);
+    expect(draft?.status).toBe("aguardando_analise");
+    expect(draft?.braspagPaymentId).toBeUndefined(); // não é pagamento confirmado
+    expect(draft?.analise).toMatchObject({
+      paymentId: PAYMENT_ID,
+      valorAutorizado: 1000,
+      valorAutorizadoCentavos: 100000,
+      parcelas: 1,
+      bloqueios: [
+        { listingId: ID_SOL1, noite: "2026-10-10" },
+        { listingId: ID_SOL1, noite: "2026-10-11" },
+      ],
+    });
+    expect(draft?.analise?.merchantOrderId.startsWith(DRAFT_ID)).toBe(true);
+    expect(Date.parse(draft!.analise!.entrouEm)).not.toBeNaN();
+    expect(redis.ttls.get(`draft:${DRAFT_ID}`)).toBe(DRAFT_TTL_ANALISE);
+    expect(DRAFT_TTL_ANALISE).toBeGreaterThanOrEqual(12 * 3600);
+
+    expect(mocks.blockCalendarNight.mock.calls).toEqual([
+      [ID_SOL1, "2026-10-10"],
+      [ID_SOL1, "2026-10-11"],
+    ]);
+    expect(mocks.unblockCalendarNight).not.toHaveBeenCalled();
+  });
+
+  it("Review no Completo bloqueia a listing do Completo e as duas casas", async () => {
+    prepararRota("solarium-completo");
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+    const bloqueios = (await getDraft(DRAFT_ID))?.analise?.bloqueios ?? [];
+    for (const lid of [ID_COMPLETO, ID_SOL1, ID_SOL2]) {
+      expect(bloqueios).toEqual(
+        expect.arrayContaining([
+          { listingId: lid, noite: "2026-10-10" },
+          { listingId: lid, noite: "2026-10-11" },
+        ]),
+      );
+    }
+    expect(bloqueios).toHaveLength(6);
+  });
+
+  it("segunda tentativa no draft em análise não autoriza de novo", async () => {
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+    const chamadas = simularGateway({ fraudStatus: 1 });
+    const res = await postCredito(requisicaoCredito());
+    expect(chamadas).toEqual([]);
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ estado: "aguardando_analise", paymentId: PAYMENT_ID });
+  });
+
+  it("SALVAGUARDA: bloqueio falhou → libera o que bloqueou e volta ao void", async () => {
+    mocks.blockCalendarNight.mockImplementation(async (_lid: number, noite: string) => noite !== "2026-10-11");
+    const chamadas = simularGateway({ fraudStatus: 3 });
+    const res = await postCredito(requisicaoCredito());
+
+    expect(chamadas).toEqual(["autorizacao", "void"]);
+    expect(res.status).toBe(402);
+    expect(await res.json()).toEqual(RECUSA_402);
+    expect(mocks.unblockCalendarNight.mock.calls).toEqual([[ID_SOL1, "2026-10-10"]]);
+    const draft = await getDraft(DRAFT_ID);
+    expect(draft?.status).toBe("pending");
+    expect(draft?.analise).toBeUndefined();
+    expect(mocks.enviarAlertaEmAnalise).not.toHaveBeenCalled();
+    const motivo = (mocks.enviarAlertaRecusa.mock.calls[0] as unknown as [{ motivo: string }])[0].motivo;
+    expect(motivo).toMatch(/bloqueio de calendário falhou em 2026-10-11/);
+    expect(motivo).toMatch(/revertido para void/);
+  });
+
+  it("SALVAGUARDA: desbloqueio que também falha aparece no alerta", async () => {
+    mocks.blockCalendarNight.mockImplementation(async (_lid: number, noite: string) => noite !== "2026-10-11");
+    mocks.unblockCalendarNight.mockImplementation(async () => false);
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+    const motivo = (mocks.enviarAlertaRecusa.mock.calls[0] as unknown as [{ motivo: string }])[0].motivo;
+    expect(motivo).toMatch(/NÃO LIBERADAS, liberar à mão: 2026-10-10/);
+  });
+
+  it("Review não persiste PAN, CVV, nome, e-mail nem CPF no bloco de análise nem no af:*", async () => {
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+    const draftBruto = String(redis.kv.get(`draft:${DRAFT_ID}`));
+    const analise = JSON.stringify(JSON.parse(draftBruto).analise);
+    for (const proibido of [PAN, CVV, NOME, "Maria Aparecida", EMAIL, CPF]) {
+      expect(analise).not.toContain(proibido);
+      expect(kvDeObservabilidade()).not.toContain(proibido);
+    }
+    // O draft já guardava os dados do hóspede antes; cartão nunca.
+    expect(draftBruto).not.toContain(PAN);
+    expect(draftBruto).not.toContain(CVV);
   });
 });
 
