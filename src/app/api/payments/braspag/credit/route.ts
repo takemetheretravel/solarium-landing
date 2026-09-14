@@ -6,6 +6,9 @@ import {
   registrarResultadoAntifraude,
   registrarVoidSemSucesso,
   type VoidSemSucesso,
+  type ReservationDraft,
+  type AnaliseAntifraude,
+  type BloqueioAnalise,
 } from "@/lib/kv-store";
 import {
   createBraspagAuthorization,
@@ -19,16 +22,151 @@ import {
   BRASPAG_URLS,
   type BraspagAddress,
 } from "@/lib/braspag";
-import { createHostawayReservation } from "@/lib/hostaway";
+import {
+  createHostawayReservation,
+  blockCalendarNight,
+  unblockCalendarNight,
+  noitesDaEstadia,
+} from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
 import { enrichServiceExtras } from "@/config/service-extras";
-import { blockOpExtraNights } from "@/lib/op-extras-server";
+import { listingsForProperty } from "@/config/operational-extras";
+import { antifraudeReviewAtivo } from "@/config/flags";
+import { blockOpExtraNights, noitesABloquear } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
-import { enviarAlertaRecusa, enviarAlertaAprovacao } from "@/lib/email";
+import { enviarAlertaRecusa, enviarAlertaAprovacao, enviarAlertaEmAnalise } from "@/lib/email";
 import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Segurar as noites em Review faz uma chamada à Hostaway por noite e listing.
+// O limite padrão da Vercel (10–15s) não comporta isso somado à autorização.
+export const maxDuration = 60;
+
+// ============ CONTRATO DA RESPOSTA EM REVIEW (A2a) ============
+// HTTP 202, e o corpo:
+//   approved:    false — nada foi capturado; a página não pode tratar como pago
+//   estado:      "aguardando_analise" — o único campo que a tela (A2b) deve ler
+//   paymentId:   PaymentId da autorização viva
+//   redirectTo:  página de confirmação do draft
+//   returnMessage: texto neutro para o hóspede
+// Sem `estado`, a resposta segue o contrato antigo (approved true/false).
+const MENSAGEM_AGUARDANDO =
+  "Recebemos sua reserva. O pagamento foi autorizado e estamos finalizando a confirmação. Você recebe o e-mail com todos os detalhes em algumas horas.";
+
+function respostaAguardandoAnalise(draftId: string, paymentId: string | undefined) {
+  return NextResponse.json(
+    {
+      approved: false,
+      estado: "aguardando_analise",
+      paymentId: paymentId ?? null,
+      redirectTo: `/reservar/${draftId}/confirmacao`,
+      returnMessage: MENSAGEM_AGUARDANDO,
+    },
+    { status: 202 },
+  );
+}
+
+async function liberarBloqueios(bloqueios: BloqueioAnalise[]): Promise<BloqueioAnalise[]> {
+  const falhas: BloqueioAnalise[] = [];
+  for (const b of bloqueios) {
+    if (!(await unblockCalendarNight(b.listingId, b.noite))) {
+      falhas.push(b);
+      console.error(`[Review:desbloqueio] FALHA — liberar manualmente ${b.noite} (listing ${b.listingId})`);
+    }
+  }
+  return falhas;
+}
+
+/**
+ * Review com a flag ligada: segura as noites e grava o draft em análise.
+ *
+ * Tudo ou nada. Se qualquer noite não bloquear, ou o draft não for gravado, o
+ * que já foi bloqueado é liberado e quem chama volta ao caminho antigo (void).
+ * Esperar a decisão com as datas livres é aceitar overbooking de um hóspede que
+ * ainda pode ser aprovado.
+ */
+async function segurarParaAnalise(p: {
+  draftId: string;
+  draft: ReservationDraft;
+  paymentId: string;
+  merchantOrderId: string;
+  valor: number;
+  amountCents: number;
+  parcelas: number;
+}): Promise<{ ok: true; analise: AnaliseAntifraude } | { ok: false; motivo: string }> {
+  const property = getPropertyBySlug(p.draft.propertyId);
+  if (!property) return { ok: false, motivo: "propriedade não resolvida" };
+
+  // Estadia: a listing reservada e as físicas (Completo = as duas casas), sem
+  // depender de a Hostaway propagar o bloqueio entre listings ligadas.
+  // Early/late: só as físicas, como blockOpExtraNights faz.
+  const fisicas = listingsForProperty(property.slug);
+  const listingsEstadia = Array.from(new Set([property.id, ...fisicas]));
+  const alvo: BloqueioAnalise[] = [];
+  const incluir = (listingId: number, noite: string) => {
+    if (!alvo.some((b) => b.listingId === listingId && b.noite === noite)) alvo.push({ listingId, noite });
+  };
+  for (const noite of noitesDaEstadia(p.draft.checkin, p.draft.checkout)) {
+    for (const lid of listingsEstadia) incluir(lid, noite);
+  }
+  for (const { blockedNight } of noitesABloquear(p.draft)) {
+    for (const lid of fisicas) incluir(lid, blockedNight);
+  }
+  if (alvo.length === 0) return { ok: false, motivo: "nenhuma noite a bloquear" };
+
+  // Listings em paralelo, noites em série dentro de cada uma: no máximo três
+  // chamadas simultâneas à Hostaway.
+  const porListing = new Map<number, BloqueioAnalise[]>();
+  for (const b of alvo) porListing.set(b.listingId, [...(porListing.get(b.listingId) ?? []), b]);
+  const resultados = await Promise.all(
+    Array.from(porListing.values()).map(async (itens) => {
+      const saida: { b: BloqueioAnalise; ok: boolean }[] = [];
+      for (const b of itens) saida.push({ b, ok: await blockCalendarNight(b.listingId, b.noite) });
+      return saida;
+    }),
+  );
+  const todos = resultados.reduce<{ b: BloqueioAnalise; ok: boolean }[]>((acc, r) => acc.concat(r), []);
+  const bloqueados = todos.filter((r) => r.ok).map((r) => r.b);
+  const falhas = todos.filter((r) => !r.ok).map((r) => r.b);
+
+  if (falhas.length > 0) {
+    const naoLiberadas = await liberarBloqueios(bloqueados);
+    return {
+      ok: false,
+      motivo:
+        `bloqueio de calendário falhou em ${falhas.map((f) => `${f.noite}/${f.listingId}`).join(", ")}` +
+        (naoLiberadas.length ? ` · NÃO LIBERADAS, liberar à mão: ${naoLiberadas.map((f) => `${f.noite}/${f.listingId}`).join(", ")}` : ""),
+    };
+  }
+
+  const analise: AnaliseAntifraude = {
+    paymentId: p.paymentId,
+    merchantOrderId: p.merchantOrderId,
+    entrouEm: new Date().toISOString(),
+    valorAutorizado: p.valor,
+    valorAutorizadoCentavos: p.amountCents,
+    parcelas: p.parcelas,
+    bloqueios: bloqueados,
+  };
+  try {
+    await updateDraft(p.draftId, { status: "aguardando_analise", analise });
+  } catch (e) {
+    console.error("[Review] falha ao gravar draft em análise:", e);
+  }
+  // updateDraft volta em silêncio quando o draft sumiu: confere o que ficou gravado.
+  const salvo = await getDraft(p.draftId);
+  if (salvo?.status !== "aguardando_analise" || salvo.analise?.paymentId !== p.paymentId) {
+    const naoLiberadas = await liberarBloqueios(bloqueados);
+    return {
+      ok: false,
+      motivo:
+        "draft não foi gravado em análise" +
+        (naoLiberadas.length ? ` · NÃO LIBERADAS, liberar à mão: ${naoLiberadas.map((f) => `${f.noite}/${f.listingId}`).join(", ")}` : ""),
+    };
+  }
+  return { ok: true, analise };
+}
 
 // Detecta a bandeira pelo BIN (a Cielo detectava sozinha; a Braspag exige Brand).
 function detectCardBrand(num: string): string {
@@ -145,6 +283,13 @@ export async function POST(req: Request) {
 
     const draft = await getDraft(draftId);
     if (!draft) return NextResponse.json({ error: "Draft não encontrado ou expirado" }, { status: 404 });
+
+    // Já existe uma autorização viva à espera da decisão: uma segunda tentativa
+    // prenderia o limite do cartão duas vezes. Vale com a flag desligada também —
+    // o draft pode ter entrado em análise antes de alguém desligá-la.
+    if (draft.status === "aguardando_analise") {
+      return respostaAguardandoAnalise(draftId, draft.analise?.paymentId);
+    }
 
     // Mesma regra da Cielo: 1 noite = só à vista.
     if (draft.nights === 1 && (installments || 1) > 1) {
@@ -358,6 +503,45 @@ export async function POST(req: Request) {
 
     // Daqui em diante: AUTORIZADO (Status 1). Qualquer saída sem captura → VOID.
 
+    // 2a) Review com a flag ligada → autorização viva, noites seguradas, sem
+    // captura nem reserva. A decisão chega por notificação (A3).
+    let notaReview: string | null = null;
+    if (auth.fraudStatus === 3 && antifraudeReviewAtivo()) {
+      const seg = auth.paymentId
+        ? await segurarParaAnalise({
+            draftId,
+            draft,
+            paymentId: auth.paymentId,
+            merchantOrderId: tentativaId,
+            valor: valorACobrar,
+            amountCents,
+            parcelas: installments || 1,
+          })
+        : { ok: false as const, motivo: "autorização sem PaymentId" };
+      if (seg.ok) {
+        console.log(
+          "[Braspag:Review-aguardando]",
+          JSON.stringify({ draftId, paymentId: auth.paymentId, merchantOrderId: tentativaId, bloqueios: seg.analise.bloqueios.length }),
+        );
+        await enviarAlertaEmAnalise({
+          hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
+          propriedade: draft.propertyName,
+          valor: valorACobrar,
+          parcelas: installments || 1,
+          checkin: draft.checkin,
+          checkout: draft.checkout,
+          paymentId: auth.paymentId!,
+          draftId,
+          merchantOrderId: tentativaId,
+          bloqueios: seg.analise.bloqueios,
+        });
+        return respostaAguardandoAnalise(draftId, auth.paymentId);
+      }
+      // SALVAGUARDA: sem as noites seguradas não há espera. Segue para o void.
+      console.error("[Braspag:Review-salvaguarda]", JSON.stringify({ draftId, paymentId: auth.paymentId, motivo: seg.motivo }));
+      notaReview = `Review com a espera ligada, mas ${seg.motivo} — revertido para void`;
+    }
+
     // 2) Antifraude NÃO aprovou (Reject 2 / Review 3 / ausente) → void + alerta.
     if (auth.fraudStatus !== 1) {
       const notaVoidAf = await voidConferido(auth.paymentId, amountCents, "antifraude", tentativaId);
@@ -369,7 +553,7 @@ export async function POST(req: Request) {
         hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
         propriedade: draft.propertyName,
         valor: valorACobrar,
-        motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorizado mas cancelado (void). PaymentId ${auth.paymentId ?? "-"}${notaVoidAf ? ` · ${notaVoidAf}` : ""}`,
+        motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorizado mas cancelado (void). PaymentId ${auth.paymentId ?? "-"}${notaVoidAf ? ` · ${notaVoidAf}` : ""}${notaReview ? ` · ${notaReview}` : ""}`,
         pacoteNome: draft.pacoteNome,
         merchantOrderId: tentativaId,
         diagnostico,
