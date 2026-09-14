@@ -507,3 +507,27 @@ export async function lerObservabilidadeAntifraude(agora = Date.now()) {
 
   return { geradoEm: new Date(agora).toISOString(), janela24h, janela7d, ultimosEventos, ultimosWebhooksNaoTratados, ultimosVoidsSemSucesso };
 }
+
+// ---------------------------------------------------------------------------
+// Envio único (rodada A2b). SET NX com TTL: true = esta chamada é a dona e deve
+// enviar; false = alguém já enviou na janela. Em falha de Redis, fail-open
+// (true): um e-mail repetido incomoda, um hóspede sem notícia do pagamento
+// autorizado é pior.
+export async function reservarEnvioUnico(chave: string, ttlSeconds: number): Promise<boolean> {
+  try {
+    const res = await getRedis().set(`envio-unico:${chave}`, new Date().toISOString(), { nx: true, ex: ttlSeconds });
+    return res !== null;
+  } catch (err) {
+    console.error("[kv-store:reservarEnvioUnico] Failed (fail-open):", err);
+    return true;
+  }
+}
+
+/** Libera a trava quando o envio falhou, para a próxima chamada tentar de novo. */
+export async function liberarEnvioUnico(chave: string): Promise<void> {
+  try {
+    await getRedis().del(`envio-unico:${chave}`);
+  } catch (err) {
+    console.error("[kv-store:liberarEnvioUnico] Failed:", err);
+  }
+}
