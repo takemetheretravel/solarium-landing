@@ -225,3 +225,50 @@ function blocoExtrasProvidenciar(
       <ul style="margin:0">${linhas}</ul>
     </div>`;
 }
+
+/**
+ * Alerta INTERNO: cartão autorizado caiu em Review e ficou à espera da decisão
+ * do analista (rodada A2a). Nada foi capturado nem reservado ainda; as noites
+ * estão seguradas no calendário. A decisão chega por notificação da Braspag.
+ */
+export async function enviarAlertaEmAnalise(dados: {
+  hospede: string;
+  propriedade: string;
+  valor: number;
+  parcelas: number;
+  checkin: string;
+  checkout: string;
+  paymentId: string;
+  draftId: string;
+  merchantOrderId: string;
+  bloqueios: { listingId: number; noite: string }[];
+}) {
+  try {
+    const resend = getResend();
+    if (!resend) return;
+    const noites = dados.bloqueios.map((b) => `<li>${b.noite} · listing ${b.listingId}</li>`).join("");
+    await resend.emails.send({
+      from: ALERTA_DE,
+      to: ALERTA_PARA,
+      subject: `⏳ Cartão em revisão do antifraude — ${dados.propriedade} — R$ ${dados.valor.toFixed(2)}`,
+      html: `
+        <h2 style="color:#c60">⏳ Pagamento autorizado, aguardando a revisão do antifraude</h2>
+        <p>A autorização está <strong>viva e NÃO capturada</strong>. Nenhuma reserva foi criada.
+        As noites abaixo foram bloqueadas no Hostaway para segurar as datas.</p>
+        <p><strong>Não capturar nem cancelar manualmente.</strong> A decisão do analista chega por
+        notificação da Braspag. Se nada chegar em 6h, conferir a transação no portal.</p>
+        <p><strong>Cliente:</strong> ${dados.hospede}</p>
+        <p><strong>Casa:</strong> ${dados.propriedade}</p>
+        <p><strong>Período:</strong> ${dados.checkin} → ${dados.checkout}</p>
+        <p><strong>Valor autorizado:</strong> R$ ${dados.valor.toFixed(2)} em ${dados.parcelas}x</p>
+        <p><strong>PaymentId:</strong> ${dados.paymentId}</p>
+        <p><strong>Noites bloqueadas:</strong></p>
+        <ul>${noites}</ul>
+        <p><strong>O que o cliente viu:</strong> que a reserva foi recebida e que a confirmação chega por e-mail em algumas horas.</p>
+        <p style="color:#888;font-size:12px">Draft: ${dados.draftId} · MerchantOrderId: ${dados.merchantOrderId}</p>
+      `,
+    });
+  } catch (e) {
+    console.error("[Email] Falha ao enviar alerta de análise:", e);
+  }
+}
