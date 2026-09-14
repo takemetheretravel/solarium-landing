@@ -122,10 +122,117 @@ export async function enviarEmailEsperaUmaVez(draft: ReservationDraft, draftId: 
   if (!(await reservarEnvioUnico(chave, TTL_ENVIO_UNICO))) return "já enviado antes";
 
   const { assunto, html, texto } = montarEmailEspera(draft, draftId, analise.valorAutorizado);
-  const r = await enviarEmailHospede({ para: draft.guestEmail, assunto, html, texto });
+  return enviarComTrava(chave, draft.guestEmail, { assunto, html, texto });
+}
+
+async function enviarComTrava(
+  chave: string,
+  para: string,
+  email: { assunto: string; html: string; texto: string },
+): Promise<string> {
+  const r = await enviarEmailHospede({ para, ...email });
   if (!r.enviado) {
     await liberarEnvioUnico(chave);
     return `NÃO ENVIADO (${r.motivo})`;
   }
   return "enviado";
+}
+
+// =============================================================================
+// Desfecho da espera (rodada A3). Mesmas regras de linguagem.
+// =============================================================================
+
+function blocoEstadia(
+  draft: Pick<ReservationDraft, "propertyName" | "checkin" | "checkout" | "guests">,
+  linhaValor: string,
+) {
+  const texto = [
+    draft.propertyName,
+    `Check-in: ${formatBR(draft.checkin)} às 15h`,
+    `Check-out: ${formatBR(draft.checkout)} às 11h`,
+    `Hóspedes: ${draft.guests}`,
+    linhaValor,
+  ];
+  const html = `
+      <table style="font-family:Arial,sans-serif;font-size:14px;border-top:1px solid #ddd;margin:24px 0;padding-top:12px;width:100%">
+        <tr><td colspan="2" style="font-family:Georgia,serif;font-size:18px;padding-bottom:8px">${escapar(draft.propertyName)}</td></tr>
+        <tr><td style="color:#777">Check-in</td><td style="text-align:right">${formatBR(draft.checkin)} às 15h</td></tr>
+        <tr><td style="color:#777">Check-out</td><td style="text-align:right">${formatBR(draft.checkout)} às 11h</td></tr>
+        <tr><td style="color:#777">Hóspedes</td><td style="text-align:right">${draft.guests}</td></tr>
+        <tr><td colspan="2" style="padding-top:8px">${escapar(linhaValor)}</td></tr>
+      </table>`;
+  return { texto, html };
+}
+
+function envelope(nome: string, titulo: string, paragrafos: string[], estadia: { html: string }, whatsapp: string, id: string) {
+  return `
+    <div style="font-family:Georgia,serif;color:#2b2b2b;max-width:560px;margin:0 auto;padding:24px">
+      <p style="font-family:Arial,sans-serif;font-size:14px">${nome ? `Olá, ${escapar(nome)}.` : "Olá."}</p>
+      <h1 style="font-weight:normal;font-size:26px;margin:24px 0 12px">${titulo}</h1>
+      ${paragrafos.map((p) => `<p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6">${p}</p>`).join("")}
+      ${estadia.html}
+      <p><a href="${whatsapp}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 24px;text-decoration:none;font-family:Arial,sans-serif;font-size:13px;letter-spacing:1px;text-transform:uppercase">${TEXTO_ESPERA.botao}</a></p>
+      <p style="font-family:Arial,sans-serif;font-size:12px;color:#999;margin-top:32px">ID da reserva: ${id} · Solarium Mantiqueira</p>
+    </div>`;
+}
+
+type DraftEmail = Pick<ReservationDraft, "guestFirstName" | "propertyName" | "checkin" | "checkout" | "guests">;
+
+/** Accept + captura + reserva criada: agora sim, confirmada. */
+export function montarEmailConfirmacao(draft: DraftEmail, draftId: string, valorPago: number) {
+  const nome = draft.guestFirstName.trim().split(/\s+/)[0] || "";
+  const id = draftId.slice(0, 8).toUpperCase();
+  const valor = valorPago.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const whatsapp = whatsappLink(mensagemWhatsappEspera(draft, draftId));
+  const titulo = "Sua reserva está confirmada.";
+  const paragrafos = [
+    "O pagamento foi concluído e as datas são suas. Antes do check-in enviamos o guia da casa e as instruções de acesso.",
+    "Nosso concierge fala com você pelo WhatsApp para preparar a estadia do seu jeito.",
+  ];
+  const estadia = blocoEstadia(draft, `Total pago: ${valor}`);
+  return {
+    assunto: `Reserva confirmada — ${draft.propertyName}`,
+    texto: [nome ? `Olá, ${nome}.` : "Olá.", "", titulo, ...paragrafos, "", ...estadia.texto, "", `WhatsApp: ${SITE.whatsappDisplay} — ${whatsapp}`, "", `ID da reserva: ${id}`, "Solarium Mantiqueira"].join("\n"),
+    html: envelope(nome, titulo, paragrafos, estadia, whatsapp, id),
+  };
+}
+
+/**
+ * Reject: não foi possível concluir. Convida a outro meio, sem dizer por quê — o
+ * motivo não é do hóspede, e qualquer palavra sobre ele soa como acusação.
+ */
+export function montarEmailNaoConcluido(draft: DraftEmail, draftId: string) {
+  const nome = draft.guestFirstName.trim().split(/\s+/)[0] || "";
+  const id = draftId.slice(0, 8).toUpperCase();
+  const whatsapp = whatsappLink(
+    `Olá! Quero concluir minha reserva no ${draft.propertyName} de ${formatBR(draft.checkin)} a ${formatBR(draft.checkout)} por outro meio de pagamento. ID: ${id}`,
+  );
+  const titulo = "Não conseguimos concluir o pagamento.";
+  const paragrafos = [
+    "O pagamento com este cartão não pôde ser concluído, e nenhum valor foi cobrado.",
+    "Se ainda quiser estas datas, é só chamar no WhatsApp: fechamos com você por Pix ou outro cartão, do jeito mais simples.",
+  ];
+  const estadia = blocoEstadia(draft, "Nenhum valor cobrado");
+  return {
+    assunto: `Sua reserva no ${draft.propertyName}`,
+    texto: [nome ? `Olá, ${nome}.` : "Olá.", "", titulo, ...paragrafos, "", ...estadia.texto, "", `WhatsApp: ${SITE.whatsappDisplay} — ${whatsapp}`, "", `ID da reserva: ${id}`, "Solarium Mantiqueira"].join("\n"),
+    html: envelope(nome, titulo, paragrafos, estadia, whatsapp, id),
+  };
+}
+
+export async function enviarEmailDesfechoUmaVez(
+  tipo: "confirmacao" | "nao-concluido",
+  draft: ReservationDraft,
+  draftId: string,
+): Promise<string> {
+  const analise = draft.analise;
+  if (!analise) return "não enviado: draft sem bloco de análise";
+  if (!draft.guestEmail) return "não enviado: draft sem e-mail do hóspede";
+  const chave = `email:${tipo}:${analise.paymentId}`;
+  if (!(await reservarEnvioUnico(chave, TTL_ENVIO_UNICO))) return "já enviado antes";
+  const email =
+    tipo === "confirmacao"
+      ? montarEmailConfirmacao(draft, draftId, analise.valorAutorizado)
+      : montarEmailNaoConcluido(draft, draftId);
+  return enviarComTrava(chave, draft.guestEmail, email);
 }
