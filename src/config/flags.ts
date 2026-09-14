@@ -29,4 +29,16 @@ export function analyticsAtivo(): boolean {
   return ehProducao();
 }
 
+/**
+ * Review do antifraude (rodadas A2a, A2b e A3). Ligada, um Review deixa a
+ * autorização viva, segura as noites e espera a decisão do analista. Desligada,
+ * Review cai no void como antes.
+ *
+ * As três rodadas só fazem sentido juntas: ligar sem a A3 deixa o hóspede em
+ * espera sem desfecho.
+ */
+export function antifraudeReviewAtivo(): boolean {
+  return process.env.ANTIFRAUDE_REVIEW_ENABLED?.trim().toLowerCase() === "true";
+}
+
 export const PREFIXO_RESERVA_TESTE = "[TESTE]";
