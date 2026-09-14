@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculatePriceDetailed, getCalendar } from "@/lib/hostaway";
 import { getPropertyById } from "@/config/properties";
+import { tokenAdminValido, naoEncontrado } from "@/lib/admin-auth";
 
-const DEBUG_KEY = "lucas2026";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Header: Authorization: Bearer <ADMIN_API_TOKEN>
 export async function GET(req: NextRequest) {
+  if (!tokenAdminValido(req)) return naoEncontrado();
   const sp = new URL(req.url).searchParams;
-  if (sp.get("key") !== DEBUG_KEY) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
   const id = Number(sp.get("propertyId"));
   const checkin = sp.get("checkin") || "";
   const checkout = sp.get("checkout") || "";
