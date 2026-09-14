@@ -1,7 +1,28 @@
 import { NextResponse } from "next/server";
-import { consultBraspagPayment } from "@/lib/braspag";
+import { consultBraspagPayment, redigirParaRegistro } from "@/lib/braspag";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
-import { getDraft, claimWebhookEventOnce, releaseWebhookEvent , draftIdDeOrderId } from "@/lib/kv-store";
+import {
+  getDraft,
+  claimWebhookEventOnce,
+  releaseWebhookEvent,
+  draftIdDeOrderId,
+  registrarWebhookNaoTratado,
+} from "@/lib/kv-store";
+
+// Headers guardados junto do payload ignorado. Lista fechada: nada de
+// authorization ou cookie.
+const HEADERS_REGISTRADOS = ["content-type", "content-length", "user-agent", "x-forwarded-for", "x-real-ip", "x-vercel-ip-country"];
+
+function headersParaRegistro(req: Request): Record<string, string> {
+  const saida: Record<string, string> = {};
+  req.headers.forEach((valor, nome) => {
+    const n = nome.toLowerCase();
+    if (HEADERS_REGISTRADOS.includes(n) || n.includes("braspag") || n === "requestid") {
+      saida[n] = valor.slice(0, 300);
+    }
+  });
+  return saida;
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,13 +53,32 @@ export async function POST(req: Request) {
   let payload: { PaymentId?: string; ChangeType?: number; RecurrentPaymentId?: string } = {};
   let dedupKey: string | null = null;
   try {
-    payload = await req.json().catch(() => ({}));
+    // Texto primeiro e parse depois (equivalente ao req.json().catch): assim um
+    // corpo que não é JSON ainda pode ser registrado como veio.
+    const corpoTexto = await req.text().catch(() => "");
+    let corpoValido = true;
+    try {
+      payload = corpoTexto ? JSON.parse(corpoTexto) : {};
+    } catch {
+      payload = {};
+      corpoValido = false;
+    }
     console.log("[Webhook:Braspag] notificação recebida:", JSON.stringify(payload));
 
     const { PaymentId, ChangeType } = payload;
 
     // Só mudança de status de pagamento nos interessa (Pix). Demais tipos: 200.
     if (!PaymentId || (ChangeType !== undefined && ChangeType !== 1)) {
+      // A1: tudo o que é ignorado fica registrado (cru, redigido). Ainda não se
+      // sabe qual ChangeType carrega a decisão do antifraude — a primeira
+      // notificação real responde. Nenhuma ação sobre ela: isso é da A3.
+      await registrarWebhookNaoTratado({
+        changeType: redigirParaRegistro(corpoValido ? (ChangeType ?? null) : "corpo-nao-json"),
+        paymentId: typeof PaymentId === "string" ? PaymentId.slice(0, 64) : null,
+        motivo: !corpoValido ? "corpo não é JSON" : !PaymentId ? "sem PaymentId" : "ChangeType diferente de 1",
+        corpo: redigirParaRegistro(corpoValido ? payload : corpoTexto),
+        headers: headersParaRegistro(req),
+      });
       console.log("[Webhook:Braspag] ignorado (sem PaymentId ou ChangeType != 1).");
       return NextResponse.json({ ok: true, ignored: true });
     }
