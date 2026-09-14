@@ -734,6 +734,23 @@ export async function createHostawayReservation(params: {
  * { startDate, endDate, isAvailable }. isAvailable=0 bloqueia, =1 libera.
  */
 export async function blockCalendarNight(listingId: number, date: string): Promise<boolean> {
+  return definirDisponibilidadeNoite(listingId, date, 0);
+}
+
+/**
+ * Inversa de blockCalendarNight: isAvailable=1 na mesma noite.
+ *
+ * Idempotente por construção: o PUT grava um valor absoluto, então liberar uma
+ * noite já livre repete o mesmo estado. Não cancela reserva — a Hostaway calcula
+ * a disponibilidade com as reservas por cima do calendário. Por isso só se
+ * libera o que foi registrado como bloqueado por nós (draft.analise.bloqueios).
+ */
+export async function unblockCalendarNight(listingId: number, date: string): Promise<boolean> {
+  return definirDisponibilidadeNoite(listingId, date, 1);
+}
+
+async function definirDisponibilidadeNoite(listingId: number, date: string, isAvailable: 0 | 1): Promise<boolean> {
+  const rotulo = isAvailable === 0 ? "block" : "unblock";
   try {
     const token = await getAccessToken();
     if (!token) return false;
@@ -744,15 +761,23 @@ export async function blockCalendarNight(listingId: number, date: string): Promi
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
       },
-      body: JSON.stringify({ startDate: date, endDate: date, isAvailable: 0 }),
+      body: JSON.stringify({ startDate: date, endDate: date, isAvailable }),
     });
     const ok = res.ok;
-    console.log(`[Hostaway:block] listing=${listingId} date=${date} → ${res.status} ${ok ? "OK" : "FALHOU"}`);
+    console.log(`[Hostaway:${rotulo}] listing=${listingId} date=${date} → ${res.status} ${ok ? "OK" : "FALHOU"}`);
     return ok;
   } catch (e) {
-    console.error("[Hostaway:block] erro:", (e as Error).message);
+    console.error(`[Hostaway:${rotulo}] erro:`, (e as Error).message);
     return false;
   }
+}
+
+/** Noites ocupadas pela estadia: do check-in até a véspera do check-out. */
+export function noitesDaEstadia(checkin: string, checkout: string): string[] {
+  const inicio = new Date(checkin + "T00:00:00Z").getTime();
+  return Array.from({ length: nightsBetween(checkin, checkout) }, (_, i) =>
+    new Date(inicio + i * 86_400_000).toISOString().slice(0, 10),
+  );
 }
 
 export function nightsBetween(checkin: string, checkout: string): number {
