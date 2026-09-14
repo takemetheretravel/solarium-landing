@@ -314,3 +314,67 @@ export async function enviarEmailHospede(dados: {
     return { enviado: false, motivo: (e as Error)?.message || "exceção" };
   }
 }
+
+/**
+ * Alerta INTERNO do desfecho de um pagamento que estava em revisão (rodada A3).
+ * Captura que falha depois do Accept é o caso com destaque: a autorização pode
+ * expirar e o hóspede já foi aprovado.
+ */
+export async function enviarAlertaDesfechoAnalise(dados: {
+  tipo: "captura-falhou" | "recusado" | "indefinido";
+  hospede: string;
+  propriedade: string;
+  valor: number;
+  checkin: string;
+  checkout: string;
+  paymentId: string;
+  draftId: string;
+  origem: string;
+  detalhe: string;
+}) {
+  const titulos = {
+    "captura-falhou": {
+      assunto: `🚨 CAPTURA FALHOU após aprovação — ${dados.propriedade} — R$ ${dados.valor.toFixed(2)}`,
+      h2: '<h2 style="color:#c00">🚨 O analista aprovou, mas a captura NÃO foi concluída</h2>',
+      acao:
+        "<p><strong>Nada foi marcado como pago e nenhuma reserva foi criada.</strong> As noites continuam bloqueadas. " +
+        "A próxima notificação ou a reconciliação manual (<code>POST /api/admin/antifraude</code>) tenta capturar de novo. " +
+        "Não há prazo garantido de validade da autorização: tratar hoje.</p>",
+    },
+    recusado: {
+      assunto: `Revisão do antifraude recusou — ${dados.propriedade} — R$ ${dados.valor.toFixed(2)}`,
+      h2: "<h2>Revisão do antifraude recusou o pagamento</h2>",
+      acao:
+        "<p>As noites seguradas foram liberadas e o draft ficou como recusado. O gateway cancela a autorização sozinho. " +
+        "O cliente recebeu o convite para tentar outro meio de pagamento.</p>",
+    },
+    indefinido: {
+      assunto: `⚠️ Revisão do antifraude sem desfecho legível — ${dados.propriedade}`,
+      h2: '<h2 style="color:#c60">⚠️ A consulta à Braspag não trouxe Accept nem Reject</h2>',
+      acao: "<p>Nada foi feito. Conferir a transação no portal e reconciliar manualmente.</p>",
+    },
+  }[dados.tipo];
+
+  try {
+    const resend = getResend();
+    if (!resend) return;
+    await resend.emails.send({
+      from: ALERTA_DE,
+      to: ALERTA_PARA,
+      subject: titulos.assunto,
+      html: `
+        ${titulos.h2}
+        ${titulos.acao}
+        <p><strong>Detalhe:</strong> ${dados.detalhe}</p>
+        <p><strong>Cliente:</strong> ${dados.hospede}</p>
+        <p><strong>Casa:</strong> ${dados.propriedade}</p>
+        <p><strong>Período:</strong> ${dados.checkin} → ${dados.checkout}</p>
+        <p><strong>Valor autorizado:</strong> R$ ${dados.valor.toFixed(2)}</p>
+        <p><strong>PaymentId:</strong> ${dados.paymentId}</p>
+        <p style="color:#888;font-size:12px">Draft: ${dados.draftId} · origem: ${dados.origem}</p>
+      `,
+    });
+  } catch (e) {
+    console.error("[Email] Falha ao enviar alerta de desfecho da análise:", e);
+  }
+}

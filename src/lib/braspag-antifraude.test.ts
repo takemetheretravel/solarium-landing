@@ -97,6 +97,8 @@ const mocks = vi.hoisted(() => ({
     }),
   ),
   resendSend: vi.fn(async (_payload: Record<string, unknown>): Promise<{ error: { message: string } | null }> => ({ error: null })),
+  enviarAlertaDesfechoAnalise: vi.fn(async (_dados: { tipo: string; detalhe: string }) => undefined),
+  registerOrphanAndAlert: vi.fn(async (_dados: Record<string, unknown>) => undefined),
   blockCalendarNight: vi.fn(async (_listingId: number, _noite: string) => true),
   unblockCalendarNight: vi.fn(async (_listingId: number, _noite: string) => true),
 }));
@@ -117,6 +119,7 @@ vi.mock("@/lib/email", () => ({
   enviarAlertaAprovacao: mocks.enviarAlertaAprovacao,
   enviarAlertaEmAnalise: mocks.enviarAlertaEmAnalise,
   enviarEmailHospede: mocks.enviarEmailHospede,
+  enviarAlertaDesfechoAnalise: mocks.enviarAlertaDesfechoAnalise,
 }));
 vi.mock("resend", () => ({
   Resend: class {
@@ -130,7 +133,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("@/components/booking/TrackPurchase", () => ({ TrackPurchase: () => "[[PURCHASE]]" }));
-vi.mock("@/lib/reservation-recovery", () => ({ registerOrphanAndAlert: vi.fn(async () => undefined) }));
+vi.mock("@/lib/reservation-recovery", () => ({ registerOrphanAndAlert: mocks.registerOrphanAndAlert }));
 vi.mock("@/lib/reserva-pacote", () => ({ paramsDePacote: () => ({}), extrasProvidenciar: () => [] }));
 vi.mock("@/lib/braspag-pix-confirm", () => ({ confirmPixPaymentIfPaid: vi.fn(async () => ({ status: "pending" })) }));
 
@@ -168,6 +171,10 @@ import {
   varianteConfirmacao,
 } from "@/lib/comunicacao-analise";
 import type { ReservationDraft } from "@/lib/kv-store";
+import { montarEmailConfirmacao, montarEmailNaoConcluido } from "@/lib/comunicacao-analise";
+import { reconciliarPagamentoEmAnalise } from "@/lib/reconciliacao-analise";
+import { GET as getAdmin, POST as postAdmin } from "@/app/api/admin/antifraude/route";
+import { POST as postWebhookCielo } from "@/app/api/webhooks/cielo/route";
 import { POST as postCredito } from "@/app/api/payments/braspag/credit/route";
 import { POST as postWebhook } from "@/app/api/webhooks/braspag/route";
 
@@ -1030,5 +1037,353 @@ describe("A2b — enviarEmailHospede (real, Resend simulado)", () => {
       html: "<p>b</p>",
       text: "b",
     });
+  });
+});
+
+// ===========================================================================
+// A3 — desfecho da análise
+// ===========================================================================
+
+type CenarioConsulta = {
+  fraudStatus?: unknown;
+  semFraudAnalysis?: boolean;
+  paymentStatus?: number;
+  httpConsulta?: number;
+  capturaStatus?: number;
+};
+
+function simularBraspagConsulta(c: CenarioConsulta): string[] {
+  const chamadas: string[] = [];
+  const resposta = (corpo: unknown, status = 200) =>
+    new Response(JSON.stringify(corpo), { status, headers: { "content-type": "application/json" } });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("apiquery") && u.includes(`/v2/sales/${PAYMENT_ID}`) && (init?.method ?? "GET") === "GET") {
+        chamadas.push("consulta");
+        if (c.httpConsulta && c.httpConsulta >= 300) return resposta([{ Code: 1, Message: "erro" }], c.httpConsulta);
+        return resposta({
+          MerchantOrderId: `${DRAFT_ID}-abc`,
+          Payment: {
+            PaymentId: PAYMENT_ID,
+            Status: c.paymentStatus ?? 1,
+            ...(c.semFraudAnalysis ? {} : { FraudAnalysis: { Status: c.fraudStatus } }),
+          },
+        });
+      }
+      if (u.includes("/capture")) {
+        chamadas.push(`captura:${new URL(u).searchParams.get("amount")}`);
+        return resposta({ Status: c.capturaStatus ?? 2, ReturnCode: c.capturaStatus === undefined ? "6" : "99" });
+      }
+      if (u.includes("/void")) {
+        chamadas.push("void");
+        return resposta({ Status: 10 });
+      }
+      throw new Error("URL inesperada: " + u);
+    }),
+  );
+  return chamadas;
+}
+
+describe("A3 — reconciliação do Review", () => {
+  const ID_SOL1 = getPropertyBySlug("solarium-1")!.id;
+  const BLOQUEIOS = [
+    { listingId: ID_SOL1, noite: "2026-10-10" },
+    { listingId: ID_SOL1, noite: "2026-10-11" },
+  ];
+
+  function semearEmAnalise(overrides: Partial<ReservationDraft> = {}) {
+    const base = draftEmEspera();
+    redis.kv.set(`draft:${DRAFT_ID}`, JSON.stringify({ ...base, analise: { ...base.analise!, bloqueios: BLOQUEIOS }, ...overrides }));
+  }
+
+  const webhookBraspag = (corpo: Record<string, unknown>) =>
+    postWebhook(
+      new Request("https://solarium.test/api/webhooks/braspag", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(corpo),
+      }),
+    );
+
+  const draftAtual = async () => (await getDraft(DRAFT_ID))!;
+
+  beforeEach(() => {
+    prepararRota();
+    semearEmAnalise();
+    for (const m of [mocks.enviarEmailHospede, mocks.enviarAlertaDesfechoAnalise, mocks.enviarAlertaAprovacao, mocks.registerOrphanAndAlert]) m.mockClear();
+    mocks.enviarEmailHospede.mockImplementation(async () => ({ enviado: true }));
+    mocks.createHostawayReservation.mockImplementation(async () => ({ reservationId: 777 }));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    delete process.env.ADMIN_API_TOKEN;
+  });
+
+  it("notificação com PaymentId em análise consulta a Braspag e resolve", async () => {
+    const chamadas = simularBraspagConsulta({ fraudStatus: 1 });
+    const res = await webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 3 });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, reconciliacao: "aceito" });
+    expect(chamadas).toEqual(["consulta", "captura:123450"]);
+  });
+
+  it("PaymentId desconhecido: persiste, ignora, responde 200 e não consulta", async () => {
+    redis.kv.delete(`draft:${DRAFT_ID}`);
+    const chamadas = simularBraspagConsulta({ fraudStatus: 1 });
+    const res = await webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 3 });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, ignored: true });
+    expect(chamadas).toEqual([]);
+    expect((await lerObservabilidadeAntifraude()).janela24h.webhooksNaoTratados).toEqual({ "3": 1 });
+  });
+
+  it("Accept: captura, paid, libera as noites antes de criar a reserva, e-mails enviados", async () => {
+    const chamadas = simularBraspagConsulta({ fraudStatus: 1 });
+    await webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 1 });
+
+    expect(chamadas).toEqual(["consulta", "captura:123450"]);
+    const d = await draftAtual();
+    expect(d.status).toBe("paid");
+    expect(d.braspagPaymentId).toBe(PAYMENT_ID);
+    expect(d.hostawayReservationId).toBe(777);
+    expect(d.analise?.desfecho).toMatchObject({ resultado: "aceito", origem: "webhook-braspag" });
+
+    expect(mocks.createHostawayReservation).toHaveBeenCalledTimes(1);
+    expect(mocks.createHostawayReservation.mock.calls[0]).toEqual([
+      expect.objectContaining({ listingMapId: ID_SOL1, totalPrice: 1234.5, installments: 3, paymentMethod: "card" }),
+    ]);
+    expect(mocks.unblockCalendarNight.mock.calls).toEqual(BLOQUEIOS.map((b) => [b.listingId, b.noite]));
+    const ultimaLiberacao = Math.max(...mocks.unblockCalendarNight.mock.invocationCallOrder);
+    expect(ultimaLiberacao).toBeLessThan(mocks.createHostawayReservation.mock.invocationCallOrder[0]);
+
+    expect(mocks.enviarAlertaAprovacao).toHaveBeenCalledTimes(1);
+    expect(mocks.enviarEmailHospede).toHaveBeenCalledTimes(1);
+    expect(mocks.enviarEmailHospede.mock.calls[0][0]).toMatchObject({ para: EMAIL, assunto: "Reserva confirmada — Solarium 1" });
+  });
+
+  it("Accept com falha de captura: nada marcado, alerta com destaque, e dá para tentar de novo", async () => {
+    let chamadas = simularBraspagConsulta({ fraudStatus: 1, capturaStatus: 0 });
+    const r1 = await reconciliarPagamentoEmAnalise(PAYMENT_ID, "webhook-cielo", 1);
+    expect(r1).toEqual({ resultado: "captura-falhou", statusCode: 0, returnCode: "99" });
+    expect(chamadas).toEqual(["consulta", "captura:123450"]);
+
+    let d = await draftAtual();
+    expect(d.status).toBe("aguardando_analise");
+    expect(d.braspagPaymentId).toBeUndefined();
+    expect(d.analise?.tentativasCaptura).toHaveLength(1);
+    expect(redis.ttls.get(`draft:${DRAFT_ID}`)).toBe(DRAFT_TTL_ANALISE);
+    expect(mocks.createHostawayReservation).not.toHaveBeenCalled();
+    expect(mocks.unblockCalendarNight).not.toHaveBeenCalled();
+    expect(mocks.enviarEmailHospede).not.toHaveBeenCalled();
+    expect(mocks.enviarAlertaDesfechoAnalise.mock.calls[0][0].tipo).toBe("captura-falhou");
+
+    chamadas = simularBraspagConsulta({ fraudStatus: 1 });
+    const r2 = await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual");
+    expect(r2).toMatchObject({ resultado: "aceito", reservationId: 777, capturadoAgora: true });
+    expect(chamadas).toEqual(["consulta", "captura:123450"]);
+    d = await draftAtual();
+    expect(d.status).toBe("paid");
+    expect(mocks.createHostawayReservation).toHaveBeenCalledTimes(1);
+  });
+
+  it("Accept com autorização que já não está viva: não tenta capturar, alerta, segue em análise", async () => {
+    const chamadas = simularBraspagConsulta({ fraudStatus: 1, paymentStatus: 3 });
+    const r = await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual");
+    expect(r).toMatchObject({ resultado: "captura-falhou", statusCode: 3 });
+    expect(chamadas).toEqual(["consulta"]);
+    expect((await draftAtual()).status).toBe("aguardando_analise");
+  });
+
+  it("Accept com reserva que falha: re-bloqueia as noites e registra o órfão", async () => {
+    mocks.createHostawayReservation.mockImplementation(async () => null as unknown as { reservationId: number });
+    simularBraspagConsulta({ fraudStatus: 1 });
+    const r = await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual");
+    expect(r).toMatchObject({ resultado: "aceito", reservationId: null });
+    expect(mocks.blockCalendarNight.mock.calls).toEqual(BLOQUEIOS.map((b) => [b.listingId, b.noite]));
+    expect(mocks.registerOrphanAndAlert).toHaveBeenCalledTimes(1);
+    expect((await draftAtual()).hostawayReservationId).toBe(-1);
+    expect(mocks.enviarEmailHospede).not.toHaveBeenCalled();
+  });
+
+  it("Reject: libera as noites, failed, e-mail ao hóspede, sem cancelamento nem captura", async () => {
+    const chamadas = simularBraspagConsulta({ fraudStatus: 2, paymentStatus: 10 });
+    const res = await webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 1 });
+    expect(await res.json()).toEqual({ ok: true, reconciliacao: "recusado" });
+
+    expect(chamadas).toEqual(["consulta"]); // nem void nem captura
+    const d = await draftAtual();
+    expect(d.status).toBe("failed");
+    expect(d.analise?.desfecho?.resultado).toBe("recusado");
+    expect(mocks.unblockCalendarNight.mock.calls).toEqual(BLOQUEIOS.map((b) => [b.listingId, b.noite]));
+    expect(mocks.createHostawayReservation).not.toHaveBeenCalled();
+
+    expect(mocks.enviarEmailHospede).toHaveBeenCalledTimes(1);
+    const email = mocks.enviarEmailHospede.mock.calls[0][0];
+    expect(email.para).toBe(EMAIL);
+    semPalavraProibida(email.assunto + email.html + email.texto);
+    expect(email.texto).toMatch(/nenhum valor foi cobrado/i);
+    expect(mocks.enviarAlertaDesfechoAnalise.mock.calls[0][0]).toMatchObject({ tipo: "recusado" });
+  });
+
+  it("mesma notificação duas vezes, em sequência e em paralelo: um único efeito", async () => {
+    const chamadas = simularBraspagConsulta({ fraudStatus: 1 });
+    const [a, b] = await Promise.all([
+      webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 1 }),
+      webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 1 }),
+    ]);
+    const c = await webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 1 });
+    const d = await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual");
+
+    expect([a.status, b.status, c.status]).toEqual([200, 200, 200]);
+    expect(chamadas.filter((x) => x.startsWith("captura"))).toHaveLength(1);
+    expect(mocks.createHostawayReservation).toHaveBeenCalledTimes(1);
+    expect(mocks.enviarEmailHospede).toHaveBeenCalledTimes(1);
+    expect(d).toEqual({ resultado: "ja-resolvido", desfecho: "aceito" });
+  });
+
+  it("Redis fora do ar na trava: fail-closed, nenhum efeito, webhook ainda 200", async () => {
+    const chamadas = simularBraspagConsulta({ fraudStatus: 1 });
+    const setOriginal = (redis as unknown as { set: (...a: unknown[]) => Promise<unknown> }).set;
+    vi.spyOn(redis as unknown as { set: (...a: unknown[]) => Promise<unknown> }, "set").mockImplementation(async (...args: unknown[]) => {
+      if (String(args[0]).startsWith("trava:")) throw new Error("redis caiu");
+      return setOriginal(...args);
+    });
+    const res = await webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 1 });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, reconciliacao: "erro" });
+    expect(chamadas).toEqual([]);
+    expect((await draftAtual()).status).toBe("aguardando_analise");
+  });
+
+  it.each([["texto", "Review"], ["numérico desconhecido", 99], ["texto numérico", "1"], ["ausente", undefined]])(
+    "ChangeType %s não impede a reconciliação",
+    async (_nome, changeType) => {
+      const chamadas = simularBraspagConsulta({ fraudStatus: 1 });
+      const res = await webhookBraspag({ PaymentId: PAYMENT_ID, ...(changeType === undefined ? {} : { ChangeType: changeType }) });
+      expect(await res.json()).toEqual({ ok: true, reconciliacao: "aceito" });
+      expect(chamadas).toEqual(["consulta", "captura:123450"]);
+    },
+  );
+
+  it("webhook Cielo (URL do portal de produção) também reconcilia, sem tocar o fluxo Cielo", async () => {
+    const chamadas = simularBraspagConsulta({ fraudStatus: 2, paymentStatus: 10 });
+    const res = await postWebhookCielo(
+      new Request("https://solarium.test/api/webhooks/cielo", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ PaymentId: PAYMENT_ID, ChangeType: 3 }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, provider: "braspag", method: "card", reconciliacao: "recusado" });
+    expect(chamadas).toEqual(["consulta"]); // nenhuma chamada à API da Cielo
+    expect((await draftAtual()).status).toBe("failed");
+  });
+
+  it("ainda em Review na consulta: nada acontece", async () => {
+    const chamadas = simularBraspagConsulta({ fraudStatus: 3 });
+    expect(await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual")).toEqual({ resultado: "ainda-em-analise", fraudStatus: "Review" });
+    expect(chamadas).toEqual(["consulta"]);
+    expect((await draftAtual()).status).toBe("aguardando_analise");
+    expect(mocks.enviarAlertaDesfechoAnalise).not.toHaveBeenCalled();
+  });
+
+  it("sem FraudAnalysis na consulta: capturado vira aceito sem nova captura; cancelado vira recusado", async () => {
+    let chamadas = simularBraspagConsulta({ semFraudAnalysis: true, paymentStatus: 2 });
+    expect(await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual")).toMatchObject({ resultado: "aceito", capturadoAgora: false });
+    expect(chamadas).toEqual(["consulta"]);
+
+    prepararRota();
+    semearEmAnalise({ analise: { ...draftEmEspera().analise!, paymentId: PAYMENT_ID, bloqueios: BLOQUEIOS } });
+    redis.kv.delete(`trava:reconciliacao:${PAYMENT_ID}:aceito`);
+    chamadas = simularBraspagConsulta({ semFraudAnalysis: true, paymentStatus: 10 });
+    expect(await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual")).toMatchObject({ resultado: "recusado" });
+    expect(chamadas).toEqual(["consulta"]);
+  });
+
+  it("indefinido: sem efeito e um único alerta, mesmo com várias notificações", async () => {
+    simularBraspagConsulta({ fraudStatus: 0, paymentStatus: 1 });
+    expect(await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual")).toEqual({ resultado: "indefinido", fraudStatus: "Unknown", paymentStatus: 1 });
+    await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual");
+    expect(mocks.enviarAlertaDesfechoAnalise).toHaveBeenCalledTimes(1);
+    expect((await draftAtual()).status).toBe("aguardando_analise");
+  });
+
+  it("consulta que falha: erro, sem efeito", async () => {
+    simularBraspagConsulta({ httpConsulta: 500 });
+    expect(await reconciliarPagamentoEmAnalise(PAYMENT_ID, "manual")).toMatchObject({ resultado: "erro" });
+    expect((await draftAtual()).status).toBe("aguardando_analise");
+  });
+
+  describe("rota manual", () => {
+    const post = (corpo: unknown, token?: string) =>
+      postAdmin(
+        new Request("https://solarium.test/api/admin/antifraude", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify(corpo),
+        }),
+      );
+
+    it("404 sem header ou com token errado; 400 sem paymentId válido", async () => {
+      process.env.ADMIN_API_TOKEN = "tok-admin";
+      simularBraspagConsulta({ fraudStatus: 1 });
+      expect((await post({ paymentId: PAYMENT_ID })).status).toBe(404);
+      expect((await post({ paymentId: PAYMENT_ID }, "errado")).status).toBe(404);
+      expect((await getAdmin(new Request("https://solarium.test/api/admin/antifraude"))).status).toBe(404);
+      expect((await post({ paymentId: "x" }, "tok-admin")).status).toBe(400);
+      expect(mocks.createHostawayReservation).not.toHaveBeenCalled();
+    });
+
+    it("produz o mesmo resultado do webhook", async () => {
+      process.env.ADMIN_API_TOKEN = "tok-admin";
+      const estado = async () => {
+        const d = await draftAtual();
+        return {
+          status: d.status,
+          braspagPaymentId: d.braspagPaymentId,
+          hostawayReservationId: d.hostawayReservationId,
+          desfecho: d.analise?.desfecho?.resultado,
+          reservas: mocks.createHostawayReservation.mock.calls,
+          liberadas: mocks.unblockCalendarNight.mock.calls,
+          emails: mocks.enviarEmailHospede.mock.calls.map((c) => c[0].assunto),
+        };
+      };
+
+      const chamadasManual = simularBraspagConsulta({ fraudStatus: 1 });
+      const res = await post({ paymentId: PAYMENT_ID }, "tok-admin");
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ paymentId: PAYMENT_ID, resultado: "aceito", reservationId: 777 });
+      const viaManual = { ...(await estado()), chamadas: chamadasManual };
+
+      prepararRota();
+      semearEmAnalise();
+      for (const m of [mocks.enviarEmailHospede, mocks.enviarAlertaAprovacao]) m.mockClear();
+      Array.from(redis.kv.keys()).filter((k) => k.startsWith("trava:") || k.startsWith("envio-unico:")).forEach((k) => redis.kv.delete(k));
+      const chamadasWebhook = simularBraspagConsulta({ fraudStatus: 1 });
+      await webhookBraspag({ PaymentId: PAYMENT_ID, ChangeType: 1 });
+      const viaWebhook = { ...(await estado()), chamadas: chamadasWebhook };
+
+      expect(viaWebhook).toEqual(viaManual);
+    });
+  });
+});
+
+describe("A3 — e-mails de desfecho", () => {
+  it("não concluído: sem palavra proibida e sem acusar o hóspede", () => {
+    const e = montarEmailNaoConcluido(draftEmEspera(), DRAFT_ID);
+    semPalavraProibida(e.assunto + e.html + e.texto);
+    expect(e.texto).toMatch(/Pix ou outro cartão/);
+  });
+
+  it("confirmação: fala em confirmada só depois do desfecho, sem mencionar a revisão", () => {
+    const e = montarEmailConfirmacao(draftEmEspera(), DRAFT_ID, 1234.5);
+    for (const re of PROIBIDAS.filter((r) => !/confirmada|aprovado/.test(r.source))) {
+      expect(e.assunto + e.html + e.texto).not.toMatch(re);
+    }
+    expect(e.texto).toMatch(/Total pago: R\$\s?1\.234,50/);
   });
 });

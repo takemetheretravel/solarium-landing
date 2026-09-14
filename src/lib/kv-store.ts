@@ -45,6 +45,10 @@ export type AnaliseAntifraude = {
   parcelas: number;
   /** Exatamente o que foi bloqueado — é isso que se desbloqueia depois. */
   bloqueios: BloqueioAnalise[];
+  /** Tentativas de captura que falharam depois do Accept (A3). */
+  tentativasCaptura?: { em: string; origem: string; statusCode: number | null; returnCode: string | null }[];
+  /** Como a espera terminou (A3). */
+  desfecho?: { resultado: "aceito" | "recusado"; em: string; origem: string };
 };
 
 export type ReservationDraft = {
@@ -530,4 +534,62 @@ export async function liberarEnvioUnico(chave: string): Promise<void> {
   } catch (err) {
     console.error("[kv-store:liberarEnvioUnico] Failed:", err);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliação do Review (rodada A3).
+//
+// Diferente do envio único, estas travas são FAIL-CLOSED: capturar duas vezes
+// ou criar duas reservas é o pior defeito possível aqui. Redis fora do ar
+// significa "não sei", e "não sei" não autoriza efeito colateral.
+
+export type ResultadoTrava = "adquirida" | "ocupada" | "erro";
+
+export async function adquirirTravaExclusiva(chave: string, ttlSeconds: number): Promise<ResultadoTrava> {
+  try {
+    const res = await getRedis().set(`trava:${chave}`, new Date().toISOString(), { nx: true, ex: ttlSeconds });
+    return res !== null ? "adquirida" : "ocupada";
+  } catch (err) {
+    console.error("[kv-store:adquirirTravaExclusiva] Failed (fail-closed):", err);
+    return "erro";
+  }
+}
+
+export async function liberarTravaExclusiva(chave: string): Promise<void> {
+  try {
+    await getRedis().del(`trava:${chave}`);
+  } catch (err) {
+    console.error("[kv-store:liberarTravaExclusiva] Failed:", err);
+  }
+}
+
+/** Valor gravado numa trava (ex.: o desfecho já aplicado), ou null. Lança em falha de Redis. */
+export async function lerTravaExclusiva(chave: string): Promise<string | null> {
+  const v = await getRedis().get<string>(`trava:${chave}`);
+  return v === null || v === undefined ? null : String(v);
+}
+
+/** Grava um marcador definitivo (sem NX). Devolve false em falha de Redis. */
+export async function gravarMarcador(chave: string, valor: string, ttlSeconds: number): Promise<boolean> {
+  try {
+    await getRedis().set(`trava:${chave}`, valor, { ex: ttlSeconds });
+    return true;
+  } catch (err) {
+    console.error("[kv-store:gravarMarcador] Failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Draft em `aguardando_analise` cuja autorização é este PaymentId. Varre os
+ * drafts vivos (volume de cartão baixo); não depende do MerchantOrderId nem de
+ * consultar a Braspag, então serve de filtro barato antes de qualquer consulta.
+ */
+export async function findDraftEmAnalisePorPaymentId(paymentId: string): Promise<ReservationDraft | null> {
+  const alvo = (paymentId || "").trim().toLowerCase();
+  if (!alvo) return null;
+  const drafts = await scanAllDrafts();
+  return (
+    drafts.find((d) => d.status === "aguardando_analise" && d.analise?.paymentId?.toLowerCase() === alvo) ?? null
+  );
 }

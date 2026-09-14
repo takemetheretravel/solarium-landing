@@ -7,6 +7,7 @@ import { enrichServiceExtras } from "@/config/service-extras";
 import { blockOpExtraNights } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
+import { reconciliarSeEmAnalise } from "@/lib/reconciliacao-analise";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,19 @@ export async function POST(req: Request) {
     console.log("[Webhook:Cielo]", JSON.stringify(body));
 
     const { PaymentId: paymentId, ChangeType: changeType, MerchantOrderId: merchantOrderId } = body;
+
+    // =========================================================================
+    // REVIEW DO ANTIFRAUDE BRASPAG (A3, ISOLADO) — o portal de produção da
+    // Braspag notifica ESTE endpoint. Se o PaymentId for de um cartão em
+    // aguardando_analise, resolve pela consulta à Braspag (qualquer ChangeType)
+    // e RETORNA 200. Notificação Cielo real não casa: drafts Cielo nunca entram
+    // em análise. O fluxo abaixo não é tocado.
+    // =========================================================================
+    const reconciliacao = await reconciliarSeEmAnalise(paymentId, "webhook-cielo", changeType);
+    if (reconciliacao) {
+      console.log("[Webhook:Cielo] provider=BRASPAG reconciliação do Review:", JSON.stringify({ paymentId, changeType, resultado: reconciliacao.resultado }));
+      return NextResponse.json({ ok: true, provider: "braspag", method: "card", reconciliacao: reconciliacao.resultado });
+    }
 
     // =========================================================================
     // RAMIFICAÇÃO BRASPAG (ISOLADA) — a URL cadastrada no portal de PRODUÇÃO da
