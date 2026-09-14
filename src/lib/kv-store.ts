@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { FRAUD_STATUS_NOMES, type FraudStatusNome, type ResumoAntifraude } from "@/lib/braspag";
 
 if (!process.env.KV_REST_API_URL && !process.env.UPSTASH_REDIS_REST_URL) {
   console.error("[kv-store] Nenhuma variável Redis configurada (KV_REST_API_URL ou UPSTASH_REDIS_REST_URL)");
@@ -302,4 +303,173 @@ export function draftIdDeOrderId(orderId: string): string {
   if (i <= 0) return orderId;
   // UUID do draft tem 36 caracteres; o sufixo de tentativa vem depois dele.
   return orderId.length > 36 ? orderId.slice(0, 36) : orderId;
+}
+
+// ---------------------------------------------------------------------------
+// Observabilidade do antifraude (rodada A1). Só registra: nenhuma decisão de
+// pagamento lê estas chaves.
+//
+// Chaves próprias, todas sob `af:`, sem tocar em draft:*, authlog ou órfãos:
+//   af:contagem:<AAAA-MM-DDTHH>   hash por hora (UTC), TTL 8 dias
+//     campos: status:<0..5> · webhook:<ChangeType> · void_sem_sucesso
+//   af:eventos                    lista, últimos 200 resultados do antifraude
+//   af:webhooks-nao-tratados      lista, últimos 100 payloads ignorados
+//   af:voids-sem-sucesso          lista, últimos 100 voids não confirmados
+//
+// Toda escrita engole a própria falha: um Redis fora do ar não pode derrubar
+// uma cobrança.
+const AF_CONTAGEM_PREFIX = "af:contagem:";
+const AF_CONTAGEM_TTL = 60 * 60 * 24 * 8;
+const AF_LISTA_TTL = 60 * 60 * 24 * 30;
+const AF_EVENTOS_KEY = "af:eventos";
+const AF_WEBHOOKS_KEY = "af:webhooks-nao-tratados";
+const AF_VOIDS_KEY = "af:voids-sem-sucesso";
+const AF_EVENTOS_MAX = 200;
+const AF_WEBHOOKS_MAX = 100;
+const AF_VOIDS_MAX = 100;
+
+function chaveContagemHora(ts: number): string {
+  return `${AF_CONTAGEM_PREFIX}${new Date(ts).toISOString().slice(0, 13)}`;
+}
+
+async function registrarNaLista(chave: string, max: number, entrada: unknown, campoContagem: string, ts: number) {
+  const redis = getRedis();
+  const hora = chaveContagemHora(ts);
+  const p = redis.pipeline();
+  p.lpush(chave, JSON.stringify(entrada));
+  p.ltrim(chave, 0, max - 1);
+  p.expire(chave, AF_LISTA_TTL);
+  p.hincrby(hora, campoContagem, 1);
+  p.expire(hora, AF_CONTAGEM_TTL);
+  await p.exec();
+}
+
+export type EventoAntifraude = ResumoAntifraude & { ts: string };
+
+export async function registrarResultadoAntifraude(resumo: ResumoAntifraude, agora = Date.now()): Promise<void> {
+  try {
+    const evento: EventoAntifraude = { ...resumo, ts: new Date(agora).toISOString() };
+    await registrarNaLista(AF_EVENTOS_KEY, AF_EVENTOS_MAX, evento, `status:${resumo.fraudStatus}`, agora);
+  } catch (err) {
+    console.error("[kv-store:registrarResultadoAntifraude] Failed:", err);
+  }
+}
+
+export type WebhookNaoTratado = {
+  ts: string;
+  changeType: unknown;
+  paymentId: string | null;
+  motivo: string;
+  corpo: unknown;
+  headers: Record<string, string>;
+};
+
+/** Normaliza o ChangeType para campo de contagem (`webhook:3`, `webhook:ausente`). */
+export function campoContagemWebhook(changeType: unknown): string {
+  if (changeType === undefined || changeType === null || changeType === "") return "webhook:ausente";
+  return `webhook:${String(changeType).trim().slice(0, 20)}`;
+}
+
+export async function registrarWebhookNaoTratado(
+  entrada: Omit<WebhookNaoTratado, "ts">,
+  agora = Date.now(),
+): Promise<void> {
+  try {
+    const registro: WebhookNaoTratado = { ...entrada, ts: new Date(agora).toISOString() };
+    await registrarNaLista(AF_WEBHOOKS_KEY, AF_WEBHOOKS_MAX, registro, campoContagemWebhook(entrada.changeType), agora);
+  } catch (err) {
+    console.error("[kv-store:registrarWebhookNaoTratado] Failed:", err);
+  }
+}
+
+export type VoidSemSucesso = {
+  ts: string;
+  paymentId: string | null;
+  merchantOrderId: string;
+  contexto: "antifraude" | "captura-falhou";
+  httpStatus: number | null;
+  statusCode: number | null;
+  returnCode: string | null;
+  erro: string | null;
+};
+
+export async function registrarVoidSemSucesso(entrada: Omit<VoidSemSucesso, "ts">, agora = Date.now()): Promise<void> {
+  try {
+    const registro: VoidSemSucesso = { ...entrada, ts: new Date(agora).toISOString() };
+    await registrarNaLista(AF_VOIDS_KEY, AF_VOIDS_MAX, registro, "void_sem_sucesso", agora);
+  } catch (err) {
+    console.error("[kv-store:registrarVoidSemSucesso] Failed:", err);
+  }
+}
+
+export type JanelaAntifraude = {
+  antifraude: Record<FraudStatusNome, number>;
+  webhooksNaoTratados: Record<string, number>;
+  voidsSemSucesso: number;
+};
+
+function janelaVazia(): JanelaAntifraude {
+  return {
+    antifraude: Object.fromEntries(FRAUD_STATUS_NOMES.map((n) => [n, 0])) as Record<FraudStatusNome, number>,
+    webhooksNaoTratados: {},
+    voidsSemSucesso: 0,
+  };
+}
+
+function somarNaJanela(janela: JanelaAntifraude, hash: Record<string, unknown> | null) {
+  if (!hash) return;
+  for (const [campo, valor] of Object.entries(hash)) {
+    const n = Number(valor);
+    if (!Number.isFinite(n)) continue;
+    if (campo.startsWith("status:")) {
+      const idx = Number(campo.slice("status:".length));
+      const nome = FRAUD_STATUS_NOMES[idx];
+      if (nome) janela.antifraude[nome] += n;
+    } else if (campo.startsWith("webhook:")) {
+      const tipo = campo.slice("webhook:".length);
+      janela.webhooksNaoTratados[tipo] = (janela.webhooksNaoTratados[tipo] ?? 0) + n;
+    } else if (campo === "void_sem_sucesso") {
+      janela.voidsSemSucesso += n;
+    }
+  }
+}
+
+async function lerLista(chave: string, limite: number): Promise<unknown[]> {
+  const itens = await getRedis().lrange(chave, 0, limite - 1);
+  const saida: unknown[] = [];
+  for (const item of itens) {
+    try {
+      saida.push(typeof item === "string" ? JSON.parse(item) : item);
+    } catch {
+      // entrada corrompida: ignora
+    }
+  }
+  return saida;
+}
+
+/**
+ * Leitura para a rota admin. 24h = as 24 horas-balde mais recentes (inclui a
+ * hora corrente); 7d = as 168 mais recentes.
+ */
+export async function lerObservabilidadeAntifraude(agora = Date.now()) {
+  const redis = getRedis();
+  const horas = Array.from({ length: 168 }, (_, i) => chaveContagemHora(agora - i * 3600_000));
+  const p = redis.pipeline();
+  for (const h of horas) p.hgetall(h);
+  const hashes = (await p.exec()) as (Record<string, unknown> | null)[];
+
+  const janela24h = janelaVazia();
+  const janela7d = janelaVazia();
+  hashes.forEach((hash, i) => {
+    if (i < 24) somarNaJanela(janela24h, hash);
+    somarNaJanela(janela7d, hash);
+  });
+
+  const [ultimosEventos, ultimosWebhooksNaoTratados, ultimosVoidsSemSucesso] = await Promise.all([
+    lerLista(AF_EVENTOS_KEY, 50),
+    lerLista(AF_WEBHOOKS_KEY, AF_WEBHOOKS_MAX),
+    lerLista(AF_VOIDS_KEY, AF_VOIDS_MAX),
+  ]);
+
+  return { geradoEm: new Date(agora).toISOString(), janela24h, janela7d, ultimosEventos, ultimosWebhooksNaoTratados, ultimosVoidsSemSucesso };
 }
