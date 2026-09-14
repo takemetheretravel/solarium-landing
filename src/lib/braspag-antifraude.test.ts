@@ -90,7 +90,13 @@ const mocks = vi.hoisted(() => ({
   createHostawayReservation: vi.fn(async () => ({ reservationId: 777 })),
   enviarAlertaRecusa: vi.fn(async () => undefined),
   enviarAlertaAprovacao: vi.fn(async () => undefined),
-  enviarAlertaEmAnalise: vi.fn(async () => undefined),
+  enviarAlertaEmAnalise: vi.fn(async (_dados: { emailHospede?: string }) => undefined),
+  enviarEmailHospede: vi.fn(
+    async (_d: { para: string; assunto: string; html: string; texto: string }): Promise<{ enviado: true } | { enviado: false; motivo: string }> => ({
+      enviado: true,
+    }),
+  ),
+  resendSend: vi.fn(async (_payload: Record<string, unknown>): Promise<{ error: { message: string } | null }> => ({ error: null })),
   blockCalendarNight: vi.fn(async (_listingId: number, _noite: string) => true),
   unblockCalendarNight: vi.fn(async (_listingId: number, _noite: string) => true),
 }));
@@ -110,7 +116,20 @@ vi.mock("@/lib/email", () => ({
   enviarAlertaRecusa: mocks.enviarAlertaRecusa,
   enviarAlertaAprovacao: mocks.enviarAlertaAprovacao,
   enviarAlertaEmAnalise: mocks.enviarAlertaEmAnalise,
+  enviarEmailHospede: mocks.enviarEmailHospede,
 }));
+vi.mock("resend", () => ({
+  Resend: class {
+    emails = { send: mocks.resendSend };
+  },
+}));
+// A página de confirmação chama redirect() e renderiza o TrackPurchase.
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  },
+}));
+vi.mock("@/components/booking/TrackPurchase", () => ({ TrackPurchase: () => "[[PURCHASE]]" }));
 vi.mock("@/lib/reservation-recovery", () => ({ registerOrphanAndAlert: vi.fn(async () => undefined) }));
 vi.mock("@/lib/reserva-pacote", () => ({ paramsDePacote: () => ({}), extrasProvidenciar: () => [] }));
 vi.mock("@/lib/braspag-pix-confirm", () => ({ confirmPixPaymentIfPaid: vi.fn(async () => ({ status: "pending" })) }));
@@ -135,6 +154,20 @@ import {
 import { antifraudeReviewAtivo } from "@/config/flags";
 import { noitesDaEstadia } from "@/lib/hostaway";
 import { getPropertyBySlug } from "@/config/properties";
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+// O Vitest compila o JSX das páginas no modo clássico (React.createElement);
+// o Next usa o automático. Expor o React global evita mexer no vitest.config.
+(globalThis as unknown as { React: typeof React }).React = React;
+import ConfirmacaoPage from "@/app/reservar/[draftId]/confirmacao/page";
+import {
+  TEXTO_ESPERA,
+  montarEmailEspera,
+  enviarEmailEsperaUmaVez,
+  varianteConfirmacao,
+} from "@/lib/comunicacao-analise";
+import type { ReservationDraft } from "@/lib/kv-store";
 import { POST as postCredito } from "@/app/api/payments/braspag/credit/route";
 import { POST as postWebhook } from "@/app/api/webhooks/braspag/route";
 
@@ -768,5 +801,234 @@ describe("webhook Braspag — notificações não tratadas", () => {
     const res = await webhook(JSON.stringify({ PaymentId: PAYMENT_ID, ChangeType: 1 }));
     expect(res.status).toBe(200);
     expect((await lerObservabilidadeAntifraude()).ultimosWebhooksNaoTratados).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// A2b — comunicação com o hóspede em aguardando_analise
+// ===========================================================================
+
+// Palavras que o hóspede nunca pode ler neste estado (com e sem acento).
+const PROIBIDAS = [
+  /avalia[cç][aã]o/i,
+  /an[aá]lise/i,
+  /risco/i,
+  /antifraude/i,
+  /pendente/i,
+  /em processamento/i,
+  /verifica[cç][aã]o/i,
+  /reserva confirmada/i,
+  /pagamento aprovado/i,
+];
+
+function semPalavraProibida(texto: string) {
+  for (const re of PROIBIDAS) expect(texto, `contém ${re}`).not.toMatch(re);
+}
+
+function draftEmEspera(overrides: Partial<ReservationDraft> = {}): ReservationDraft {
+  return {
+    id: DRAFT_ID,
+    propertyId: "solarium-1",
+    propertyName: "Solarium 1",
+    checkin: "2026-10-10",
+    checkout: "2026-10-12",
+    guests: 2,
+    nights: 2,
+    totalPrice: 1000,
+    pixDiscount: 0,
+    couponDiscount: 0,
+    finalTotal: 1000,
+    paymentMethod: "card",
+    guestFirstName: "Maria Aparecida",
+    guestLastName: "Souza",
+    guestEmail: EMAIL,
+    guestPhone: "35999999999",
+    guestCpf: CPF,
+    status: "aguardando_analise",
+    analise: {
+      paymentId: PAYMENT_ID,
+      merchantOrderId: `${DRAFT_ID}-abc`,
+      entrouEm: "2026-09-14T12:00:00Z",
+      valorAutorizado: 1234.5,
+      valorAutorizadoCentavos: 123450,
+      parcelas: 3,
+      bloqueios: [{ listingId: 316007, noite: "2026-10-10" }],
+    },
+    createdAt: "2026-09-14T00:00:00Z",
+    expiresAt: "2026-09-14T02:00:00Z",
+    ...overrides,
+  };
+}
+
+async function renderizarConfirmacao(draft: ReservationDraft | null): Promise<string> {
+  redis.kv.clear();
+  if (draft) redis.kv.set(`draft:${DRAFT_ID}`, JSON.stringify(draft));
+  return renderToStaticMarkup(await ConfirmacaoPage({ params: { draftId: DRAFT_ID } }));
+}
+
+describe("A2b — textos", () => {
+  it("tela e e-mail não usam palavra proibida", () => {
+    semPalavraProibida(Object.values(TEXTO_ESPERA).join(" "));
+    const email = montarEmailEspera(draftEmEspera(), DRAFT_ID, 1234.5);
+    semPalavraProibida(email.assunto);
+    semPalavraProibida(email.html);
+    semPalavraProibida(email.texto);
+  });
+
+  it("o e-mail traz nome, casa, datas, valor autorizado e WhatsApp, sem CPF", () => {
+    const email = montarEmailEspera(draftEmEspera(), DRAFT_ID, 1234.5);
+    expect(email.texto).toContain("Olá, Maria.");
+    expect(email.texto).toContain("Solarium 1");
+    expect(email.texto).toContain("10/10/2026");
+    expect(email.texto).toContain("12/10/2026");
+    expect(email.texto).toMatch(/Valor autorizado: R\$\s?1\.234,50/);
+    expect(email.html).toContain("https://wa.me/");
+    expect(email.texto).not.toContain(CPF);
+    expect(email.html).not.toContain(CPF);
+  });
+
+  it("escapa HTML vindo do draft", () => {
+    const email = montarEmailEspera(draftEmEspera({ guestFirstName: "<b>x</b>" }), DRAFT_ID, 10);
+    expect(email.html).not.toContain("<b>x</b>");
+  });
+});
+
+describe("A2b — página de confirmação", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("escolhe a variante pelo status", () => {
+    expect(varianteConfirmacao({ status: "paid" })).toBe("confirmada");
+    expect(varianteConfirmacao({ status: "aguardando_analise" })).toBe("espera");
+    for (const s of ["pending", "failed", "expired"] as const) expect(varianteConfirmacao({ status: s })).toBe("sem-confirmacao");
+    expect(varianteConfirmacao(null)).toBe("sem-confirmacao");
+  });
+
+  it("aprovado: confirmação de sempre, com purchase", async () => {
+    const html = await renderizarConfirmacao(draftEmEspera({ status: "paid", analise: undefined }));
+    expect(html).toContain("[[PURCHASE]]");
+    expect(html).toContain("Sua reserva está feita!");
+    expect(html).toContain("Total pago");
+    expect(html).not.toContain(TEXTO_ESPERA.titulo);
+  });
+
+  it("aguardando_analise: variação de espera, sem purchase e sem palavra proibida", async () => {
+    const html = await renderizarConfirmacao(draftEmEspera());
+    expect(html).not.toContain("[[PURCHASE]]");
+    expect(html).toContain(TEXTO_ESPERA.titulo);
+    expect(html).toContain(TEXTO_ESPERA.corpo);
+    expect(html).toContain("Valor autorizado");
+    expect(html).toMatch(/1\.234,50/);
+    expect(html).not.toContain("Total pago");
+    expect(html).not.toContain("Sua reserva está feita");
+    semPalavraProibida(html);
+  });
+
+  it.each(["pending", "failed", "expired"] as const)("recusado ou sem pagamento (%s): redireciona como antes", async (status) => {
+    await expect(renderizarConfirmacao(draftEmEspera({ status }))).rejects.toThrow("REDIRECT:/");
+  });
+
+  it("draft inexistente: redireciona como antes", async () => {
+    await expect(renderizarConfirmacao(null)).rejects.toThrow("REDIRECT:/");
+  });
+});
+
+describe("A2b — e-mail ao hóspede sai uma vez só", () => {
+  beforeEach(() => {
+    process.env.ANTIFRAUDE_REVIEW_ENABLED = "true";
+    prepararRota();
+    mocks.enviarEmailHospede.mockReset();
+    mocks.enviarEmailHospede.mockImplementation(async () => ({ enviado: true }));
+  });
+  afterEach(() => {
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("entrada em Review envia ao e-mail do hóspede e registra no alerta interno", async () => {
+    simularGateway({ fraudStatus: 3 });
+    const res = await postCredito(requisicaoCredito());
+    semPalavraProibida((await res.json()).returnMessage);
+    expect(mocks.enviarEmailHospede).toHaveBeenCalledTimes(1);
+    const enviado = mocks.enviarEmailHospede.mock.calls[0][0];
+    expect(enviado.para).toBe(EMAIL);
+    semPalavraProibida(enviado.assunto + enviado.html + enviado.texto);
+    expect(mocks.enviarAlertaEmAnalise.mock.calls[0][0].emailHospede).toBe("enviado");
+  });
+
+  it("reenvio do formulário e recarga da página não repetem o e-mail", async () => {
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+    await postCredito(requisicaoCredito()); // reentrada: guarda do draft em análise
+    await ConfirmacaoPage({ params: { draftId: DRAFT_ID } }); // recarga da confirmação
+    await ConfirmacaoPage({ params: { draftId: DRAFT_ID } });
+    expect(mocks.enviarEmailHospede).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha no envio libera a trava: a próxima reentrada tenta de novo, e só uma vez", async () => {
+    mocks.enviarEmailHospede.mockImplementationOnce(async () => ({ enviado: false, motivo: "Resend: domínio" }));
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+    expect(mocks.enviarAlertaEmAnalise.mock.calls[0][0].emailHospede).toBe("NÃO ENVIADO (Resend: domínio)");
+
+    await postCredito(requisicaoCredito());
+    await postCredito(requisicaoCredito());
+    expect(mocks.enviarEmailHospede).toHaveBeenCalledTimes(2); // a falha + um envio bem-sucedido
+  });
+
+  it("flag desligada: Review não envia e-mail ao hóspede", async () => {
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+    expect(mocks.enviarEmailHospede).not.toHaveBeenCalled();
+  });
+
+  it("draft sem bloco de análise não envia", async () => {
+    expect(await enviarEmailEsperaUmaVez(draftEmEspera({ analise: undefined }), DRAFT_ID)).toMatch(/não enviado/);
+    expect(mocks.enviarEmailHospede).not.toHaveBeenCalled();
+  });
+});
+
+describe("A2b — enviarEmailHospede (real, Resend simulado)", () => {
+  const dados = { para: EMAIL, assunto: "a", html: "<p>b</p>", texto: "b" };
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.resendSend.mockReset();
+    mocks.resendSend.mockImplementation(async () => ({ error: null }));
+    process.env.RESEND_API_KEY = "re_falsa";
+  });
+  afterEach(() => {
+    delete process.env.EMAIL_REMETENTE_HOSPEDE;
+    delete process.env.RESEND_API_KEY;
+    vi.restoreAllMocks();
+  });
+
+  it("sem remetente de domínio não envia e diz por quê", async () => {
+    const real = await vi.importActual<typeof import("@/lib/email")>("@/lib/email");
+    expect(await real.enviarEmailHospede(dados)).toEqual({ enviado: false, motivo: "EMAIL_REMETENTE_HOSPEDE ausente" });
+    expect(mocks.resendSend).not.toHaveBeenCalled();
+  });
+
+  it("recusa do Resend não é tratada como envio", async () => {
+    process.env.EMAIL_REMETENTE_HOSPEDE = "Solarium <reservas@exemplo.com>";
+    mocks.resendSend.mockImplementation(async () => ({ error: { message: "domain not verified" } }));
+    const real = await vi.importActual<typeof import("@/lib/email")>("@/lib/email");
+    expect(await real.enviarEmailHospede(dados)).toEqual({ enviado: false, motivo: "Resend: domain not verified" });
+  });
+
+  it("envia do remetente configurado para o hóspede, com texto e HTML", async () => {
+    process.env.EMAIL_REMETENTE_HOSPEDE = "Solarium <reservas@exemplo.com>";
+    const real = await vi.importActual<typeof import("@/lib/email")>("@/lib/email");
+    expect(await real.enviarEmailHospede(dados)).toEqual({ enviado: true });
+    expect(mocks.resendSend).toHaveBeenCalledWith({
+      from: "Solarium <reservas@exemplo.com>",
+      to: EMAIL,
+      subject: "a",
+      html: "<p>b</p>",
+      text: "b",
+    });
   });
 });
