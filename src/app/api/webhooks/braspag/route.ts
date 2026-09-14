@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { consultBraspagPayment, redigirParaRegistro } from "@/lib/braspag";
 import { confirmPixPaymentIfPaid } from "@/lib/braspag-pix-confirm";
+import { reconciliarSeEmAnalise } from "@/lib/reconciliacao-analise";
 import {
   getDraft,
   claimWebhookEventOnce,
@@ -66,6 +67,16 @@ export async function POST(req: Request) {
     console.log("[Webhook:Braspag] notificação recebida:", JSON.stringify(payload));
 
     const { PaymentId, ChangeType } = payload;
+
+    // A3: pagamento de cartão em revisão do antifraude. Qualquer ChangeType —
+    // inclusive texto ou código desconhecido — dispara a consulta e o desfecho
+    // pelo estado real na Braspag. Sem draft em análise, segue como antes.
+    // Responde 200 sempre: erro aqui vira retry em cascata do gateway.
+    const reconciliacao = await reconciliarSeEmAnalise(PaymentId, "webhook-braspag", ChangeType);
+    if (reconciliacao) {
+      console.log("[Webhook:Braspag] reconciliação do Review:", JSON.stringify({ PaymentId, ChangeType, resultado: reconciliacao.resultado }));
+      return NextResponse.json({ ok: true, reconciliacao: reconciliacao.resultado });
+    }
 
     // Só mudança de status de pagamento nos interessa (Pix). Demais tipos: 200.
     if (!PaymentId || (ChangeType !== undefined && ChangeType !== 1)) {
