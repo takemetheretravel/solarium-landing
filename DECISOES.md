@@ -8,6 +8,148 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada A3 — Desfecho da análise (set/2026)
+
+Branch `feat/a3-desfecho-analise`, a partir da A2b. Tudo continua atrás de
+`ANTIFRAUDE_REVIEW_ENABLED`: sem a flag nenhum draft entra em análise, então
+nada aqui é acionado.
+
+### Fato apurado nesta rodada
+
+- 🚨 **O portal Braspag de produção notifica `/api/webhooks/cielo`, não
+  `/api/webhooks/braspag`.** Está escrito no próprio webhook Cielo ("a URL
+  cadastrada no portal de PRODUÇÃO da Braspag é este endpoint") e em
+  `docs/observacao-lancamento-pacotes.md`. Consequências:
+  - a A3 entra **nos dois** webhooks, com o mesmo núcleo;
+  - a captura de webhooks não tratados da A1 (`af:webhooks-nao-tratados`) está
+    no endpoint que **não recebe tráfego real**. Enquanto a URL não mudar, a
+    contagem por ChangeType em `/api/admin/antifraude` vai ficar zerada.
+
+### Decisões
+
+1. **Gatilho não é o ChangeType.** Para qualquer notificação cujo PaymentId
+   seja de um draft em `aguardando_analise`, consulta
+   `GET /v2/sales/{PaymentId}` e resolve pelo estado real. O ChangeType vai só
+   para o log. Texto, número desconhecido ou ausente reconciliam igual.
+   - Filtro: `findDraftEmAnalisePorPaymentId` varre os drafts vivos antes de
+     qualquer consulta. O volume de cartão é baixo. Uma notificação que não é
+     deste fluxo segue exatamente o caminho de antes.
+
+2. **Um caminho de código só.** `reconciliarPagamentoEmAnalise` é chamado pelo
+   webhook Braspag, pelo webhook Cielo e pela rota manual. No caminho da
+   reconciliação, os webhooks respondem **200 sempre**, inclusive com erro
+   interno. O resto dos webhooks mantém o comportamento anterior (o Braspag
+   ainda devolve 500 em erro do fluxo de Pix, de propósito).
+
+3. **Idempotência em três camadas**, todas antes de qualquer efeito:
+   1. marcador definitivo `trava:reconciliacao:<PaymentId>:aceito|recusado`,
+      30 dias;
+   2. trava de processamento `trava:reconciliacao:<PaymentId>:processando`,
+      2 min, **fail-closed**: Redis fora do ar devolve `erro` e não faz nada;
+   3. releitura do draft dentro da trava: só segue se ainda estiver em análise
+      com o mesmo PaymentId.
+
+   As camadas 1 e 3 são redundantes de propósito. A mutação que remove a 3
+   continua barrada pela 1; a que remove a trava (2) reprova o teste de
+   notificações em paralelo.
+
+4. **Accept**
+   - Captura `PUT /capture` com o valor autorizado em centavos.
+   - Só com `Status 2`: grava o marcador, marca `paid` (+ `braspagPaymentId`,
+     `analise.desfecho`), cria a reserva, manda o alerta de aprovação e o e-mail
+     de confirmação ao hóspede.
+   - **Conflito com o próprio bloqueio.** A decisão é **liberar as noites da
+     estadia imediatamente antes de criar a reserva**. Se a criação falhar,
+     elas são bloqueadas de novo, o órfão é registrado
+     (`registerOrphanAndAlert`) e o draft fica com `hostawayReservationId: -1`,
+     como no Accept direto. Os bloqueios de early/late não são liberados:
+     continuam necessários e `blockOpExtraNights` os reafirma.
+     - **Por quê:** não está verificado se a Hostaway aceita criar reserva sobre
+       noite indisponível. Liberar antes funciona nos dois casos. A janela de
+       segundos com as datas livres é desprezível diante do volume. A
+       alternativa (criar e só depois liberar) pode travar a criação e deixar
+       um cliente com dinheiro capturado sem reserva.
+   - **Captura que falha:** não grava marcador, não marca `paid`, não cria
+     reserva e não libera noites. Registra a tentativa em
+     `analise.tentativasCaptura` e manda o alerta 🚨 "CAPTURA FALHOU". A trava
+     é liberada, então a próxima notificação ou a rota manual tentam de novo.
+     Autorização que já não está viva (`Payment.Status` diferente de 1 e 2) cai
+     no mesmo caminho, sem tentar capturar.
+   - Se a consulta já mostrar `Payment.Status 2` (capturado pelo portal, ou uma
+     execução anterior que caiu depois de capturar), segue sem capturar de
+     novo.
+   - O e-mail de confirmação ao hóspede só sai **com a reserva criada**. No
+     órfão, o alerta manda criar à mão e o contato é humano.
+
+5. **Reject**
+   - Grava o marcador, libera todas as noites de `analise.bloqueios`, marca
+     `failed` e manda ao hóspede o e-mail "não conseguimos concluir o
+     pagamento", com convite a Pix ou outro cartão pelo WhatsApp.
+   - **Sem void:** o gateway cancela a autorização sozinho.
+   - Noites que não liberarem vão listadas no alerta interno.
+
+6. **Sem Accept/Reject legível na consulta.** O `FraudAnalysis` pode não vir no
+   GET; não está verificado. O próprio pagamento decide:
+   - `Payment.Status 2` → aceito, sem nova captura;
+   - `Payment.Status 10/11/13` → recusado (cancelamento automático do Reject);
+   - qualquer outra coisa → `indefinido`: nenhum efeito e **um** alerta por
+     PaymentId.
+
+   Consulta com HTTP de erro devolve `erro`, sem efeito.
+
+7. **Rota manual:** `POST /api/admin/antifraude` com `{ "paymentId": "<guid>" }`
+   e `Authorization: Bearer <ADMIN_API_TOKEN>`. Responde 404 sem o header e 400
+   sem GUID. Reusa a autenticação do GET e o mesmo núcleo dos webhooks. Um teste
+   compara o estado final e as chamadas via manual e via webhook.
+
+8. **E-mails de desfecho** em `comunicacao-analise.ts`, cada um uma vez por
+   PaymentId (`envio-unico:email:confirmacao|nao-concluido:<id>`).
+   - O de recusa passa pela mesma varredura de palavras proibidas da A2b.
+   - O de confirmação pode dizer "confirmada", porque agora é verdade, mas não
+     menciona revisão nem análise.
+
+9. **A reserva após o Accept replica a do Accept direto** (mesmos parâmetros),
+   sem refatorar a rota de crédito, que o escopo proibia. Custo: duas cópias
+   para manter em sincronia. Qualquer campo novo em `createHostawayReservation`
+   precisa entrar nos dois lugares.
+
+### Riscos conhecidos
+
+- **Queda entre a captura e o `paid`.** A trava expira em 2 min; a próxima
+  execução vê `Payment.Status 2` e segue sem capturar de novo.
+- **Queda entre o `paid` e a criação da reserva.** O draft fica `paid` sem
+  reserva e as execuções seguintes param em `ja-resolvido`. É a mesma janela
+  que o Accept direto já tem. O alerta de aprovação não sai, e a ausência dele
+  é o sinal.
+- **Redis fora do ar na busca do draft.** `scanAllDrafts` devolve lista vazia e
+  a notificação passa como "não é deste fluxo". Nada é feito; a rota manual ou
+  a próxima notificação recuperam.
+
+### Pendências
+
+- **Cron de segurança:** varrer drafts em `aguardando_analise` há mais de 6h e
+  chamar o mesmo núcleo. O projeto aparece como Pro no painel; confirmar no
+  faturamento antes, porque no Hobby um cron sub-diário faz a Vercel rejeitar o
+  deploy em silêncio.
+- **URL de notificação:** decidir se muda para `/api/webhooks/braspag` no portal
+  ou se a observabilidade da A1 passa a registrar também no webhook Cielo.
+- **Purchase (lacuna aceita):** com o purchase client-side, uma venda aprovada
+  depois do Review não gera purchase. Resolver junto com a migração para
+  server-side que está nas branches paradas.
+- **Pré-requisito da A2b continua valendo:** `EMAIL_REMETENTE_HOSPEDE` com
+  domínio verificado no Resend. Sem ele, nenhum dos três e-mails ao hóspede sai.
+
+### Ordem de subida (as três juntas)
+
+1. Mergear A2a (#2), A2b e A3 na `main` com a flag **desligada**. O
+   comportamento em produção só muda pela correção do status em texto (A2a,
+   decisão 1).
+2. Configurar `EMAIL_REMETENTE_HOSPEDE`.
+3. Ligar a flag no preview e testar: Review → espera → reconciliação manual.
+4. Ligar em produção e acompanhar `/api/admin/antifraude` nos primeiros dias.
+
+---
+
 ## Rodada A2b — Comunicação com o hóspede em análise (set/2026)
 
 Branch `feat/a2b-comunicacao-analise`, a partir da A2a. Não mexe em CSP, grupos
