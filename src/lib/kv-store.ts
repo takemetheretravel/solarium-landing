@@ -20,6 +20,32 @@ function getRedis(): Redis {
 }
 
 const DRAFT_TTL = 60 * 60 * 2; // 2 horas
+/**
+ * Draft em análise do antifraude. A revisão manual da Cybersource leva até 4h e
+ * a reconciliação manual (A3) pode vir depois disso: com 2h o draft sumiria
+ * antes da decisão, levando junto a lista de noites a desbloquear.
+ */
+export const DRAFT_TTL_ANALISE = 60 * 60 * 72; // 72 horas
+
+function ttlDoDraft(draft: Pick<ReservationDraft, "status">): number {
+  return draft.status === "aguardando_analise" ? DRAFT_TTL_ANALISE : DRAFT_TTL;
+}
+
+/** Noite segurada no Hostaway enquanto o pagamento está em análise. */
+export type BloqueioAnalise = { listingId: number; noite: string };
+
+/** Autorização viva à espera da decisão do antifraude. Sem dado do hóspede. */
+export type AnaliseAntifraude = {
+  paymentId: string;
+  merchantOrderId: string;
+  entrouEm: string;
+  /** Em reais, como finalTotal. */
+  valorAutorizado: number;
+  valorAutorizadoCentavos: number;
+  parcelas: number;
+  /** Exatamente o que foi bloqueado — é isso que se desbloqueia depois. */
+  bloqueios: BloqueioAnalise[];
+};
 
 export type ReservationDraft = {
   id: string;
@@ -74,7 +100,13 @@ export type ReservationDraft = {
   guestPhone: string;
   guestCpf: string;
   guestNotes?: string;
-  status: "pending" | "paid" | "failed" | "expired";
+  /**
+   * `aguardando_analise`: cartão autorizado, antifraude em Review, noites
+   * seguradas. Não é pago: a confirmação e a reconciliação de Pix não tratam
+   * este draft como reserva.
+   */
+  status: "pending" | "paid" | "failed" | "expired" | "aguardando_analise";
+  analise?: AnaliseAntifraude;
   cieloPaymentId?: string;
   braspagPaymentId?: string;
   hostawayReservationId?: number;
@@ -84,7 +116,7 @@ export type ReservationDraft = {
 
 export async function saveDraft(draft: ReservationDraft): Promise<void> {
   try {
-    await getRedis().set(`draft:${draft.id}`, JSON.stringify(draft), { ex: DRAFT_TTL });
+    await getRedis().set(`draft:${draft.id}`, JSON.stringify(draft), { ex: ttlDoDraft(draft) });
   } catch (err) {
     console.error("[kv-store:saveDraft] Failed:", err);
     throw err;
@@ -282,7 +314,9 @@ export async function updateDraft(id: string, updates: Partial<ReservationDraft>
     const existing = await getDraft(id);
     if (!existing) return;
     const updated = { ...existing, ...updates };
-    await getRedis().set(`draft:${id}`, JSON.stringify(updated), { ex: DRAFT_TTL });
+    // TTL pelo status resultante: um draft em análise não pode voltar a 2h só
+    // porque outro campo foi atualizado.
+    await getRedis().set(`draft:${id}`, JSON.stringify(updated), { ex: ttlDoDraft(updated) });
   } catch (err) {
     console.error("[kv-store:updateDraft] Failed:", err);
     throw err;
