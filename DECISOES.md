@@ -8,6 +8,120 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada A2a — Motor do estado de análise (set/2026)
+
+Branch `feat/a2a-review-antifraude`, a partir de `origin/main` com a A1
+(`85e6a8d`). Tudo o que é novo fica atrás de `ANTIFRAUDE_REVIEW_ENABLED`,
+desligada por padrão. As rodadas A2a, A2b e A3 sobem juntas: ligar a flag sem a
+A3 deixa o hóspede em espera sem desfecho.
+
+### Decisões
+
+1. **O `if` de decisão passa a ler o status normalizado — com e sem a flag.**
+   `BraspagTransactionResult.fraudStatus` agora é `normalizarFraudStatus(...)`.
+   `"1"`, `"Accept"` ou `"accept"` em texto capturam, como o número 1. Até a A1,
+   texto virava void e recusa de pagamento legítimo. Isso é conserto de bug, não
+   funcionalidade nova. `fraudStatusParaDecisao` (A1) foi removida.
+
+2. **Flag:** `antifraudeReviewAtivo()` em `src/config/flags.ts`. Liga só com
+   `"true"` (caixa e espaços tolerados). Qualquer outro valor mantém o void em
+   Review.
+
+3. **Estado novo:** `ReservationDraft.status` ganha `"aguardando_analise"` e o
+   bloco opcional `analise`, que guarda:
+   - `paymentId` e `merchantOrderId`;
+   - `entrouEm`;
+   - `valorAutorizado` (em reais e em centavos) e `parcelas`;
+   - `bloqueios`: a lista exata de `{ listingId, noite }` segurados.
+
+   Nenhum dado do hóspede. `braspagPaymentId` **não** é preenchido: esse campo
+   significa pagamento confirmado para o webhook Cielo e a rota de Pix. Nenhum
+   código na `main` fazia `switch` exaustivo sobre o status; as comparações
+   existentes (`=== "paid"`, `=== "pending"`) já tratam o valor novo como "não
+   pago" e "não pendente de Pix", que é o correto.
+
+4. **TTL:** draft em análise vive **72h** (`DRAFT_TTL_ANALISE`). O prompt pedia
+   no mínimo 12h. A revisão leva até 4h, e a reconciliação manual da A3 pode vir
+   bem depois disso. Sem o draft, perde-se a lista do que desbloquear. O TTL é
+   escolhido pelo status resultante em `saveDraft` e `updateDraft`, então
+   atualizar outro campo não devolve o draft a 2h.
+
+5. **Fluxo em Review com a flag ligada** (`Payment.Status 1` + status normalizado 3):
+   - sem void, sem captura, sem reserva, sem `paid`;
+   - bloqueia as noites da estadia (do check-in à véspera do check-out) na
+     listing reservada **e** nas físicas. No Completo são as três listings, sem
+     depender de a Hostaway propagar o bloqueio entre listings ligadas;
+   - noites de early/late (`noitesABloquear`) só nas físicas, como já faz
+     `blockOpExtraNights`;
+   - listings em paralelo, noites em série dentro de cada uma: no máximo 3
+     chamadas simultâneas à Hostaway;
+   - grava o draft e **relê** para confirmar, porque `updateDraft` volta em
+     silêncio se o draft sumiu;
+   - log `[Braspag:Review-aguardando]` e e-mail interno `enviarAlertaEmAnalise`;
+   - `maxDuration = 60` na rota de crédito: autorização + N chamadas de
+     calendário não cabem no limite padrão.
+
+6. **Contrato da resposta em Review** — HTTP 202:
+   ```json
+   {
+     "approved": false,
+     "estado": "aguardando_analise",
+     "paymentId": "<guid>",
+     "redirectTo": "/reservar/<draftId>/confirmacao",
+     "returnMessage": "Recebemos sua reserva. O pagamento foi autorizado e estamos finalizando a confirmação. Você recebe o e-mail com todos os detalhes em algumas horas."
+   }
+   ```
+   `approved: false` de propósito: a página atual só redireciona e dispara
+   purchase com `approved: true`, então sem a A2b o hóspede nunca cai numa
+   confirmação de pago. A tela deve ler `estado`. Sem `estado`, vale o contrato
+   antigo.
+
+7. **Guarda contra segunda autorização:** draft já em `aguardando_analise`
+   devolve o mesmo 202 **antes** de autorizar de novo, com ou sem a flag. Uma
+   nova tentativa prenderia o limite do cartão duas vezes.
+
+8. **SALVAGUARDA — bloqueio falhou: volta ao void.** É tudo ou nada. Se qualquer
+   noite não bloquear, ou o draft não for gravado, libera o que já bloqueou e
+   segue o caminho antigo: void, alerta de recusa, 402. O motivo vai para o
+   alerta, com as noites que não puderam ser liberadas, se houver.
+
+   **Por quê:** a alternativa (seguir e alertar) deixa um hóspede de alto valor
+   esperando com as datas livres. Se o analista aprovar horas depois e alguém
+   tiver reservado nesse meio-tempo, vira overbooking numa casa premium, com o
+   dinheiro já capturado. Perder a venda é o comportamento conhecido de hoje;
+   overbooking é pior e mais difícil de desfazer.
+
+9. **`unblockCalendarNight`** em `src/lib/hostaway.ts`: mesmo PUT com
+   `isAvailable: 1`. É idempotente por construção (valor absoluto) e não lança.
+   **Não cancela reserva:** a Hostaway calcula a disponibilidade com as reservas
+   por cima do calendário. Por isso só se libera o que está em
+   `analise.bloqueios`. Quem chama no fluxo normal é a A3; na A2a só a
+   salvaguarda usa.
+
+### Pendências
+
+- **A2b:** tela e e-mail ao hóspede lendo `estado`. A mensagem hoje é exibida
+  pela página antiga como erro de cartão; é aceitável só porque a flag está
+  desligada.
+- **A3:** a criação da reserva no Accept vai encontrar as noites bloqueadas por
+  nós mesmos. A decisão (desbloquear antes, converter ou outro caminho) é da A3.
+- **Lacuna aceita:** com o purchase client-side, uma venda aprovada depois do
+  Review não gera purchase — o hóspede já saiu da página. Resolver junto com a
+  migração para server-side que está nas branches paradas.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **Pix e Cielo não conhecem a espera.** `/api/payments/braspag/pix` e
+   `/api/payments/credit` (Cielo) não checam `aguardando_analise`: um hóspede
+   em espera que abrir a página de novo pode gerar um Pix ou pagar pela Cielo
+   no mesmo draft. A A2b deve tirá-lo da tela de pagamento; um guarda
+   server-side nessas rotas fica como pendência.
+2. **Não há guarda para draft já `paid` na rota de crédito Braspag.** Uma
+   segunda requisição num draft pago autoriza de novo. Isso já existia antes
+   da A2a.
+
+---
+
 ## Rodada A1 — Observabilidade do antifraude (set/2026)
 
 Branch `feat/a1-observabilidade-antifraude`, a partir de `origin/main`.
@@ -45,7 +159,8 @@ Branch `feat/a1-observabilidade-antifraude`, a partir de `origin/main`.
 
 ### Decisões
 
-1. **O `if` de decisão não usa o status normalizado.**
+1. **O `if` de decisão não usa o status normalizado.** *(Substituída na A2a,
+   decisão 1.)*
    `fraudStatusParaDecisao` devolve o número cru e `undefined` para qualquer
    outra coisa. Com o cast antigo, só o **número** 1 aprovava. Se o `if` lesse o
    valor normalizado, `"1"` ou `"Accept"` como texto passariam a capturar — seria
