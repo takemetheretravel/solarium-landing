@@ -1,17 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { clearTokenCache } from "@/lib/hostaway";
-
-const DEBUG_KEY = "lucas2026";
+import { tokenAdminValido, naoEncontrado } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
-export async function POST(req: NextRequest) {
-  const form = await req.formData();
-  const key = String(form.get("key") || "");
-  const redirect = String(form.get("redirect") || "/");
-  if (key !== DEBUG_KEY) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+// Header: Authorization: Bearer <ADMIN_API_TOKEN>
+// Responde JSON. O redirect de antes servia à página /debug/hostaway, que saiu,
+// e aceitava destino arbitrário vindo do formulário.
+export async function POST(req: Request) {
+  if (!tokenAdminValido(req)) return naoEncontrado();
   clearTokenCache();
-  return NextResponse.redirect(new URL(redirect, req.url), { status: 303 });
+  return NextResponse.json({ ok: true });
 }

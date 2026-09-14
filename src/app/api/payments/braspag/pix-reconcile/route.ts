@@ -16,7 +16,7 @@ export const maxDuration = 60;
 // COMO ACIONAR:
 //   GET /api/payments/braspag/pix-reconcile
 //   Header: x-reconcile-secret: <valor de BRASPAG_RECONCILE_SECRET>
-//   (ou query ?secret=<valor>)
+//   (query string não é aceita: vazaria o segredo em log e Referer)
 // Sugestão: agendar via Vercel Cron (vercel.json) a cada 15min, ou acionar
 // manualmente ao investigar um Pix "pago mas sem reserva".
 //
@@ -42,10 +42,9 @@ export async function GET(req: Request) {
   // 1) Vercel Cron: envia automaticamente Authorization: Bearer <CRON_SECRET>
   //    (basta definir a env CRON_SECRET; a Vercel injeta o header nas chamadas
   //    agendadas em vercel.json). Ver docs de Vercel Cron.
-  // 2) Manual/externo: header x-reconcile-secret ou ?secret= == BRASPAG_RECONCILE_SECRET.
+  // 2) Manual/externo: header x-reconcile-secret == BRASPAG_RECONCILE_SECRET.
   const authHeader = req.headers.get("authorization") || "";
-  const provided =
-    req.headers.get("x-reconcile-secret") || new URL(req.url).searchParams.get("secret") || "";
+  const provided = req.headers.get("x-reconcile-secret") || "";
   const isVercelCron = !!cronSecret && authHeader === `Bearer ${cronSecret}`;
   const isManual = !!reconcileSecret && provided === reconcileSecret;
   if (!isVercelCron && !isManual) {

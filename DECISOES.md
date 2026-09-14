@@ -8,6 +8,7 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+HEAD
 ## Rodada AF1 — Bloqueio server-side de draft em análise (set/2026)
 
 Branch `fix/af1-bloqueio-analise`, a partir de `origin/main` (`0463bf5`).
@@ -63,6 +64,67 @@ recebem `draftId` do chamador.
    entra também no helper de confirmação, que é compartilhado.
 2. **`DECISOES.md` vai conflitar com o PR da S1.** As duas rodadas inserem a
    seção no mesmo ponto. A resolução é manter as duas seções.
+
+## Rodada S1 — Credencial exposta em rotas de diagnóstico (set/2026)
+
+Branch `fix/s1-credenciais-debug`, a partir de `origin/main` (`0463bf5`). A
+rodada nasceu junto com a AF1 (bloqueio server-side de draft em análise) e foi
+dividida em duas: somadas passavam de 12 arquivos.
+
+### Decisões
+
+1. **Porta única em `src/lib/admin-auth.ts`.** `tokenAdminValido` exige
+   `Authorization: Bearer <ADMIN_API_TOKEN>`, compara em tempo constante e
+   devolve falso com a variável ausente ou vazia. Qualquer falha responde
+   **404**. `b8e5192` foi só consulta: lá sem token era 503 e havia header
+   alternativo `x-admin-token`; aqui é 404 sempre e só Bearer, como pedido.
+2. **`/api/admin/antifraude` não foi migrada para a porta nova.** A lógica é
+   idêntica e já tem teste; migrar mexeria em rota fora do escopo sem ganho de
+   segurança. Fica para uma triagem.
+3. **A página `/debug/hostaway` e o `PriceTester` foram apagados.** Navegação de
+   navegador não envia `Authorization`, então a página não tinha como exigir
+   Bearer — só com chave em query string ou embutida no HTML, que é exatamente
+   o que se quer eliminar. Tudo que ela mostrava sai das rotas `/api/debug/*`
+   via `curl` com o header.
+4. **`/api/debug/regenerate-token` responde JSON em vez de redirect.** O
+   redirect servia à página apagada e aceitava destino arbitrário do
+   formulário (redirect aberto).
+5. **`/api/payments/braspag/authlog` migrou de `BRASPAG_RECONCILE_SECRET` por
+   query string para `ADMIN_API_TOKEN` por header.** Sem compatibilidade.
+6. **`pix-reconcile` deixou de aceitar `?secret=`.** Mesmo segredo e mesmo
+   padrão do authlog. A autenticação continua a da rota (header
+   `x-reconcile-secret` ou o Bearer do Vercel Cron, 401 em falha): trocar para
+   `ADMIN_API_TOKEN` quebraria o cron, que só envia `CRON_SECRET`. O cron em
+   `vercel.json` usa header e não é afetado.
+7. **O teste de varredura olha `src`, `scripts`, `content` e `public`.** Não
+   olha `docs/` nem `DECISOES.md`, que registram o incidente.
+
+### ⚠️ Depois do merge
+
+- **Trocar o valor de `BRASPAG_RECONCILE_SECRET` na Vercel.** Ele trafegou em
+  URL (authlog e pix-reconcile) e ficou em log de acesso.
+- **Conferir que `ADMIN_API_TOKEN` existe em Production e Preview.** Sem ela as
+  rotas de debug e o authlog respondem 404 sempre — fechado, não quebrado.
+- A chave antiga das rotas de debug deixa de valer com o merge (não era env
+  var). Como `hostaway-reservation` criava reservas de teste na conta de
+  produção, vale conferir no painel se há reservas "DEBUG TEST - DELETE ME".
+
+### Achados fora de escopo (não corrigidos)
+
+1. **`/api/debug/hostaway-reservation` cria reservas reais na Hostaway de
+   produção** (seis tentativas, uma `confirmed` com `isPaid: true`). Agora exige
+   token, mas não tem trava de ambiente. `b8e5192` a bloqueava em produção.
+   Decidir se a rota ainda serve para algo ou se sai.
+2. **O literal da chave antiga continua em `docs/pacotes-v2-pr.md`** e em
+   `.claude/settings.local.json`, que está versionado. Depois do merge a chave
+   não abre nada, mas o arquivo de settings local não deveria estar no git.
+3. **`pix-reconcile` compara segredo com `===`**, não em tempo constante, e
+   responde 401/503 em vez de 404.
+4. **`GET /api/payments/braspag/test` é público** por decisão registrada no
+   código (health check para a Braspag, só booleanos). As demais rotas
+   `braspag/*-test`, `3ds-init-probe` e `pix-status` já respondem 404 em
+   produção por `BRASPAG_ENVIRONMENT`, mas ficam abertas em preview.
+fix/s1-credenciais-debug
 
 ---
 
