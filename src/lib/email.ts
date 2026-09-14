@@ -242,6 +242,8 @@ export async function enviarAlertaEmAnalise(dados: {
   draftId: string;
   merchantOrderId: string;
   bloqueios: { listingId: number; noite: string }[];
+  /** Resultado do e-mail de espera ao hóspede (A2b). */
+  emailHospede?: string;
 }) {
   try {
     const resend = getResend();
@@ -265,10 +267,50 @@ export async function enviarAlertaEmAnalise(dados: {
         <p><strong>Noites bloqueadas:</strong></p>
         <ul>${noites}</ul>
         <p><strong>O que o cliente viu:</strong> que a reserva foi recebida e que a confirmação chega por e-mail em algumas horas.</p>
+        ${dados.emailHospede ? `<p><strong>E-mail ao cliente:</strong> ${dados.emailHospede}${dados.emailHospede.startsWith("NÃO") ? " — <strong style=\"color:#c00\">avisar o cliente pelo WhatsApp</strong>" : ""}</p>` : ""}
         <p style="color:#888;font-size:12px">Draft: ${dados.draftId} · MerchantOrderId: ${dados.merchantOrderId}</p>
       `,
     });
   } catch (e) {
     console.error("[Email] Falha ao enviar alerta de análise:", e);
+  }
+}
+
+/**
+ * E-mail AO HÓSPEDE (rodada A2b). Usa o mesmo cliente Resend dos alertas, com
+ * remetente próprio: `onboarding@resend.dev`, o remetente dos alertas, só entrega
+ * para o dono da conta Resend. Sem EMAIL_REMETENTE_HOSPEDE (endereço de domínio
+ * verificado no Resend), não envia e diz por quê — nunca finge que enviou.
+ */
+export async function enviarEmailHospede(dados: {
+  para: string;
+  assunto: string;
+  html: string;
+  texto: string;
+}): Promise<{ enviado: true } | { enviado: false; motivo: string }> {
+  const remetente = (process.env.EMAIL_REMETENTE_HOSPEDE || "").trim();
+  if (!remetente) {
+    console.error("[Email:hospede] EMAIL_REMETENTE_HOSPEDE ausente — e-mail ao hóspede não enviado.");
+    return { enviado: false, motivo: "EMAIL_REMETENTE_HOSPEDE ausente" };
+  }
+  try {
+    const resend = getResend();
+    if (!resend) return { enviado: false, motivo: "RESEND_API_KEY ausente" };
+    // O SDK do Resend não lança em recusa: devolve { error }.
+    const r = await resend.emails.send({
+      from: remetente,
+      to: dados.para,
+      subject: dados.assunto,
+      html: dados.html,
+      text: dados.texto,
+    });
+    if (r.error) {
+      console.error("[Email:hospede] Resend recusou:", r.error.message);
+      return { enviado: false, motivo: `Resend: ${r.error.message}` };
+    }
+    return { enviado: true };
+  } catch (e) {
+    console.error("[Email:hospede] Falha ao enviar:", e);
+    return { enviado: false, motivo: (e as Error)?.message || "exceção" };
   }
 }
