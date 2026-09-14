@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Mail } from "lucide-react";
 import Container from "@/components/ui/Container";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import { getDraft } from "@/lib/kv-store";
 import { formatBRLPrecise } from "@/lib/cn";
 import { TrackPurchase } from "@/components/booking/TrackPurchase";
+import { whatsappLink } from "@/config/site";
+import { TEXTO_ESPERA, mensagemWhatsappEspera, varianteConfirmacao } from "@/lib/comunicacao-analise";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,69 @@ function formatBR(iso: string) {
 
 export default async function ConfirmacaoPage({ params }: { params: { draftId: string } }) {
   const draft = await getDraft(params.draftId);
-  if (!draft || draft.status !== "paid") redirect("/");
+  const variante = varianteConfirmacao(draft);
+  if (!draft || variante === "sem-confirmacao") redirect("/");
+
+  // Cartão autorizado à espera da confirmação final (A2b). Sem TrackPurchase:
+  // ainda não há compra. Texto em comunicacao-analise.ts, com as regras de
+  // linguagem.
+  if (variante === "espera") {
+    const valorAutorizado = draft.analise?.valorAutorizado ?? draft.finalTotal;
+    return (
+      <main className="bg-cream pt-32 pb-20">
+        <Container>
+          <div className="mx-auto max-w-2xl">
+            <div className="mx-auto mb-8 flex h-16 w-16 items-center justify-center rounded-full bg-serra/10">
+              <Mail className="h-8 w-8 text-serra" />
+            </div>
+
+            <div className="mb-12 text-center">
+              <Kicker className="mb-4">{TEXTO_ESPERA.selo}</Kicker>
+              <Heading level={1} className="text-4xl">{TEXTO_ESPERA.titulo}</Heading>
+              <p className="mx-auto mt-4 max-w-md font-sans text-charcoal/70">{TEXTO_ESPERA.corpo}</p>
+            </div>
+
+            <div className="mb-8 border border-charcoal/10 bg-white p-8">
+              <h2 className="mb-6 font-serif text-2xl text-charcoal">{draft.propertyName}</h2>
+              <ul className="space-y-3 font-sans text-sm">
+                <li className="flex justify-between">
+                  <span className="text-charcoal/60">Check-in</span>
+                  <span className="text-charcoal">{formatBR(draft.checkin)} às 15h</span>
+                </li>
+                <li className="flex justify-between">
+                  <span className="text-charcoal/60">Check-out</span>
+                  <span className="text-charcoal">{formatBR(draft.checkout)} às 11h</span>
+                </li>
+                <li className="flex justify-between">
+                  <span className="text-charcoal/60">Hóspedes</span>
+                  <span className="text-charcoal">{draft.guests}</span>
+                </li>
+                <li className="flex justify-between border-t border-charcoal/10 pt-4 font-serif text-xl">
+                  <span className="text-charcoal">{TEXTO_ESPERA.rotuloValor}</span>
+                  <span className="text-charcoal">{formatBRLPrecise(valorAutorizado)}</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="text-center">
+              <p className="mx-auto mb-6 max-w-md font-sans text-sm text-charcoal/70">{TEXTO_ESPERA.apoio}</p>
+              <a
+                href={whatsappLink(mensagemWhatsappEspera(draft, params.draftId))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-[#25D366] px-8 py-4 font-sans text-sm uppercase tracking-widest text-white transition-colors hover:bg-[#20BA5C]"
+              >
+                {TEXTO_ESPERA.botao}
+              </a>
+              <p className="mt-4 font-sans text-xs text-charcoal/40">
+                ID da reserva: {params.draftId.slice(0, 8).toUpperCase()}
+              </p>
+            </div>
+          </div>
+        </Container>
+      </main>
+    );
+  }
 
   const whatsappMsg = encodeURIComponent(
     `Olá! Acabei de confirmar minha reserva no ${draft.propertyName} de ${formatBR(draft.checkin)} a ${formatBR(draft.checkout)}. ID: ${params.draftId.slice(0, 8).toUpperCase()}`,

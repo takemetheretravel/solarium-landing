@@ -119,6 +119,12 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     fetch(`/api/reservations/draft?id=${params.draftId}`)
       .then((r) => r.json())
       .then((data) => {
+        // Cartão já autorizado à espera da confirmação final: nada a pagar aqui.
+        // Voltar ao formulário abriria caminho para uma segunda cobrança (A2b).
+        if (data.draft?.status === "aguardando_analise") {
+          router.replace(`/reservar/${params.draftId}/confirmacao`);
+          return;
+        }
         if (data.draft) setDraft(data.draft);
         else setLoadError("Sessão expirada. Por favor, volte e refaça a reserva.");
       })
@@ -527,6 +533,10 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       });
       const data = await res.json();
       if (data.approved) {
+        router.push(`/reservar/${params.draftId}/confirmacao`);
+      } else if (data.estado === "aguardando_analise") {
+        // Contrato da A2a: autorizado, sem captura. A confirmação mostra a espera
+        // e não dispara purchase. Não é erro de cartão.
         router.push(`/reservar/${params.draftId}/confirmacao`);
       } else {
         setCardError(data.returnMessage || data.error || "Pagamento não aprovado. Verifique os dados e tente novamente.");

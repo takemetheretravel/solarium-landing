@@ -36,6 +36,7 @@ import { blockOpExtraNights, noitesABloquear } from "@/lib/op-extras-server";
 import { paramsDePacote, extrasProvidenciar } from "@/lib/reserva-pacote";
 import { enviarAlertaRecusa, enviarAlertaAprovacao, enviarAlertaEmAnalise } from "@/lib/email";
 import { registerOrphanAndAlert } from "@/lib/reservation-recovery";
+import { enviarEmailEsperaUmaVez, TEXTO_ESPERA } from "@/lib/comunicacao-analise";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,8 +52,7 @@ export const maxDuration = 60;
 //   redirectTo:  página de confirmação do draft
 //   returnMessage: texto neutro para o hóspede
 // Sem `estado`, a resposta segue o contrato antigo (approved true/false).
-const MENSAGEM_AGUARDANDO =
-  "Recebemos sua reserva. O pagamento foi autorizado e estamos finalizando a confirmação. Você recebe o e-mail com todos os detalhes em algumas horas.";
+const MENSAGEM_AGUARDANDO = `${TEXTO_ESPERA.titulo} ${TEXTO_ESPERA.corpo}`;
 
 function respostaAguardandoAnalise(draftId: string, paymentId: string | undefined) {
   return NextResponse.json(
@@ -288,6 +288,9 @@ export async function POST(req: Request) {
     // prenderia o limite do cartão duas vezes. Vale com a flag desligada também —
     // o draft pode ter entrado em análise antes de alguém desligá-la.
     if (draft.status === "aguardando_analise") {
+      // Reentrada: se o e-mail de espera falhou na primeira vez, tenta de novo.
+      // A trava de envio único impede repetir o que já saiu.
+      await enviarEmailEsperaUmaVez(draft, draftId);
       return respostaAguardandoAnalise(draftId, draft.analise?.paymentId);
     }
 
@@ -523,7 +526,10 @@ export async function POST(req: Request) {
           "[Braspag:Review-aguardando]",
           JSON.stringify({ draftId, paymentId: auth.paymentId, merchantOrderId: tentativaId, bloqueios: seg.analise.bloqueios.length }),
         );
+        // E-mail ao hóspede primeiro: o alerta interno diz se ele saiu.
+        const emailHospede = await enviarEmailEsperaUmaVez({ ...draft, status: "aguardando_analise", analise: seg.analise }, draftId);
         await enviarAlertaEmAnalise({
+          emailHospede,
           hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
           propriedade: draft.propertyName,
           valor: valorACobrar,

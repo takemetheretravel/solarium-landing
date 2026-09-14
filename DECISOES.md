@@ -8,6 +8,86 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada A2b — Comunicação com o hóspede em análise (set/2026)
+
+Branch `feat/a2b-comunicacao-analise`, a partir da A2a. Não mexe em CSP, grupos
+de layout, 3DS nem na exclusão do GTM. Nenhuma decisão de pagamento muda.
+
+### Decisões
+
+1. **Um lugar só para o texto.** `src/lib/comunicacao-analise.ts` guarda
+   `TEXTO_ESPERA`, usado pela tela, pelo e-mail e pela `returnMessage` da rota.
+   A direção do texto veio pronta: "Recebemos sua reserva. O pagamento foi
+   autorizado e estamos finalizando a confirmação…".
+
+2. **Linguagem verificada por teste, não só por revisão.** A tela renderizada, o
+   e-mail (assunto, HTML e texto) e a resposta da rota são varridos contra:
+   avaliação, análise, risco, antifraude, pendente, em processamento,
+   verificação, "reserva confirmada" e "pagamento aprovado" (com e sem acento).
+   Os nomes internos (arquivo, funções, `estado`) continuam falando em análise:
+   o hóspede não os lê.
+
+3. **Tela de confirmação.** `varianteConfirmacao(draft)`:
+   - `paid` → a página de sempre, com `TrackPurchase`;
+   - `aguardando_analise` → a variação de espera: ícone de e-mail em vez de
+     check, "Valor autorizado" em vez de "Total pago", botão de WhatsApp, **sem
+     `TrackPurchase`**;
+   - qualquer outro status → `redirect("/")`, como antes.
+
+4. **Purchase não dispara na espera.** O `TrackPurchase` só existe na variante
+   confirmada. Continua client-side, sem migrar.
+
+5. **Página de pagamento** — duas mudanças, as mínimas para ler o contrato:
+   - resposta com `estado: "aguardando_analise"` → vai para a confirmação, em vez
+     de mostrar a mensagem como erro de cartão;
+   - draft carregado já em `aguardando_analise` → `router.replace` para a
+     confirmação. Sem isso, voltar à página reabria o formulário e o Pix,
+     caminho para uma segunda cobrança (achado 1 da A2a, lado da tela).
+
+6. **E-mail ao hóspede, uma vez por autorização.** Sai pela rota de crédito no
+   momento em que o draft entra em análise — nunca pela página, que pode ser
+   recarregada à vontade.
+   - Trava `envio-unico:email:espera:<PaymentId>` (SET NX, 7 dias), gravada
+     antes do envio.
+   - Se o envio falhar, a trava é liberada e a próxima reentrada (novo POST no
+     draft em análise) tenta de novo.
+   - Em falha de Redis, fail-open: um e-mail repetido é melhor que um hóspede
+     sem notícia de um cartão autorizado.
+   - O resultado ("enviado", "já enviado antes", "NÃO ENVIADO (motivo)") vai no
+     alerta interno. Quando não saiu, o alerta pede para avisar pelo WhatsApp.
+
+7. **Mesma infraestrutura, remetente próprio.** `enviarEmailHospede` usa o mesmo
+   cliente Resend dos alertas, com o remetente lido de
+   **`EMAIL_REMETENTE_HOSPEDE`**. Sem essa variável, não envia e diz por quê. A
+   recusa do Resend (que devolve `{ error }` em vez de lançar) também não conta
+   como envio.
+
+### ⚠️ Pré-requisito antes de ligar a flag
+
+- **Hoje nenhum e-mail ao hóspede chega.** Os alertas saem de
+  `onboarding@resend.dev`, remetente de teste do Resend que só entrega para o
+  dono da conta. É preciso:
+  1. verificar um domínio no Resend (ex.: `solariummantiqueira.com`);
+  2. criar `EMAIL_REMETENTE_HOSPEDE` na Vercel, por exemplo
+     `Solarium Mantiqueira <reservas@solariummantiqueira.com>`.
+
+  Sem isso, a tela de espera promete um e-mail que não sai. O alerta interno
+  mostra "NÃO ENVIADO" e o hóspede precisa ser avisado pelo WhatsApp.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **A rota de Pix não barra o draft em análise no servidor.** A tela agora tira
+   o hóspede da página de pagamento, mas um POST direto em
+   `/api/payments/braspag/pix` ainda geraria um Pix. Continua pendente.
+2. **O JSX roda no modo clássico no Vitest.** O teste da página expõe
+   `React` global para renderizar. Configurar `esbuild.jsx: "automatic"` no
+   `vitest.config.ts` resolve de vez.
+3. **O botão de WhatsApp da confirmação tem o número escrito à mão.** Na
+   variante confirmada ele está fixo no código, enquanto a variante de espera
+   usa `whatsappLink` de `config/site`. Não mexi na confirmada.
+
+---
+
 ## Rodada A2a — Motor do estado de análise (set/2026)
 
 Branch `feat/a2a-review-antifraude`, a partir de `origin/main` com a A1
