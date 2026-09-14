@@ -176,7 +176,13 @@ export type BraspagTransactionResult = {
   returnMessage?: string;
   statusCode?: number; // Payment.Status (1=Autorizado, 2=Pago/Capturado, 3=Negado…)
   // Antifraude (síncrono) — presente quando FraudAnalysis é enviado.
+  // `fraudStatus` alimenta o if de decisão da rota de crédito e mantém a
+  // semântica antiga: só o NÚMERO 1 aprova (ver fraudStatusParaDecisao).
   fraudStatus?: number; // 0=Unknown,1=Accept,2=Reject,3=Review,4=Aborted,5=Unfinished
+  // Observabilidade (A1): status normalizado e valor cru como a Braspag enviou.
+  fraudStatusNormalizado?: FraudStatus;
+  fraudStatusCru?: unknown;
+  fraudAnalysisId?: string;
   fraudScore?: number;
   fraudReasonCode?: number;
   fraudProviderReturnCode?: string;
@@ -186,6 +192,133 @@ export type BraspagTransactionResult = {
   errorBody?: unknown;
   raw: unknown;
 };
+
+// ---------------------------------------------------------------------------
+// Antifraude — normalização do FraudAnalysis.Status (rodada A1).
+//
+// O contrato documenta o campo como NUMÉRICO. O cast `as number` que existia
+// aqui era uma aposta: se o valor chegar como texto, ele passava adiante sem
+// ninguém perceber. As funções abaixo são puras e nunca lançam.
+export const FRAUD_STATUS_NOMES = ["Unknown", "Accept", "Reject", "Review", "Aborted", "Unfinished"] as const;
+export type FraudStatus = 0 | 1 | 2 | 3 | 4 | 5;
+export type FraudStatusNome = (typeof FRAUD_STATUS_NOMES)[number];
+
+/**
+ * Normaliza para o enum numérico. Aceita número, string numérica ("3") e
+ * string nominal em qualquer caixa ("Review", "review", "REVIEW"). Ausente ou
+ * fora do enum vira Unknown (0).
+ */
+export function normalizarFraudStatus(valor: unknown): FraudStatus {
+  if (typeof valor === "number") {
+    return Number.isInteger(valor) && valor >= 0 && valor <= 5 ? (valor as FraudStatus) : 0;
+  }
+  if (typeof valor === "string") {
+    const texto = valor.trim();
+    if (/^\d+$/.test(texto)) return normalizarFraudStatus(Number(texto));
+    const idx = FRAUD_STATUS_NOMES.findIndex((n) => n.toLowerCase() === texto.toLowerCase());
+    return idx >= 0 ? (idx as FraudStatus) : 0;
+  }
+  return 0;
+}
+
+/**
+ * Valor que alimenta o if de decisão da rota de crédito (`fraudStatus !== 1`).
+ *
+ * NÃO usa a normalização de propósito. Com o cast antigo, só o NÚMERO 1
+ * aprovava: "1" ou "Accept" como texto caíam na recusa. Usar o valor
+ * normalizado faria esses casos passarem a capturar — mudança de
+ * comportamento, que não é desta rodada. Aqui só se troca a aposta por uma
+ * verificação explícita com o mesmo resultado para qualquer entrada.
+ */
+export function fraudStatusParaDecisao(valor: unknown): number | undefined {
+  return typeof valor === "number" ? valor : undefined;
+}
+
+export function nomeFraudStatus(status: FraudStatus): FraudStatusNome {
+  return FRAUD_STATUS_NOMES[status];
+}
+
+/** Rótulo para log e alerta interno. Nunca devolve "undefined". */
+export function rotuloFraudStatus(valorCru: unknown): string {
+  if (valorCru === undefined || valorCru === null) return "sem retorno (FraudAnalysis.Status ausente)";
+  const status = normalizarFraudStatus(valorCru);
+  const texto = String(valorCru).trim().slice(0, 40);
+  const reconhecido = status !== 0 || texto === "0" || texto.toLowerCase() === "unknown";
+  if (!reconhecido) return `Unknown (valor não reconhecido: "${texto}")`;
+  const nome = nomeFraudStatus(status);
+  return typeof valorCru === "number" ? nome : `${nome} (recebido como texto "${texto}")`;
+}
+
+// Chaves que podem carregar dado do hóspede ou do cartão. O repositório é
+// público e os registros são lidos pela rota admin: o que casar aqui é redigido.
+const CHAVE_SENSIVEL =
+  /card|pan$|cvv|security|holder|expiration|name|nome|mail|identity|cpf|document|phone|telefone|address|endere|street|birth/i;
+
+/**
+ * Cópia redigida de um valor arbitrário, para persistir. Remove chaves
+ * sensíveis, sequências de 13–19 dígitos (PAN), CPF e e-mails dentro de
+ * textos, e limita tamanho e profundidade. Nunca lança.
+ */
+export function redigirParaRegistro(valor: unknown, profundidade = 0): unknown {
+  if (valor === null || valor === undefined) return valor ?? null;
+  if (typeof valor === "number" || typeof valor === "boolean") return valor;
+  if (typeof valor === "string") {
+    return valor
+      // Sem hífen como separador: com ele, os grupos de dígitos de um GUID
+      // (PaymentId) viravam um "PAN" e o identificador se perdia.
+      .replace(/\d(?:[ .]?\d){12,18}/g, "[numero-redigido]")
+      // PAN com hífens (4-4-4-até 7). O último grupo de um GUID tem 12 dígitos
+      // e não fecha a fronteira, então não casa.
+      .replace(/\b\d{4}-\d{4}-\d{4}-\d{1,7}\b/g, "[numero-redigido]")
+      .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, "[cpf-redigido]")
+      .replace(/[^\s@"'<>]+@[^\s@"'<>]+\.[^\s@"'<>]+/g, "[email-redigido]")
+      .slice(0, 2000);
+  }
+  if (profundidade >= 5) return "[profundidade-limite]";
+  if (Array.isArray(valor)) return valor.slice(0, 50).map((v) => redigirParaRegistro(v, profundidade + 1));
+  if (typeof valor === "object") {
+    const saida: Record<string, unknown> = {};
+    for (const [chave, v] of Object.entries(valor as Record<string, unknown>).slice(0, 100)) {
+      saida[chave] = CHAVE_SENSIVEL.test(chave) ? "[redigido]" : redigirParaRegistro(v, profundidade + 1);
+    }
+    return saida;
+  }
+  return String(valor).slice(0, 200);
+}
+
+export type ResumoAntifraude = {
+  paymentId: string | null;
+  merchantOrderId: string;
+  paymentStatus: number | null;
+  fraudStatus: FraudStatus;
+  fraudStatusNome: FraudStatusNome;
+  fraudStatusCru: unknown;
+  fraudStatusRotulo: string;
+  score: unknown;
+  reasonCode: unknown;
+  analysisId: string | null;
+};
+
+/**
+ * Resumo do antifraude de uma autorização, só com o que pode ser persistido.
+ * Monta a partir dos campos normalizados — nunca do `raw`, que carrega o
+ * Customer inteiro.
+ */
+export function resumoAntifraude(auth: BraspagTransactionResult, merchantOrderId: string): ResumoAntifraude {
+  const status = auth.fraudStatusNormalizado ?? normalizarFraudStatus(auth.fraudStatusCru);
+  return {
+    paymentId: auth.paymentId ?? null,
+    merchantOrderId,
+    paymentStatus: typeof auth.statusCode === "number" ? auth.statusCode : null,
+    fraudStatus: status,
+    fraudStatusNome: nomeFraudStatus(status),
+    fraudStatusCru: redigirParaRegistro(auth.fraudStatusCru),
+    fraudStatusRotulo: rotuloFraudStatus(auth.fraudStatusCru),
+    score: redigirParaRegistro(auth.fraudScore),
+    reasonCode: redigirParaRegistro(auth.fraudReasonCode),
+    analysisId: auth.fraudAnalysisId ?? null,
+  };
+}
 
 // GUID no formato 8-4-4-4-12 hex (formato do MerchantId).
 const GUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -471,7 +604,10 @@ export async function createBraspagAuthorization(params: {
     returnCode: payment.ReturnCode as string | undefined,
     returnMessage: payment.ReturnMessage as string | undefined,
     statusCode: payment.Status as number | undefined,
-    fraudStatus: fa.Status as number | undefined,
+    fraudStatus: fraudStatusParaDecisao(fa.Status),
+    fraudStatusNormalizado: normalizarFraudStatus(fa.Status),
+    fraudStatusCru: fa.Status,
+    fraudAnalysisId: typeof fa.Id === "string" ? fa.Id : undefined,
     fraudScore: replyData.Score as number | undefined,
     fraudReasonCode: fa.FraudAnalysisReasonCode as number | undefined,
     fraudProviderReturnCode: (fa.ProviderReturnCode ?? replyData.ProviderTransactionId) as string | undefined,
