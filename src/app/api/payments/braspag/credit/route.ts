@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
-import { getDraft, updateDraft, pushAuthLog } from "@/lib/kv-store";
+import {
+  getDraft,
+  updateDraft,
+  pushAuthLog,
+  registrarResultadoAntifraude,
+  registrarVoidSemSucesso,
+  type VoidSemSucesso,
+} from "@/lib/kv-store";
 import {
   createBraspagAuthorization,
   captureBraspagPayment,
   voidBraspagPayment,
   mensagemRecusaBraspag,
   maskIfSecretLike,
+  resumoAntifraude,
+  rotuloFraudStatus,
+  redigirParaRegistro,
   BRASPAG_URLS,
   type BraspagAddress,
 } from "@/lib/braspag";
@@ -29,6 +39,50 @@ function detectCardBrand(num: string): string {
   if (/^(606282|3841)/.test(n)) return "Hipercard";
   if (/^(4011|4312|4389|5041|5066|5090|6277|6362|6363|650|651|655)/.test(n)) return "Elo";
   return "Visa"; // fallback conservador
+}
+
+/**
+ * Void com o resultado conferido. Antes o retorno era descartado e só a
+ * exceção ia para o log: um void recusado (Status != 10) deixava a
+ * autorização pendurada no cartão sem ninguém saber. O fluxo do hóspede não
+ * muda — a função devolve só uma nota para o alerta interno (null = sucesso).
+ */
+async function voidConferido(
+  paymentId: string | undefined,
+  amountCents: number,
+  contexto: VoidSemSucesso["contexto"],
+  merchantOrderId: string,
+): Promise<string | null> {
+  try {
+    const v = await voidBraspagPayment(paymentId!, amountCents);
+    if (v.statusCode === 10) return null;
+    console.error(
+      "[Braspag:VoidSemSucesso] 🚨 autorização pode estar pendurada",
+      JSON.stringify({ contexto, paymentId, merchantOrderId, httpStatus: v.status, statusCode: v.statusCode ?? null, returnCode: v.returnCode ?? null }),
+    );
+    await registrarVoidSemSucesso({
+      paymentId: paymentId ?? null,
+      merchantOrderId,
+      contexto,
+      httpStatus: v.status,
+      statusCode: typeof v.statusCode === "number" ? v.statusCode : null,
+      returnCode: v.returnCode ?? null,
+      erro: null,
+    });
+    return `VOID NÃO CONFIRMADO (HTTP ${v.status}, status ${v.statusCode ?? "?"}) — conferir autorização pendurada`;
+  } catch (e) {
+    console.error(`[Braspag:credit] void falhou (${contexto}):`, e);
+    await registrarVoidSemSucesso({
+      paymentId: paymentId ?? null,
+      merchantOrderId,
+      contexto,
+      httpStatus: null,
+      statusCode: null,
+      returnCode: null,
+      erro: String(redigirParaRegistro((e as Error)?.message ?? String(e))),
+    });
+    return "VOID FALHOU (exceção) — conferir autorização pendurada";
+  }
 }
 
 // A1 — Fluxo real de crédito via Braspag (3DS + antifraude + captura separada).
@@ -235,6 +289,7 @@ export async function POST(req: Request) {
         FraudAnalysisId: rawFa.Id ?? null,
         FraudAnalysisStatus: rawFa.Status ?? auth.fraudStatus ?? null,
         FraudAnalysisReasonCode: rawFa.FraudAnalysisReasonCode ?? auth.fraudReasonCode ?? null,
+        FraudStatusNormalizado: auth.fraudStatusNormalizado ?? null,
         FraudScore: auth.fraudScore ?? null,
         // Corpo cru do erro da Braspag quando não-2xx (ex.: [{Code,Message}]).
         errorBody: auth.errorBody ?? null,
@@ -242,6 +297,13 @@ export async function POST(req: Request) {
       console.log("[Braspag:authorize-result] " + JSON.stringify(authResultLog));
       await pushAuthLog(authResultLog);
       diagnostico = authResultLog;
+    }
+
+    // Observabilidade do antifraude (A1). A análise só roda quando a
+    // autorização passa (AuthorizeFirst/OnSuccess): registrar recusas do
+    // emissor inflaria o Unknown com casos em que o antifraude nem existiu.
+    if (auth.statusCode === 1 || auth.fraudStatusCru !== undefined) {
+      await registrarResultadoAntifraude(resumoAntifraude(auth, tentativaId));
     }
 
     // ============ DECISÃO (fluxo AuthorizeFirst) ============
@@ -298,19 +360,16 @@ export async function POST(req: Request) {
 
     // 2) Antifraude NÃO aprovou (Reject 2 / Review 3 / ausente) → void + alerta.
     if (auth.fraudStatus !== 1) {
-      try {
-        await voidBraspagPayment(auth.paymentId!, amountCents);
-      } catch (e) {
-        console.error("[Braspag:credit] void falhou após bloqueio AF:", e);
-      }
-      const afLabel =
-        auth.fraudStatus === 2 ? "Reject" : auth.fraudStatus === 3 ? "Review" : "sem retorno (undefined)";
-      console.error("[Braspag:AF-bloqueio]", JSON.stringify({ draftId, paymentId: auth.paymentId, fraudStatus: auth.fraudStatus, score: auth.fraudScore, bin: binLog }));
+      const notaVoidAf = await voidConferido(auth.paymentId, amountCents, "antifraude", tentativaId);
+      // Rótulo a partir do valor cru: o antigo só conhecia 2 e 3 como número e
+      // imprimia "sem retorno (undefined)" para todo o resto.
+      const afLabel = rotuloFraudStatus(auth.fraudStatusCru);
+      console.error("[Braspag:AF-bloqueio]", JSON.stringify({ draftId, paymentId: auth.paymentId, fraudStatus: auth.fraudStatus, fraudStatusNormalizado: auth.fraudStatusNormalizado ?? null, decisao: afLabel, score: auth.fraudScore, bin: binLog }));
       await enviarAlertaRecusa({
         hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
         propriedade: draft.propertyName,
         valor: valorACobrar,
-        motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorizado mas cancelado (void). PaymentId ${auth.paymentId ?? "-"}`,
+        motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorizado mas cancelado (void). PaymentId ${auth.paymentId ?? "-"}${notaVoidAf ? ` · ${notaVoidAf}` : ""}`,
         pacoteNome: draft.pacoteNome,
         merchantOrderId: tentativaId,
         diagnostico,
@@ -331,17 +390,13 @@ export async function POST(req: Request) {
     const cap = await captureBraspagPayment(auth.paymentId!, amountCents);
     if (cap.statusCode !== 2) {
       // Captura falhou após autorizar: cancela p/ não prender limite e alerta.
-      try {
-        await voidBraspagPayment(auth.paymentId!, amountCents);
-      } catch (e) {
-        console.error("[Braspag:credit] void falhou após captura malsucedida:", e);
-      }
+      const notaVoidCaptura = await voidConferido(auth.paymentId, amountCents, "captura-falhou", tentativaId);
       console.error("[Braspag:CapturaFalhou]", JSON.stringify({ draftId, paymentId: auth.paymentId, capStatus: cap.statusCode, returnCode: cap.returnCode }));
       await enviarAlertaRecusa({
         hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
         propriedade: draft.propertyName,
         valor: valorACobrar,
-        motivo: `Captura não concluída (status ${cap.statusCode}, código ${cap.returnCode}) — void aplicado. PaymentId ${auth.paymentId}`,
+        motivo: `Captura não concluída (status ${cap.statusCode}, código ${cap.returnCode}) — void aplicado. PaymentId ${auth.paymentId}${notaVoidCaptura ? ` · ${notaVoidCaptura}` : ""}`,
         mensagemCliente: "Falha na captura; nenhum valor cobrado.",
         draftId,
       });
