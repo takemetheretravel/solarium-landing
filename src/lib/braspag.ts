@@ -176,9 +176,10 @@ export type BraspagTransactionResult = {
   returnMessage?: string;
   statusCode?: number; // Payment.Status (1=Autorizado, 2=Pago/Capturado, 3=Negado…)
   // Antifraude (síncrono) — presente quando FraudAnalysis é enviado.
-  // `fraudStatus` alimenta o if de decisão da rota de crédito e mantém a
-  // semântica antiga: só o NÚMERO 1 aprova (ver fraudStatusParaDecisao).
-  fraudStatus?: number; // 0=Unknown,1=Accept,2=Reject,3=Review,4=Aborted,5=Unfinished
+  // `fraudStatus` alimenta o if de decisão da rota de crédito. Desde a A2a é o
+  // valor NORMALIZADO: "1" ou "Accept" em texto aprovam, como o número 1.
+  // Até a A1 só o número cru aprovava, e texto virava recusa indevida.
+  fraudStatus?: FraudStatus; // 0=Unknown,1=Accept,2=Reject,3=Review,4=Aborted,5=Unfinished
   // Observabilidade (A1): status normalizado e valor cru como a Braspag enviou.
   fraudStatusNormalizado?: FraudStatus;
   fraudStatusCru?: unknown;
@@ -219,19 +220,6 @@ export function normalizarFraudStatus(valor: unknown): FraudStatus {
     return idx >= 0 ? (idx as FraudStatus) : 0;
   }
   return 0;
-}
-
-/**
- * Valor que alimenta o if de decisão da rota de crédito (`fraudStatus !== 1`).
- *
- * NÃO usa a normalização de propósito. Com o cast antigo, só o NÚMERO 1
- * aprovava: "1" ou "Accept" como texto caíam na recusa. Usar o valor
- * normalizado faria esses casos passarem a capturar — mudança de
- * comportamento, que não é desta rodada. Aqui só se troca a aposta por uma
- * verificação explícita com o mesmo resultado para qualquer entrada.
- */
-export function fraudStatusParaDecisao(valor: unknown): number | undefined {
-  return typeof valor === "number" ? valor : undefined;
 }
 
 export function nomeFraudStatus(status: FraudStatus): FraudStatusNome {
@@ -604,7 +592,7 @@ export async function createBraspagAuthorization(params: {
     returnCode: payment.ReturnCode as string | undefined,
     returnMessage: payment.ReturnMessage as string | undefined,
     statusCode: payment.Status as number | undefined,
-    fraudStatus: fraudStatusParaDecisao(fa.Status),
+    fraudStatus: normalizarFraudStatus(fa.Status),
     fraudStatusNormalizado: normalizarFraudStatus(fa.Status),
     fraudStatusCru: fa.Status,
     fraudAnalysisId: typeof fa.Id === "string" ? fa.Id : undefined,
