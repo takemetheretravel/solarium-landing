@@ -8,7 +8,6 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
-HEAD
 ## Rodada AF1 — Bloqueio server-side de draft em análise (set/2026)
 
 Branch `fix/af1-bloqueio-analise`, a partir de `origin/main` (`0463bf5`).
@@ -124,7 +123,6 @@ dividida em duas: somadas passavam de 12 arquivos.
    código (health check para a Braspag, só booleanos). As demais rotas
    `braspag/*-test`, `3ds-init-probe` e `pix-status` já respondem 404 em
    produção por `BRASPAG_ENVIRONMENT`, mas ficam abertas em preview.
-fix/s1-credenciais-debug
 
 ---
 
