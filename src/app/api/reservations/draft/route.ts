@@ -354,6 +354,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     draftId: draft.id,
     expiresAt: draft.expiresAt,
+    // Valor do add_payment_info, disparado no formulário antes do pagamento (PAG1).
+    finalTotal: draft.finalTotal,
   });
 }
 
@@ -456,7 +458,7 @@ async function criarDraftPacote(args: {
     );
   }
 
-  return NextResponse.json({ draftId: draft.id, expiresAt: draft.expiresAt });
+  return NextResponse.json({ draftId: draft.id, expiresAt: draft.expiresAt, finalTotal: draft.finalTotal });
 }
 
 /** Quantidades vindas do cliente: inteiras, não negativas, com teto. */
