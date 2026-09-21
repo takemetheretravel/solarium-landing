@@ -11,8 +11,8 @@ import { PROPERTIES } from "@/config/properties";
 import { COUPONS } from "@/config/coupons";
 import type { ReservationDraft } from "@/lib/kv-store";
 import { trackAddPaymentInfo } from "@/lib/tracking";
+import { useFingerprintId } from "./FingerprintCybersource";
 import {
-  initBraspagFingerprint,
   initBraspag3ds,
   authenticate3ds,
   resetBraspag3ds,
@@ -93,15 +93,15 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
   // Após a janela de polling (15min) sem confirmação: mensagem tranquilizadora
   // (a confirmação pode levar alguns minutos e a reserva nasce automaticamente).
   const [pixWaitLong, setPixWaitLong] = useState(false);
-  const providerIdRef = useRef<string>(""); // ProviderIdentifier do fingerprint
+  // ProviderIdentifier do fingerprint Cybersource: gerado no servidor pelo
+  // layout da rota, o MESMO do session_id do script. "" = coleta desligada.
+  const fingerprintId = useFingerprintId();
   // Chave da sessao 3DS ja inicializada: "<centavos>:<parcelas>".
   // Era um booleano, e por isso a sessao nascia com `installments: 1` e valor do
   // draft, enquanto a autenticacao usava o valor e as parcelas REAIS. No avulso a
   // vista os dois coincidiam; num pacote em 6x, nao. Cavv gerado para um par
   // (valor, parcelas) e usado para outro.
   const braspagInitRef = useRef<string>("");
-  // Fingerprint efetivamente coletado. Sem ele, nao enviamos transacao.
-  const [fingerprintPronto, setFingerprintPronto] = useState(false);
   const threeDSResultRef = useRef<ThreeDSResult | null>(null);
   const threeDSResolverRef = useRef<((r: ThreeDSResult) => void) | null>(null);
 
@@ -171,7 +171,7 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     return calcTotalComJuros(aVista, installments);
   }, [draft, installments]);
 
-  // Caminho Braspag: prepara FingerPrint + 3DS APENAS quando provider=braspag e
+  // Caminho Braspag: prepara o 3DS APENAS quando provider=braspag e
   // for pagamento com cartão. No modo cielo este efeito não faz absolutamente
   // nada (early return), então nenhum fetch/af-config/3ds-session/script roda.
   useEffect(() => {
@@ -189,15 +189,6 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
     setBraspagReady(false);
 
     (async () => {
-      try {
-        const fp = await initBraspagFingerprint();
-        if (cancelado) return;
-        providerIdRef.current = fp.providerIdentifier;
-        setFingerprintPronto(Boolean(fp.providerIdentifier));
-      } catch (e) {
-        console.error("[Braspag:checkout] fingerprint:", e);
-        setFingerprintPronto(false);
-      }
       try {
         resetBraspag3ds();
         await initBraspag3ds({
@@ -452,16 +443,6 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       setCardError("Estamos preparando o pagamento seguro. Aguarde um instante e tente novamente.");
       return;
     }
-    // Fingerprint ausente = rejeicao automatica no antifraude, independente do
-    // score. Melhor falhar aqui, com mensagem clara, do que enviar a transacao
-    // sem dado de dispositivo e colher uma recusa sem causa aparente.
-    if (!fingerprintPronto || !providerIdRef.current) {
-      setCardError(
-        "Não conseguimos identificar seu dispositivo para a análise de segurança. Recarregue a página e tente de novo, ou pague via Pix.",
-      );
-      return;
-    }
-
     setCardProcessing(true);
 
     const billing = {
@@ -518,7 +499,8 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
           cardCvv,
           installments,
           amountOverride: valorACobrar,
-          browserFingerprint: providerIdRef.current,
+          // O fingerprint nunca bloqueia a compra: sem ele, a autorização segue sem o campo.
+          browserFingerprint: fingerprintId || undefined,
           externalAuthentication: {
             Cavv: r3ds.Cavv,
             Xid: r3ds.Xid,
