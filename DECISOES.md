@@ -8,6 +8,70 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada PAG1b — CSP report-only na página de pagamento (set/2026)
+
+Branch `fix/csp-pagamento`, empilhada sobre a `fix/isolar-pagamento` (PAG1a).
+
+### Decisões
+
+1. **Só report-only, só em `/reservar/[draftId]/pagamento`.** Não existe modo
+   bloqueante no código (a branch antiga tinha `CSP_MODE=enforce`, que ficou
+   de fora). `src/middleware.ts` tem matcher só para essa rota e reconfere o
+   path. O resto do site não recebe CSP. `next.config.mjs` não foi alterado.
+2. **Nonce via middleware**, o caminho documentado do Next. O nonce é gerado
+   por resposta e vai no header do request
+   (`content-security-policy-report-only`), que é de onde o Next 14.2 o lê
+   (`app-render.js`) para marcar os scripts inline dele. A rota já era
+   dinâmica. Conferido: os 6 scripts inline da página saem com nonce. Não usei
+   `'unsafe-inline'` em `script-src`.
+3. **Sem `'strict-dynamic'`.** Com ele, o script da ThreatMetrix precisaria de
+   nonce, o que mexeria no componente da FP1. Sem ele, a ThreatMetrix e o 3DS
+   entram pela origem, e a FP1 fica intocada.
+4. **Allowlist**, montada do que a página carrega:
+   | Diretiva | Origens | Fonte |
+   |---|---|---|
+   | `script-src` | `'self'`, nonce, `h.online-metrix.net`, `mpi(sandbox).braspag.com.br`, `(cas.)static.client.cardinaltrusted.com` | SDK 3DS self-hosted (hosts lidos do próprio SDK); ThreatMetrix (FP1) |
+   | `connect-src` | `'self'`, MPI, Cardinal, ThreatMetrix, `viacep.com.br` | chamadas do 3DS, fingerprint e busca de CEP |
+   | `frame-src` | `'self'`, MPI, Cardinal, ThreatMetrix | challenge 3DS, iframe da ThreatMetrix |
+   | `img-src` | `'self'`, `data:`, ThreatMetrix | QR do Pix em `data:`, pixel da ThreatMetrix |
+   | `form-action` | `'self'`, MPI | |
+   | `style-src` | `'self' 'unsafe-inline'` | next/font e `style=""`; nonce em estilo exigiria mexer em todos os componentes, e o risco da rota é script |
+   | `object-src` | `'none'` | |
+   | `base-uri`, `frame-ancestors` | `'self'` | |
+   Sem `*` e sem `https:` genérico. `'unsafe-eval'` entra só em
+   `NODE_ENV=development`.
+5. **O ACS do banco emissor ficou fora de propósito.** O challenge do 3DS
+   pode abrir domínios de banco que não dá para enumerar. Em report-only isso
+   só gera relatório, e esses relatórios são exatamente a lista que falta.
+   **Antes de qualquer modo bloqueante**, `frame-src` e `form-action` precisam
+   de decisão com esses dados.
+6. **`/api/csp-report`**, rota pública, porque quem chama é o navegador:
+   - Corpo limitado a 16 KB: o `content-length` declarado é conferido antes, e
+     a leitura por stream corta no limite.
+   - Taxa de 300/min global e 30/min por remetente. O remetente é o hash
+     SHA-256 truncado do IP; a chave vive 2 minutos e o IP nunca é gravado.
+   - Responde **sempre 204**, inclusive com erro, JSON inválido ou excesso.
+   - Aceita `application/csp-report` e `application/reports+json`.
+   - Grava contagem por diretiva (`csp:diretiva`), contagem por origem
+     bloqueada (`csp:bloqueado`) e as 50 mais recentes (`csp:recentes`), com
+     TTL de 30 dias.
+   - **Higienização:** só a origem do recurso bloqueado e do script de
+     origem, e a página normalizada para `/reservar/[draftId]/pagamento`. São
+     descartados path, query (a do `tags.js` leva o `session_id`), `sample` e
+     `draftId`.
+7. **Leitura em rota nova, `GET /api/admin/csp`**, e não num campo da
+   `/api/admin/antifraude`: são assuntos diferentes, e a rota nova usa
+   `tokenAdminValido`/`naoEncontrado` de `src/lib/admin-auth.ts` (404 sem
+   header).
+
+### Achados fora de escopo (não corrigidos)
+
+1. As branches antigas (`fix/observabilidade-e-conciliacao` e as derivadas)
+   têm outro `src/middleware.ts`, com `CSP_MODE=enforce` e `'unsafe-inline'`.
+   Na triagem, prevalece este.
+
+---
+
 ## Rodada PAG1a — Página de pagamento sem scripts de terceiros (set/2026)
 
 Branch `fix/isolar-pagamento`, a partir da `main` com a FP1. A PAG1 foi

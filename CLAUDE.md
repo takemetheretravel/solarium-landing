@@ -34,6 +34,7 @@ existe, confirme em qual branch está.
 | TTL do draft | 2h normal · **72h** em `aguardando_analise` |
 | Purchase GA4/Meta | **Client-side**, na página de confirmação (`TrackPurchase.tsx`), espera `gtag`/`fbq` antes de disparar |
 | Analytics na página de pagamento | **Nenhum.** Root layout próprio `(checkout)` (PAG1) |
+| CSP | **Report-only, só na página de pagamento** (`src/middleware.ts`, PAG1b). Nada bloqueia, em lugar nenhum |
 | Crons | Só `pix-reconcile`, diário |
 | `/admin/saude` | **Não existe** |
 | Conciliação Hostaway | Só em branch |
@@ -206,7 +207,10 @@ falham em silêncio.
   pagamento e `braspag-3ds-test` (root layout sem analytics)
 - `src/app/api/` — payments/braspag/*, payments/credit, payments/pix,
   reservations/draft, availability/check, extras/check, webhooks/cielo,
-  webhooks/braspag, admin/antifraude, debug/*
+  webhooks/braspag, admin/antifraude, **csp-report** (violações CSP, público,
+  sempre 204), **admin/csp** (leitura, Bearer), debug/*
+- `src/middleware.ts` + `src/lib/csp.ts` — CSP report-only da página de
+  pagamento, com nonce
 - `content/galerias/` — manifestos de galeria (gerados)
 - `scripts/` — gerar-manifesto, upload-casas-cloudinary, curadoria-casas,
   lint-copy
@@ -276,8 +280,9 @@ Durante `next build`, `[Hostaway] Falha ao gerar token: 401` é **esperado**
 - Webhook com `ChangeType: "1"` em texto é ignorado — perderia confirmação
   de Pix.
 - Conciliação Hostaway retornando 401 — só existe em branch.
-- CSP em report-only **só existe em branch** (`src/middleware.ts`); na `main`
-  não há CSP. Allowlist da ThreatMetrix pronta em DECISOES.md (FP1).
+- CSP em report-only na página de pagamento (PAG1b). Antes de qualquer
+  modo bloqueante, ler `/api/admin/csp` em produção: o ACS dos bancos
+  emissores (challenge do 3DS) não está na allowlist, de propósito.
 
 **Branches**
 - **24+ commits de pagamento não mergeados** em
