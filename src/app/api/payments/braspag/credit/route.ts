@@ -20,6 +20,7 @@ import {
   rotuloFraudStatus,
   redigirParaRegistro,
   BRASPAG_URLS,
+  fingerprintIdValido,
   type BraspagAddress,
 } from "@/lib/braspag";
 import {
@@ -274,10 +275,13 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if (!browserFingerprint || String(browserFingerprint).trim() === "") {
-      return NextResponse.json(
-        { error: "browserFingerprint (ProviderIdentifier da coleta antifraude) é obrigatório." },
-        { status: 400 },
+    // Fingerprint (ProviderIdentifier) nunca bloqueia a compra: ausente ou fora
+    // do formato, a autorização segue SEM Payment.FraudAnalysis.FingerPrintId.
+    const fingerprintId = fingerprintIdValido(browserFingerprint) ? browserFingerprint : undefined;
+    if (!fingerprintId) {
+      console.warn(
+        "[Braspag:fingerprint] " +
+          JSON.stringify({ draftId, motivo: browserFingerprint ? "invalido" : "ausente" }),
       );
     }
 
@@ -357,6 +361,14 @@ export async function POST(req: Request) {
     // interna, no log e no alerta.
     const tentativaId = `${draftId}-${Date.now().toString(36)}`;
 
+    // Rastreio junto à Braspag: qual ProviderIdentifier acompanhou a tentativa.
+    // Falha ao gravar não pode impedir a cobrança.
+    if (fingerprintId) {
+      await updateDraft(draftId, { fingerprintId }).catch((e) =>
+        console.warn("[Braspag:fingerprint] falha ao registrar no draft:", (e as Error)?.message),
+      );
+    }
+
     // ---- Autorização (sem Capture) + Antifraude (FingerPrintId) ----
     const auth = await createBraspagAuthorization({
       orderId: tentativaId,
@@ -386,7 +398,7 @@ export async function POST(req: Request) {
         ReferenceId: externalAuthentication.ReferenceId || "",
       },
       fraud: {
-        browserFingerprint: String(browserFingerprint),
+        browserFingerprint: fingerprintId,
         hostName: req.headers.get("host") || "",
         cartItems: [
           {
@@ -425,6 +437,8 @@ export async function POST(req: Request) {
         cardBin: binLog,
         cardLast4: authDigits.slice(-4),
         testAuthCardOverride: useTestAuthCard,
+        fingerprintId: fingerprintId ?? null,
+        fingerprintEnviado: Boolean(fingerprintId),
         PaymentId: rawPayment.PaymentId ?? auth.paymentId ?? null,
         Tid: rawPayment.Tid ?? null,
         ProofOfSale: rawPayment.ProofOfSale ?? null,

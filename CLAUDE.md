@@ -48,9 +48,10 @@ tráfego real.
 1. **Nunca quebrar a produção.** A Braspag é o provider ativo — não é
    código atrás de flag desligada.
 2. **Não alterar nada sob `/reservar/[draftId]/pagamento`** sem instrução
-   explícita na rodada. Inclui layout groups, CSP e 3DS. O GTM é excluído
-   dessa rota **estruturalmente**, via grupo de layout — não é acidente,
-   não "conserte".
+   explícita na rodada. Inclui layout, CSP, 3DS e fingerprint. A exclusão
+   estrutural do GTM (grupo de layout) **só existe em branch**: na `main` o
+   root layout ainda carrega GA4 e Meta Pixel nessa rota (achado da FP1).
+   Não adicione script de terceiro à rota.
 3. **Não alterar `src/lib/cielo`** sem instrução explícita.
 4. **Recálculo de preço SEMPRE server-side.** Âncora honesta, sem inflar
    valor.
@@ -79,7 +80,8 @@ tráfego real.
 - Hostaway e purchase estão acoplados à **captura**, não à autorização.
 - Env vars: `BRASPAG_ENVIRONMENT`, `BRASPAG_MERCHANT_ID`,
   `BRASPAG_MERCHANT_KEY`, `BRASPAG_3DS_CLIENT_ID`,
-  `BRASPAG_3DS_CLIENT_SECRET`, `PAYMENT_PROVIDER`, `ADMIN_API_TOKEN`,
+  `BRASPAG_3DS_CLIENT_SECRET`, `BRASPAG_AF_PROVIDER_MERCHANT_ID`,
+  `PAYMENT_PROVIDER`, `ADMIN_API_TOKEN`,
   `ANTIFRAUDE_REVIEW_ENABLED`, `EMAIL_REMETENTE_HOSPEDE`.
   Valores nunca neste arquivo.
 
@@ -120,6 +122,24 @@ Confirmado com a Braspag/Cielo (set/2026):
 Reconciliação manual: `POST /api/admin/antifraude` com
 `{ "paymentId": "..." }`, autenticado por `Authorization: Bearer`.
 Leitura: `GET` na mesma rota.
+
+### Device fingerprint Cybersource (ThreatMetrix) — FP1
+
+- Script `https://h.online-metrix.net/fp/tags.js?org_id=…&session_id=…` +
+  noscript com iframe, carregados pelo `layout.tsx` da rota de pagamento
+  (`FingerprintCybersource.tsx`), só com `PAYMENT_PROVIDER=braspag`.
+- **org_id deriva de `BRASPAG_ENVIRONMENT`**: `production` → `k8vif92e`,
+  resto → `1snn5n9w`. Segue o ambiente Braspag, não o da Vercel.
+- `session_id` = ProviderMerchantId + ProviderIdentifier, sem separador.
+  ProviderMerchantId (formato `braspag_nomedaloja`, **≠ MerchantId**) vem de
+  `BRASPAG_AF_PROVIDER_MERCHANT_ID`. Vazia = sem script e sem campo.
+- ProviderIdentifier: GUID de 32 hex gerado no servidor por carregamento, um
+  por janela (o `tags.js` não roda duas vezes). Vai em
+  `Payment.FraudAnalysis.FingerPrintId` e fica em `draft.fingerprintId` e no
+  authlog.
+- **O fingerprint nunca bloqueia a compra**: ausente ou inválido, a
+  autorização segue sem o campo.
+- Allowlist de CSP apurada: DECISOES.md, rodada FP1.
 
 ## 5. Vocabulário de marca (todo texto visível ao hóspede)
 
@@ -250,7 +270,9 @@ Durante `next build`, `[Hostaway] Falha ao gerar token: 401` é **esperado**
 - Webhook com `ChangeType: "1"` em texto é ignorado — perderia confirmação
   de Pix.
 - Conciliação Hostaway retornando 401 — só existe em branch.
-- CSP em report-only, ainda não aplicada.
+- CSP em report-only **só existe em branch** (`src/middleware.ts`); na `main`
+  não há CSP. Allowlist da ThreatMetrix pronta em DECISOES.md (FP1).
+- GA4 e Meta Pixel carregam na rota de pagamento pelo root layout (achado FP1).
 
 **Branches**
 - **24+ commits de pagamento não mergeados** em

@@ -8,6 +8,112 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada FP1 — Device fingerprint da Cybersource no checkout (set/2026)
+
+Branch `fix/fingerprint-cybersource`, a partir de `origin/main` (`4d4b5bc`).
+Motivo: a Braspag analisou a transação real `bb19bc65-6d58-4607-86cf-996eb4d85d26`
+(17/09/2026 14:24) e o fingerprint não tinha sido capturado.
+
+### Fatos apurados (diagnóstico)
+
+1. **A coleta já existia na `main`** e o `FingerPrintId` já era enviado, mas com
+   um bug. `initBraspagFingerprint` (`src/lib/braspag-3ds-client.ts`) gerava um
+   identificador novo a cada chamada, e o script só era injetado na primeira
+   (guarda por id do elemento). A página chamava de novo a cada troca de
+   parcelas ou de valor e depois de toda falha de 3DS. Nesses casos o
+   `FingerPrintId` enviado ≠ o `session_id` que o script coletou. Essa é a
+   causa mais provável do caso da Braspag.
+2. **O org_id vinha de env var manual** (`BRASPAG_AF_FINGERPRINT_ORGID`).
+   Preenchido com o org de sandbox em produção, a coleta iria para o lugar
+   errado. Não dá para confirmar o valor pelo repositório.
+3. **O ProviderMerchantId já tinha env var**: `BRASPAG_AF_PROVIDER_MERCHANT_ID`,
+   lida por `/api/payments/braspag/af-config`. O valor não está no repositório.
+   Em produção ela está preenchida: vazia, o cliente bloqueava a compra, e
+   houve transação.
+4. **Não existe CSP na `main`.** O `next.config.mjs` só define X-Frame, nosniff,
+   Referrer e Permissions. A CSP em report-only mora em `src/middleware.ts`
+   nas branches não mergeadas (`feat/galeria-cloudinary`,
+   `feat/fallback-braspag-cielo`, `fix/observabilidade-e-conciliacao`,
+   `feature/pacotes-v2`).
+5. **O `tags.js` só roda uma vez por janela.** Ele lança
+   `multiple calls to tags.js` se carregado de novo.
+
+### Decisões
+
+1. **Reuso de `BRASPAG_AF_PROVIDER_MERCHANT_ID`** em vez de criar
+   `BRASPAG_FINGERPRINT_MERCHANT_ID`. Ela já existe e está preenchida, e
+   renomear exigiria mexer na Vercel sem ganho nenhum.
+2. **org_id derivado de `BRASPAG_ENVIRONMENT`**: `production` → `k8vif92e`,
+   qualquer outro → `1snn5n9w`. Acompanha o ambiente Braspag, não o da Vercel.
+   `BRASPAG_AF_FINGERPRINT_ORGID` deixa de ser lida pelo checkout, e só a
+   página `/braspag-3ds-test` (bloqueada em produção) ainda usa `af-config`.
+3. **GUID gerado no servidor, por requisição**, em
+   `src/app/reservar/[draftId]/pagamento/layout.tsx` (`force-dynamic`). O mesmo
+   valor alimenta o script, o noscript e o contexto React que a página envia
+   à autorização. O formato segue o que a Braspag já validou: 32 hex sem hífens.
+4. **Uma sessão por janela.** Numa navegação client-side de volta ao pagamento
+   o layout traz um id novo, mas o `tags.js` ativo é o da primeira sessão. O
+   componente reaproveita o id da janela, e um F5 zera tudo.
+5. **O fingerprint nunca bloqueia a compra.** Saíram o 400 da rota de crédito
+   e o bloqueio da página. Identificador ausente ou inválido: a autorização
+   segue **sem** `FingerPrintId`, com `console.warn` `[Braspag:fingerprint]`.
+   O `authlog` ganhou `fingerprintId` e `fingerprintEnviado`, e o draft ganhou
+   `fingerprintId` (última tentativa), para rastreio com a Braspag.
+6. **Carrega quando `PAYMENT_PROVIDER=braspag`**, sem olhar o método do draft.
+   Evita uma leitura no KV dentro do layout. Uma visita de Pix também coleta, e
+   a política de privacidade cobre isso.
+7. **Sem ProviderMerchantId:** não carrega script nem envia `FingerPrintId`.
+   Registra `console.error` `[Braspag:fingerprint]` no máximo uma vez por dia
+   (`claimWebhookEventOnce("alerta:fingerprint-sem-config", 86400)`). Nunca
+   carrega o script com `session_id` incompleto.
+8. **CSP: documentada, não criada.** Não há CSP na `main` para receber a
+   allowlist. Criar uma do zero exigiria inventariar 3DS/Cardinal, GA4 e Meta,
+   o que é outro entregável. A lista abaixo entra quando a `middleware.ts` for
+   mergeada.
+9. **3DS, decisão do antifraude, Review e `src/lib/cielo`: intocados.**
+   `initBraspagFingerprint` continua só para a página de teste.
+
+### Allowlist da CSP para a ThreatMetrix
+
+Apurado em 21/09/2026. O `tags.js` foi carregado numa página de teste (org
+sandbox) e baixado para análise. Ele é ofuscado (strings em XOR): a única
+origem legível é `https://h.online-metrix.net`, e ele usa `XMLHttpRequest` e
+cria `iframe` e elementos dinamicamente. No teste local (127.0.0.1) só o
+`tags.js` foi requisitado, porque a coleta completa não disparou fora de um
+domínio real. Allowlist recomendada:
+
+| Diretiva | Origem |
+|---|---|
+| `script-src` | `https://h.online-metrix.net` |
+| `frame-src` | `https://h.online-metrix.net` |
+| `img-src` | `https://h.online-metrix.net` |
+| `connect-src` | `https://h.online-metrix.net` |
+
+Antes de aplicar (enforce), rodar em report-only num preview com checkout
+real e acrescentar o que aparecer nos relatórios. Candidatos conhecidos da
+ThreatMetrix: subdomínios `*.online-metrix.net`, e `wss:` para
+`127.0.0.1`/`localhost`, que só entra se aparecer nos relatórios.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **GA4 e Meta Pixel carregam na rota de pagamento.** O `src/app/layout.tsx`
+   (root) injeta `googletagmanager.com/gtag/js` e o `fbevents.js` em todas as
+   rotas de produção. A "exclusão estrutural do GTM via grupo de layout" que o
+   CLAUDE.md descreve não existe na `main`, só em branch. Página de cartão com
+   script de terceiro é risco de PCI (SAQ A-EP) e de vazamento. Esta rodada só
+   garante que os arquivos da rota não adicionam nada (teste).
+2. **O CLAUDE.md descrevia CSP em report-only e exclusão de GTM como estado
+   da `main`.** Corrigido nesta rodada, só o texto.
+3. **`BRASPAG_AF_PROVIDER_MERCHANT_ID` e `BRASPAG_AF_FINGERPRINT_ORGID` não
+   estão no `.env.example`.**
+4. **`BRASPAG_AF_FINGERPRINT_ORGID` pode ser removida da Vercel** quando a
+   página `/braspag-3ds-test` sair.
+5. **O teste antigo da rota de crédito envia `browserFingerprint: "fp-abc"`**,
+   que agora é inválido e sai sem `FingerPrintId`. O teste segue verde porque
+   não confere o campo.
+
+---
+
 ## Rodada AF1 — Bloqueio server-side de draft em análise (set/2026)
 
 Branch `fix/af1-bloqueio-analise`, a partir de `origin/main` (`0463bf5`).

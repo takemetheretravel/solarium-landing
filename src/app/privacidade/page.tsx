@@ -20,7 +20,7 @@ export default function PrivacidadePage() {
         <Kicker className="mb-4">LGPD</Kicker>
         <Heading level={1} className="text-4xl sm:text-5xl">Política de Privacidade</Heading>
         <p className="mt-4 font-sans text-xs uppercase tracking-[0.25em] text-charcoal/60">
-          Última atualização: 03 de maio de 2026
+          Última atualização: 21 de setembro de 2026
         </p>
 
         <Section spacing="tight" className="prose-editorial">
@@ -50,6 +50,11 @@ export default function PrivacidadePage() {
             <li>Cookies essenciais e de análise (ver seção 6)</li>
           </ul>
 
+          <h3>1.4 Proteção do pagamento</h3>
+          <p>
+            Na página de pagamento, um parceiro de prevenção a fraude coleta dados técnicos do seu dispositivo — como endereço IP, navegador e sistema operacional. Esses dados servem só para proteger o pagamento e não são usados para nenhuma outra finalidade.
+          </p>
+
           <h2>2. Base legal e finalidade</h2>
           <ul>
             <li><strong>Execução de contrato</strong> (art. 7º, V): processar reservas, confirmar hospedagem, emitir comprovantes e cumprir obrigações fiscais.</li>
@@ -63,7 +68,7 @@ export default function PrivacidadePage() {
             Compartilhamos dados estritamente necessários com:
           </p>
           <ul>
-            <li><strong>Operadores de pagamento</strong> (Cielo e similares) para processar transações.</li>
+            <li><strong>Operadores de pagamento</strong> (Braspag, Cielo e similares) para processar transações e prevenir fraudes.</li>
             <li><strong>Hostaway</strong>, sistema de gestão de propriedades, para sincronização de calendário e comunicações operacionais.</li>
             <li><strong>Provedores de hospedagem em nuvem</strong> (Vercel, Google Cloud, AWS) que armazenam dados em infraestrutura segura.</li>
             <li><strong>Provedores de e-mail transacional</strong> para envio de confirmações e comunicações da reserva.</li>

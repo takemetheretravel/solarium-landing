@@ -371,11 +371,49 @@ export type BraspagAddress = {
   District: string;
 };
 
+// ---------------------------------------------------------------------------
+// Device fingerprint da Cybersource (ThreatMetrix).
+// session_id do script = ProviderMerchantId + ProviderIdentifier, sem separador.
+// Na autorização vai só o ProviderIdentifier, em Payment.FraudAnalysis.FingerPrintId.
+// O org_id acompanha o ambiente Braspag (não o da Vercel).
+// ---------------------------------------------------------------------------
+const FP_HOST = "https://h.online-metrix.net";
+const FP_ORG_ID = { production: "k8vif92e", sandbox: "1snn5n9w" } as const;
+const FP_ID_REGEX = /^[0-9a-f]{32}$/;
+
+export function fingerprintOrgId(): string {
+  return process.env.BRASPAG_ENVIRONMENT === "production" ? FP_ORG_ID.production : FP_ORG_ID.sandbox;
+}
+
+export type FingerprintConfig = { orgId: string; providerMerchantId: string };
+
+// null = ProviderMerchantId ausente → não carregar script nem enviar FingerPrintId.
+export function fingerprintConfig(): FingerprintConfig | null {
+  const providerMerchantId = (process.env.BRASPAG_AF_PROVIDER_MERCHANT_ID || "").trim();
+  if (!providerMerchantId) return null;
+  return { orgId: fingerprintOrgId(), providerMerchantId };
+}
+
+// ProviderIdentifier: GUID aleatório, 32 hex sem hífens. Nenhum dado do hóspede.
+export function gerarFingerprintId(): string {
+  return crypto.randomUUID().replace(/-/g, "").toLowerCase();
+}
+
+export function fingerprintIdValido(id: unknown): id is string {
+  return typeof id === "string" && FP_ID_REGEX.test(id);
+}
+
+export function fingerprintTags(cfg: FingerprintConfig, id: string): { scriptSrc: string; iframeSrc: string } {
+  const qs = `org_id=${encodeURIComponent(cfg.orgId)}&session_id=${encodeURIComponent(cfg.providerMerchantId + id)}`;
+  return { scriptSrc: `${FP_HOST}/fp/tags.js?${qs}`, iframeSrc: `${FP_HOST}/fp/tags?${qs}` };
+}
+
 export type BraspagFraudParams = {
   // ProviderIdentifier (uuid sem hífens, SEM o prefixo ProviderMerchantId).
   // Vai em Payment.FraudAnalysis.FingerPrintId — manual do Pagador: "o valor do
   // ProviderIdentifier deve ser enviado no parâmetro Payment.FraudAnalysis.FingerPrintId".
-  browserFingerprint: string;
+  // Opcional: sem ele a autorização segue sem o campo (fingerprint nunca bloqueia compra).
+  browserFingerprint?: string;
   hostName?: string;
   cartItems: Array<{
     name: string;
@@ -494,7 +532,7 @@ export async function createBraspagAuthorization(params: {
       // Campo correto do fingerprint no Pagador: FingerPrintId (irmão de Browser),
       // valor = ProviderIdentifier puro (sem prefixo ProviderMerchantId). A
       // Cybersource remonta o session_id ProviderMerchantId+ProviderIdentifier.
-      FingerPrintId: f.browserFingerprint,
+      ...(f.browserFingerprint ? { FingerPrintId: f.browserFingerprint } : {}),
       Browser: {
         // Contrato do Pagador: Browser NÃO tem BrowserFingerprint (o exemplo
         // oficial traz só estes campos; Type = navegador, ex. "Chrome").
