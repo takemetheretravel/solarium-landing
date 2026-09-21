@@ -113,6 +113,8 @@ export type ReservationDraft = {
   analise?: AnaliseAntifraude;
   cieloPaymentId?: string;
   braspagPaymentId?: string;
+  /** ProviderIdentifier do fingerprint Cybersource da última tentativa (rastreio com a Braspag). */
+  fingerprintId?: string;
   hostawayReservationId?: number;
   createdAt: string;
   expiresAt: string;
