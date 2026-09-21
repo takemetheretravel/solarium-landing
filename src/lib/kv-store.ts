@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { FRAUD_STATUS_NOMES, type FraudStatusNome, type ResumoAntifraude } from "@/lib/braspag";
+import type { ViolacaoCsp } from "@/lib/csp";
 
 if (!process.env.KV_REST_API_URL && !process.env.UPSTASH_REDIS_REST_URL) {
   console.error("[kv-store] Nenhuma variável Redis configurada (KV_REST_API_URL ou UPSTASH_REDIS_REST_URL)");
@@ -512,6 +513,76 @@ export async function lerObservabilidadeAntifraude(agora = Date.now()) {
   ]);
 
   return { geradoEm: new Date(agora).toISOString(), janela24h, janela7d, ultimosEventos, ultimosWebhooksNaoTratados, ultimosVoidsSemSucesso };
+}
+
+// ---------------------------------------------------------------------------
+// Violações de CSP da página de pagamento (rodada PAG1b). Chegam de navegador
+// anônimo, então tudo aqui é contado e limitado. O que se grava já vem
+// higienizado por `higienizarRelatorio` (só diretiva e origens, nenhum dado de
+// hóspede).
+const CSP_DIRETIVA_KEY = "csp:diretiva";
+const CSP_BLOQUEADO_KEY = "csp:bloqueado";
+const CSP_RECENTES_KEY = "csp:recentes";
+const CSP_RECENTES_MAX = 50;
+const CSP_TTL = 60 * 60 * 24 * 30;
+export const CSP_TAXA_GLOBAL_POR_MINUTO = 300;
+export const CSP_TAXA_POR_ORIGEM_POR_MINUTO = 30;
+
+/**
+ * Limite de taxa por minuto: global e por remetente. `remetente` é um hash
+ * curto do IP (nunca o IP), e a chave morre em 2 minutos. Em falha de Redis
+ * responde false — sem Redis não há onde gravar mesmo.
+ */
+export async function permitirRelatorioCsp(remetente: string, agora = Date.now()): Promise<boolean> {
+  try {
+    const minuto = Math.floor(agora / 60_000);
+    const global = `csp:taxa:${minuto}`;
+    const porRemetente = `csp:taxa:${remetente}:${minuto}`;
+    const p = getRedis().pipeline();
+    p.incr(global);
+    p.expire(global, 120);
+    p.incr(porRemetente);
+    p.expire(porRemetente, 120);
+    const [nGlobal, , nRemetente] = (await p.exec()) as number[];
+    return nGlobal <= CSP_TAXA_GLOBAL_POR_MINUTO && nRemetente <= CSP_TAXA_POR_ORIGEM_POR_MINUTO;
+  } catch (err) {
+    console.error("[kv-store:permitirRelatorioCsp] Failed:", err);
+    return false;
+  }
+}
+
+export async function registrarViolacoesCsp(violacoes: ViolacaoCsp[], agora = Date.now()): Promise<void> {
+  if (violacoes.length === 0) return;
+  try {
+    const ts = new Date(agora).toISOString();
+    const p = getRedis().pipeline();
+    for (const v of violacoes) {
+      p.hincrby(CSP_DIRETIVA_KEY, v.diretiva, 1);
+      p.hincrby(CSP_BLOQUEADO_KEY, v.bloqueado, 1);
+      p.lpush(CSP_RECENTES_KEY, JSON.stringify({ ...v, ts }));
+    }
+    p.ltrim(CSP_RECENTES_KEY, 0, CSP_RECENTES_MAX - 1);
+    for (const k of [CSP_DIRETIVA_KEY, CSP_BLOQUEADO_KEY, CSP_RECENTES_KEY]) p.expire(k, CSP_TTL);
+    await p.exec();
+  } catch (err) {
+    console.error("[kv-store:registrarViolacoesCsp] Failed:", err);
+  }
+}
+
+/** Leitura para a rota admin: contagem por diretiva, por origem bloqueada e as mais recentes. */
+export async function lerViolacoesCsp(agora = Date.now()) {
+  const redis = getRedis();
+  const [porDiretiva, porBloqueado, recentes] = await Promise.all([
+    redis.hgetall<Record<string, number>>(CSP_DIRETIVA_KEY),
+    redis.hgetall<Record<string, number>>(CSP_BLOQUEADO_KEY),
+    lerLista(CSP_RECENTES_KEY, CSP_RECENTES_MAX),
+  ]);
+  return {
+    geradoEm: new Date(agora).toISOString(),
+    porDiretiva: porDiretiva ?? {},
+    porBloqueado: porBloqueado ?? {},
+    recentes,
+  };
 }
 
 // ---------------------------------------------------------------------------
