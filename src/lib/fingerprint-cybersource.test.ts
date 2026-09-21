@@ -98,8 +98,8 @@ import {
 } from "@/lib/braspag";
 import { getDraft } from "@/lib/kv-store";
 import { POST } from "@/app/api/payments/braspag/credit/route";
-import PagamentoLayout from "@/app/reservar/[draftId]/pagamento/layout";
-import FingerprintCybersource, { useFingerprintId } from "@/app/reservar/[draftId]/pagamento/FingerprintCybersource";
+import PagamentoLayout from "@/app/(checkout)/reservar/[draftId]/pagamento/layout";
+import FingerprintCybersource, { useFingerprintId } from "@/app/(checkout)/reservar/[draftId]/pagamento/FingerprintCybersource";
 
 const DRAFT_ID = "draft-fp1";
 const NOME = "Maria";
@@ -352,11 +352,11 @@ describe("rota de crédito", () => {
 });
 
 // ===========================================================================
-// Escopo: os arquivos DA ROTA de pagamento não adicionam GTM/GA/Meta. O root
-// layout (src/app/layout.tsx) ainda carrega GA4 e Meta Pixel em todas as rotas
-// na main — registrado em DECISOES.md como achado fora de escopo.
+// Escopo: os arquivos DA ROTA de pagamento não adicionam GTM/GA/Meta. Desde a
+// PAG1 a rota tem root layout próprio, (checkout), sem analytics — coberto em
+// isolamento-pagamento.test.ts.
 describe("rota de pagamento sem GTM", () => {
-  const dir = path.resolve(__dirname, "../app/reservar/[draftId]/pagamento");
+  const dir = path.resolve(__dirname, "../app/(checkout)/reservar/[draftId]/pagamento");
   it.each(["layout.tsx", "FingerprintCybersource.tsx", "page.tsx"])("%s", (arquivo) => {
     const fonte = readFileSync(path.join(dir, arquivo), "utf-8");
     expect(fonte).not.toMatch(/googletagmanager|gtag\(|GTM-|fbq\(|connect\.facebook\.net/);

@@ -14,6 +14,36 @@ export function trackEvent(name: string, params?: Record<string, unknown>) {
   window.fbq?.("trackCustom", name, params);
 }
 
+/**
+ * Chama `cb` quando `gtag` e `fbq` existirem na janela, ou no teto de espera.
+ *
+ * A confirmação é aberta por carga completa (o pagamento tem root layout
+ * próprio, rodada PAG1). Nessa carga, o efeito de uma página roda ANTES dos
+ * <Script afterInteractive> do layout definirem `gtag`/`fbq` — disparar direto
+ * perderia o purchase. No teto dispara com o que houver: no preview, sem
+ * analytics, vira no-op. Devolve a função de cancelamento (para o cleanup do
+ * efeito: dispara uma vez só, inclusive no StrictMode).
+ */
+export function quandoAnalyticsPronto(
+  cb: () => void,
+  { intervaloMs = 100, tetoMs = 10_000 }: { intervaloMs?: number; tetoMs?: number } = {},
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const pronto = () => typeof window.gtag === "function" && typeof window.fbq === "function";
+  if (pronto()) {
+    cb();
+    return () => {};
+  }
+  const inicio = Date.now();
+  const timer = setInterval(() => {
+    if (pronto() || Date.now() - inicio >= tetoMs) {
+      clearInterval(timer);
+      cb();
+    }
+  }, intervaloMs);
+  return () => clearInterval(timer);
+}
+
 export function trackPurchase(params: { value: number; currency: string; transactionId: string }) {
   if (typeof window === "undefined") return;
   window.gtag?.("event", "purchase", {

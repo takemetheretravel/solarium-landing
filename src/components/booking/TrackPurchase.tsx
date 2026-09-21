@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { trackPurchase, trackReservaConcluida } from "@/lib/tracking";
+import { quandoAnalyticsPronto, trackPurchase, trackReservaConcluida } from "@/lib/tracking";
 
 export function TrackPurchase({
   total,
@@ -21,17 +21,20 @@ export function TrackPurchase({
   listing?: string;
 }) {
   useEffect(() => {
-    trackPurchase({ value: total, currency: "BRL", transactionId: draftId });
-    if (noites !== undefined && listing) {
-      trackReservaConcluida({
-        tipo: pacoteId ? "pacote" : "avulso",
-        pacoteId,
-        total,
-        noites,
-        valorExtras: valorExtras ?? 0,
-        listing,
-      });
-    }
+    // Espera o gtag/fbq: a confirmação chega por carga completa (PAG1).
+    return quandoAnalyticsPronto(() => {
+      trackPurchase({ value: total, currency: "BRL", transactionId: draftId });
+      if (noites !== undefined && listing) {
+        trackReservaConcluida({
+          tipo: pacoteId ? "pacote" : "avulso",
+          pacoteId,
+          total,
+          noites,
+          valorExtras: valorExtras ?? 0,
+          listing,
+        });
+      }
+    });
     // Dispara uma vez por confirmação — o draft não muda depois de pago.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

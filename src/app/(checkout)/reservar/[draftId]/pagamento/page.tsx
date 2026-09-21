@@ -10,7 +10,6 @@ import { formatBRLPrecise } from "@/lib/cn";
 import { PROPERTIES } from "@/config/properties";
 import { COUPONS } from "@/config/coupons";
 import type { ReservationDraft } from "@/lib/kv-store";
-import { trackAddPaymentInfo } from "@/lib/tracking";
 import { useFingerprintId } from "./FingerprintCybersource";
 import {
   initBraspag3ds,
@@ -130,15 +129,6 @@ export default function PagamentoPage({ params }: { params: { draftId: string } 
       })
       .catch(() => setLoadError("Erro ao carregar reserva."));
   }, [params.draftId]);
-
-  useEffect(() => {
-    if (!draft) return;
-    trackAddPaymentInfo({
-      value: draft.finalTotal,
-      currency: "BRL",
-      paymentMethod: draft.paymentMethod as "card" | "pix",
-    });
-  }, [draft]);
 
   // Descobre o provider (flag). Default "cielo" até responder → sem efeito no
   // modo cielo. NENHUM script Braspag é tocado aqui.

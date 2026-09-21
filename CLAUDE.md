@@ -32,7 +32,8 @@ existe, confirme em qual branch está.
 | Gateway | **Braspag** (`PAYMENT_PROVIDER=braspag`), 3DS 2.0 + antifraude Cybersource |
 | Fallback para Cielo | **Não existe.** Só em branch |
 | TTL do draft | 2h normal · **72h** em `aguardando_analise` |
-| Purchase GA4/Meta | **Client-side**, na página de confirmação (`TrackPurchase.tsx`) |
+| Purchase GA4/Meta | **Client-side**, na página de confirmação (`TrackPurchase.tsx`), espera `gtag`/`fbq` antes de disparar |
+| Analytics na página de pagamento | **Nenhum.** Root layout próprio `(checkout)` (PAG1) |
 | Crons | Só `pix-reconcile`, diário |
 | `/admin/saude` | **Não existe** |
 | Conciliação Hostaway | Só em branch |
@@ -48,10 +49,13 @@ tráfego real.
 1. **Nunca quebrar a produção.** A Braspag é o provider ativo — não é
    código atrás de flag desligada.
 2. **Não alterar nada sob `/reservar/[draftId]/pagamento`** sem instrução
-   explícita na rodada. Inclui layout, CSP, 3DS e fingerprint. A exclusão
-   estrutural do GTM (grupo de layout) **só existe em branch**: na `main` o
-   root layout ainda carrega GA4 e Meta Pixel nessa rota (achado da FP1).
-   Não adicione script de terceiro à rota.
+   explícita na rodada. Inclui layout, CSP, 3DS e fingerprint. A rota vive
+   no route group `src/app/(checkout)`, com **root layout próprio e sem
+   analytics** (PAG1): o Next faz carga completa ao cruzar root layouts, então
+   GA4/Meta de outras páginas não chegam ao pagamento. O resto do site está em
+   `src/app/(site)`. Não adicione script de terceiro nem `next/script` à árvore
+   `(checkout)` — o teste `isolamento-pagamento.test.ts` barra. Único script
+   de terceiro permitido: ThreatMetrix (e o SDK 3DS, self-hosted).
 3. **Não alterar `src/lib/cielo`** sem instrução explícita.
 4. **Recálculo de preço SEMPRE server-side.** Âncora honesta, sem inflar
    valor.
@@ -198,6 +202,8 @@ falham em silêncio.
   (`createHostawayReservation`, `blockCalendarNight`,
   `unblockCalendarNight`, `calculatePriceDetailed`), kv-store, email,
   **comunicacao-analise**, **reconciliacao-analise**, cn
+- `src/app/(site)/` — páginas do site (root layout com GA4 e Meta); `src/app/(checkout)/` —
+  pagamento e `braspag-3ds-test` (root layout sem analytics)
 - `src/app/api/` — payments/braspag/*, payments/credit, payments/pix,
   reservations/draft, availability/check, extras/check, webhooks/cielo,
   webhooks/braspag, admin/antifraude, debug/*
@@ -272,7 +278,6 @@ Durante `next build`, `[Hostaway] Falha ao gerar token: 401` é **esperado**
 - Conciliação Hostaway retornando 401 — só existe em branch.
 - CSP em report-only **só existe em branch** (`src/middleware.ts`); na `main`
   não há CSP. Allowlist da ThreatMetrix pronta em DECISOES.md (FP1).
-- GA4 e Meta Pixel carregam na rota de pagamento pelo root layout (achado FP1).
 
 **Branches**
 - **24+ commits de pagamento não mergeados** em

@@ -163,7 +163,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 // O Vitest compila o JSX das páginas no modo clássico (React.createElement);
 // o Next usa o automático. Expor o React global evita mexer no vitest.config.
 (globalThis as unknown as { React: typeof React }).React = React;
-import ConfirmacaoPage from "@/app/reservar/[draftId]/confirmacao/page";
+import ConfirmacaoPage from "@/app/(site)/reservar/[draftId]/confirmacao/page";
 import {
   TEXTO_ESPERA,
   montarEmailEspera,

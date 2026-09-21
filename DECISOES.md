@@ -8,6 +8,82 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada PAG1a — Página de pagamento sem scripts de terceiros (set/2026)
+
+Branch `fix/isolar-pagamento`, a partir da `main` com a FP1. A PAG1 foi
+dividida: esta é a Parte A (isolamento). A Parte B (CSP report-only e
+`/api/csp-report`) vem na PAG1b, em PR empilhado. Motivo: o route group exige
+mover todas as páginas do site (17 movimentações), e o limite da rodada é de
+12 arquivos. As movimentações não podem ser fatiadas porque, com metade
+movida, o build quebra.
+
+### Fatos apurados
+
+- **Scripts de terceiros no pagamento, antes:** GA4 (`googletagmanager.com/gtag/js`),
+  o init inline do gtag, o Meta Pixel (inline + `connect.facebook.net/.../fbevents.js`),
+  a ThreatMetrix (`h.online-metrix.net/fp/tags.js`) e o SDK 3DS da Braspag
+  (self-hosted em `/scripts/`, que fala com `mpi.braspag.com.br` e com a
+  Cardinal). GA4 e Meta só em produção (`analyticsAtivo()`).
+- A entrada no pagamento era por `router.push` no `GuestForm`, uma navegação
+  client-side que herdava GA4 e Meta vivos da página anterior.
+- **URLs que não podem mudar:**
+  - `/reservar/[draftId]/pagamento` e `/reservar/[draftId]/confirmacao` (o
+    `redirectTo` de credit/pix/bloqueio)
+  - `bpmpi_merchant_url` = `https://solariummantiqueira.com`
+  - webhooks `/api/webhooks/cielo` e `/api/webhooks/braspag`
+  - cron `/api/payments/braspag/pix-reconcile`
+
+  O 3DS da Braspag é SDK JS, **sem URL de retorno por redirect**. Nenhuma rota
+  de API se moveu.
+
+### Decisões
+
+1. **Método: dois root layouts via route groups.** `src/app/(site)/layout.tsx`
+   é o layout antigo, com analytics. `src/app/(checkout)/layout.tsx` é novo,
+   sem `next/script` e sem analytics. O Next faz carga completa ao cruzar root
+   layouts, na ida, na volta e no botão voltar. Foi verificado no navegador
+   com uma marca em `window`: ela sobrevive entre páginas do site e some ao
+   entrar no pagamento e ao sair dele. Foi descartada a alternativa de
+   esconder o analytics por pathname e forçar recarga com um guarda em
+   runtime: ela depende de detecção frágil (o botão voltar vindo da
+   confirmação exigiria tratamento extra), e uma edição futura no layout raiz
+   reintroduziria o script.
+2. **`/braspag-3ds-test` foi junto para `(checkout)`.** Ela também renderiza
+   campos de cartão e o 3DS. A URL não mudou.
+3. **O layout `(checkout)` mantém Header, Footer e WhatsApp**, que são
+   first-party e não carregam script. As fontes saíram para
+   `src/app/fontes.ts`, compartilhado pelos dois layouts. O layout marca
+   `robots: noindex`, porque a página de pagamento de um draft não tem o que
+   indexar.
+4. **Eventos que disparavam dentro do pagamento:**
+   | Evento | Decisão |
+   |---|---|
+   | `add_payment_info` (GA4) / `AddPaymentInfo` (Meta) | **Movido para o passo anterior.** Dispara no `GuestForm` depois que o draft é criado, antes de navegar. O valor é `finalTotal`, que o `POST /api/reservations/draft` passa a devolver: o mesmo número calculado no servidor que a página usava. O GA4 envia por beacon e sobrevive à carga completa. O Meta pode perder uma fração, risco aceito porque não é evento de otimização. |
+   | `page_view` automático do GA4 e `PageView` do Meta na página de pagamento | **Descartados.** O funil segue coberto por `begin_checkout` e `add_payment_info`. |
+   | `purchase` / `Purchase` | **Não mudou de lugar**, continua na confirmação (ver 5). |
+   Server-side não foi escolhido para nenhum: não existe Measurement Protocol
+   nem CAPI na `main`.
+5. **Purchase protegido.** Com o pagamento em outro root layout, a
+   confirmação passa a abrir por carga completa. Nessa carga, o `useEffect` do
+   `TrackPurchase` roda antes do `<Script afterInteractive>` do layout definir
+   `gtag` e `fbq`, e o purchase se perderia sem aviso. O `TrackPurchase`
+   agora usa `quandoAnalyticsPronto` (`src/lib/tracking.ts`): poll de 100 ms
+   até `gtag` e `fbq` existirem, com teto de 10 s. No teto dispara com o que
+   houver, e no preview vira no-op. É cancelável no cleanup do efeito.
+   Efeito colateral bom: F5 na confirmação também deixa de perder o evento.
+6. **Testes existentes com caminho alterado.** `fingerprint-cybersource.test.ts`
+   e `braspag-antifraude.test.ts` mudaram só o caminho de import das páginas
+   movidas. Nenhuma asserção foi alterada.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **No preview não dá para ver o GA4/Meta sumirem**, porque eles não carregam
+   em lugar nenhum fora de produção (`analyticsAtivo()`). A conferência
+   definitiva é em produção, logo após o merge.
+2. As quatro rotas `/api/debug/*` continuam no build (rodada S1).
+
+---
+
 ## Rodada FP1 — Device fingerprint da Cybersource no checkout (set/2026)
 
 Branch `fix/fingerprint-cybersource`, a partir de `origin/main` (`4d4b5bc`).
@@ -96,7 +172,7 @@ ThreatMetrix: subdomínios `*.online-metrix.net`, e `wss:` para
 
 ### Achados fora de escopo (não corrigidos)
 
-1. **GA4 e Meta Pixel carregam na rota de pagamento.** O `src/app/layout.tsx`
+1. **GA4 e Meta Pixel carregam na rota de pagamento** (resolvido na PAG1a). O `src/app/layout.tsx`
    (root) injeta `googletagmanager.com/gtag/js` e o `fbevents.js` em todas as
    rotas de produção. A "exclusão estrutural do GTM via grupo de layout" que o
    CLAUDE.md descreve não existe na `main`, só em branch. Página de cartão com

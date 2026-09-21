@@ -2,6 +2,7 @@
 
 import { useState, FormEvent, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { trackAddPaymentInfo } from "@/lib/tracking";
 import { ArrowRight } from "lucide-react";
 
 type Props = {
@@ -111,7 +112,12 @@ export default function GuestForm(props: Props) {
         setSubmitting(false);
         return;
       }
-      const data = (await res.json()) as { draftId: string };
+      const data = (await res.json()) as { draftId: string; finalTotal?: number };
+      // add_payment_info dispara AQUI, e não na página de pagamento: lá não roda
+      // analytics (rodada PAG1). O valor é o total calculado no servidor.
+      if (typeof data.finalTotal === "number") {
+        trackAddPaymentInfo({ value: data.finalTotal, currency: "BRL", paymentMethod });
+      }
       router.push(`/reservar/${data.draftId}/pagamento`);
     } catch {
       setErrorMsg("Falha de conexão. Tente novamente.");
