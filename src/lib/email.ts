@@ -244,21 +244,44 @@ export async function enviarAlertaEmAnalise(dados: {
   bloqueios: { listingId: number; noite: string }[];
   /** Resultado do e-mail de espera ao hóspede (A2b). */
   emailHospede?: string;
+  /** AF2: `falha-tecnica` = a análise não rodou; ninguém vai notificar. */
+  motivo?: "review" | "falha-tecnica";
+  /** AF2: rótulo do FraudAnalysis.Status que levou à espera. */
+  decisaoAntifraude?: string;
 }) {
   try {
     const resend = getResend();
     if (!resend) return;
     const noites = dados.bloqueios.map((b) => `<li>${b.noite} · listing ${b.listingId}</li>`).join("");
+    const falhaTecnica = dados.motivo === "falha-tecnica";
+    // Em falha técnica ninguém decide por nós: a análise não rodou, não existe
+    // notificação a esperar, e o hóspede está segurado com a autorização viva.
+    const cabecalho = falhaTecnica
+      ? `<h2 style="color:#c00">🚨 AÇÃO NECESSÁRIA — o antifraude NÃO analisou esta compra</h2>
+         <p>O emissor <strong>autorizou</strong> e o 3DS passou. O que falhou foi a análise
+         (<strong>${dados.decisaoAntifraude ?? "sem decisão"}</strong>), então <strong>não há recusa nenhuma</strong>
+         e <strong>nenhuma notificação vai chegar</strong>. A autorização está viva e NÃO capturada.</p>
+         <p><strong>Resolver à mão, o quanto antes:</strong></p>
+         <ol>
+           <li>Conferir a transação no portal da Braspag (PaymentId abaixo).</li>
+           <li>Aprovando: <strong>capturar no portal</strong> e depois chamar
+               <code>POST /api/admin/antifraude</code> com o PaymentId — é isso que cria a
+               reserva no Hostaway e avisa o hóspede.</li>
+           <li>Recusando: cancelar no portal e chamar a mesma rota, que libera as noites.</li>
+         </ol>`
+      : `<h2 style="color:#c60">⏳ Pagamento autorizado, aguardando a revisão do antifraude</h2>
+         <p>A autorização está <strong>viva e NÃO capturada</strong>. Nenhuma reserva foi criada.
+         As noites abaixo foram bloqueadas no Hostaway para segurar as datas.</p>
+         <p><strong>Não capturar nem cancelar manualmente.</strong> A decisão do analista chega por
+         notificação da Braspag. Se nada chegar em 6h, conferir a transação no portal.</p>`;
     await resend.emails.send({
       from: ALERTA_DE,
       to: ALERTA_PARA,
-      subject: `⏳ Cartão em revisão do antifraude — ${dados.propriedade} — R$ ${dados.valor.toFixed(2)}`,
+      subject: falhaTecnica
+        ? `🚨 AÇÃO NECESSÁRIA — antifraude não analisou (${dados.decisaoAntifraude ?? "?"}) — ${dados.propriedade} — R$ ${dados.valor.toFixed(2)}`
+        : `⏳ Cartão em revisão do antifraude — ${dados.propriedade} — R$ ${dados.valor.toFixed(2)}`,
       html: `
-        <h2 style="color:#c60">⏳ Pagamento autorizado, aguardando a revisão do antifraude</h2>
-        <p>A autorização está <strong>viva e NÃO capturada</strong>. Nenhuma reserva foi criada.
-        As noites abaixo foram bloqueadas no Hostaway para segurar as datas.</p>
-        <p><strong>Não capturar nem cancelar manualmente.</strong> A decisão do analista chega por
-        notificação da Braspag. Se nada chegar em 6h, conferir a transação no portal.</p>
+        ${cabecalho}
         <p><strong>Cliente:</strong> ${dados.hospede}</p>
         <p><strong>Casa:</strong> ${dados.propriedade}</p>
         <p><strong>Período:</strong> ${dados.checkin} → ${dados.checkout}</p>

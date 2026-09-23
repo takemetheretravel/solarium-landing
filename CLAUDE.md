@@ -108,7 +108,20 @@ não dá void, não captura, não cria reserva; marca o draft como
 72h, avisa o hóspede por e-mail e por tela. A decisão chega por notificação
 e é resolvida por reconciliação.
 
-**Com a flag desligada**, comportamento antigo: void em Review.
+**Decisão × falha técnica (AF2).** `Accept` (1), `Reject` (2) e `Review` (3)
+são decisões: a análise rodou e julgou. `Unknown` (0), `Aborted` (4) e
+`Unfinished` (5) significam que a análise **não foi executada** — não são
+recusa e nunca podem virar uma. Com a flag ligada e o pagamento **autorizado**
+(`Payment.Status` 1), falha técnica segue o mesmo caminho do Review
+(`aguardando_analise`, noites seguradas, TTL de 72h), com
+`analise.motivo = "falha-tecnica"`. A diferença: **nenhuma notificação vai
+chegar** — só sai daí por decisão humana (capturar/cancelar no portal e depois
+`POST /api/admin/antifraude`). O alerta interno desse caso é de ação
+necessária. Pagamento não autorizado: comportamento inalterado.
+Helpers: `ehFalhaTecnicaAntifraude` / `ehDecisaoAntifraude`.
+
+**Com a flag desligada**, comportamento antigo: void em Review e em falha
+técnica.
 
 Confirmado com a Braspag/Cielo (set/2026):
 - Em Review a transação permanece **autorizada e não capturada**.
@@ -124,9 +137,15 @@ Confirmado com a Braspag/Cielo (set/2026):
 - **Não existe forma de forçar uma transação a cair em Review.** A revisão
   é automatizada pela Cybersource/Braspag, não manual do nosso lado.
 
+**Mensagem ao hóspede nunca culpa o emissor pelo que não foi dele** (AF2):
+só recusa que veio do emissor (HTTP 2xx com `ReturnCode` de negativa) usa
+`mensagemRecusaBraspag`. Erro de requisição, decisão do antifraude e falha de
+captura usam texto neutro (`MENSAGEM_FALHA_TECNICA_PAGAMENTO`).
+
 Reconciliação manual: `POST /api/admin/antifraude` com
 `{ "paymentId": "..." }`, autenticado por `Authorization: Bearer`.
-Leitura: `GET` na mesma rota.
+Leitura: `GET` na mesma rota. O `GET` traz `emAnalise.review` e
+`emAnalise.falhaTecnica` separados — o segundo é fila de trabalho humano.
 
 ### Device fingerprint Cybersource (ThreatMetrix) — FP1
 

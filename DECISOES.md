@@ -8,6 +8,90 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada AF2 — Falha técnica do antifraude não recusa venda (set/2026)
+
+Branch `fix/antifraude-falha-tecnica`, a partir da `main`.
+
+### O caso que motivou
+
+22/09/2026 23:27 UTC, R$ 4.660 perdidos. `draftId b8eb5809…`,
+`paymentId 8cf41e2c…`:
+
+| Campo | Valor |
+|---|---|
+| `Payment.Status` | 1 (autorizado) |
+| `ProviderReturnCode` | "00" — Transacao autorizada |
+| `AuthorizationCode` | 1DZ61S |
+| 3DS | concluído, cliente confirmou no app do banco |
+| `FraudAnalysis.Status` | 4 (Aborted) |
+| `FraudAnalysisId` / `ReasonCode` / `Score` | todos nulos |
+
+Id, ReasonCode e Score nulos junto com Aborted é a assinatura de análise que
+**não rodou**. O código tratava qualquer `fraudStatus !== 1` como bloqueio:
+void na autorização e 402. O hóspede leu que o cartão não foi validado pelo
+emissor — falso, o emissor autorizou.
+
+### Decisões
+
+1. **Dois grupos, e só um pode recusar.** `FRAUD_STATUS_FALHA_TECNICA = [0, 4, 5]`
+   em `src/lib/braspag.ts`, com `ehFalhaTecnicaAntifraude` e
+   `ehDecisaoAntifraude`. Decisão (1, 2, 3) segue como estava.
+2. **Falha técnica com autorização viva entra em espera**, pelo mesmo
+   `segurarParaAnalise` do Review (A2a): sem void, sem captura, sem reserva,
+   noites bloqueadas, TTL de 72h, e-mail e tela de espera para o hóspede.
+   Reaproveitar o caminho do Review foi preferido a criar um segundo: é o
+   mesmo estado operacional (autorização viva a decidir), e um caminho novo
+   duplicaria a salvaguarda de bloqueio de calendário.
+3. **O motivo fica gravado** em `analise.motivo` (`review` | `falha-tecnica`) e
+   `analise.fraudStatusNome`. Ausente = `review`, para os drafts gravados antes
+   desta rodada.
+4. **Alerta interno diferente, porque o desfecho é diferente.** Em Review a
+   decisão chega por notificação; em falha técnica **não chega nada**. O
+   e-mail de falha técnica é de AÇÃO NECESSÁRIA e traz o passo a passo:
+   conferir no portal, capturar lá se aprovar, e chamar
+   `POST /api/admin/antifraude` com o PaymentId — que é o que cria a reserva no
+   Hostaway e avisa o hóspede. Recusando: cancelar no portal e chamar a mesma
+   rota, que libera as noites.
+5. **A A3 não foi tocada.** Com `FraudAnalysis` 4 e `Payment.Status` 1, a
+   reconciliação devolve `indefinido` e alerta — nada é capturado nem
+   cancelado, que é o certo. Depois da captura no portal (`Status` 2), a mesma
+   rota aceita e cria a reserva. É por isso que o passo "capturar antes de
+   chamar" está no alerta.
+6. **Mesma flag, `ANTIFRAUDE_REVIEW_ENABLED`**, já ligada em produção. Com ela
+   desligada, o comportamento é idêntico ao de antes desta rodada para os seis
+   valores — provado por teste.
+7. **Mensagem ao hóspede corresponde à causa real.** Erro de requisição (HTTP
+   não-2xx: credencial, payload) usava a mesma mensagem de recusa do emissor e
+   passou a usar `MENSAGEM_FALHA_TECNICA_PAGAMENTO`, neutra. Recusa do
+   antifraude e falha de captura já eram neutras. Só recusa vinda do emissor
+   fala em banco ou cartão.
+8. **Painel separado.** `GET /api/admin/antifraude` ganhou `emAnalise` com
+   `review` e `falhaTecnica`, cada item com draftId, paymentId, motivo,
+   `fraudStatusNome`, horas esperando, valor, casa, datas e noites bloqueadas.
+   Sem nome, e-mail ou CPF. A `falhaTecnica` é fila de trabalho humano.
+
+### Testes existentes alterados
+
+`braspag-antifraude.test.ts`, tabela `casosDecisao`: as linhas Unknown (0),
+Aborted (4), Unfinished (5) e "bloco ausente" passaram de `recusa` para
+`analise` **na coluna da flag ligada**. É exatamente o comportamento que a
+rodada muda. A coluna da flag desligada continua `recusa` nas quatro.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **`MSG_3DS_FALHOU`**, na página de pagamento, diz "não foi possível validar
+   seu cartão com o banco emissor" para **qualquer** evento 3DS que não seja
+   `onSuccess`, inclusive falha da SDK ou do MPI. Mesmo vício da mensagem
+   corrigida no servidor, do lado do cliente. Fora do escopo porque a rodada
+   proíbe mexer na página de pagamento.
+2. **Não há cron de segurança** para pagamento parado em `aguardando_analise`.
+   Com a AF2, a fila de falha técnica depende de alguém ler o e-mail. O cron
+   segue pendente (já registrado no CLAUDE.md).
+3. **A rota Pix não tem tratamento equivalente** — o antifraude só roda no
+   cartão, mas vale conferir na triagem.
+
+---
+
 ## Rodada PAG1b — CSP report-only na página de pagamento (set/2026)
 
 Branch `fix/csp-pagamento`, empilhada sobre a `fix/isolar-pagamento` (PAG1a).

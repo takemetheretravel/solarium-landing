@@ -222,6 +222,28 @@ export function normalizarFraudStatus(valor: unknown): FraudStatus {
   return 0;
 }
 
+/**
+ * Dois grupos, e a diferença decide se a venda pode ser recusada (rodada AF2).
+ *
+ * DECISÃO do antifraude — a análise rodou e julgou o comprador:
+ *   1 Accept · 2 Reject · 3 Review
+ * FALHA TÉCNICA — a análise NÃO foi executada; não há julgamento nenhum:
+ *   0 Unknown · 4 Aborted · 5 Unfinished
+ *
+ * Tratar falha técnica como recusa é perder venda legítima: em 22/09/2026 uma
+ * compra autorizada pelo emissor (Status 1, ProviderReturnCode "00", 3DS
+ * concluído) caiu em Aborted e levou void.
+ */
+export const FRAUD_STATUS_FALHA_TECNICA: readonly FraudStatus[] = [0, 4, 5];
+
+export function ehFalhaTecnicaAntifraude(status: FraudStatus): boolean {
+  return FRAUD_STATUS_FALHA_TECNICA.includes(status);
+}
+
+export function ehDecisaoAntifraude(status: FraudStatus): boolean {
+  return !ehFalhaTecnicaAntifraude(status);
+}
+
 export function nomeFraudStatus(status: FraudStatus): FraudStatusNome {
   return FRAUD_STATUS_NOMES[status];
 }
@@ -845,6 +867,13 @@ export async function voidBraspagPayment(
 // Mapeamento de códigos de recusa (ProviderReturnCode) → mensagem amigável.
 // Análogo ao mapa da Cielo; os códigos ISO de autorização são os mesmos entre
 // adquirentes. Começa pelos comuns e cai num default seguro.
+/**
+ * Falha do nosso lado ou do gateway (HTTP não-2xx, payload/credencial), não do
+ * emissor. Nunca atribuir ao banco do hóspede o que o banco não recusou.
+ */
+export const MENSAGEM_FALHA_TECNICA_PAGAMENTO =
+  "Não foi possível concluir o pagamento agora. Nenhum valor foi cobrado — tente novamente em instantes, pague via Pix ou fale conosco no WhatsApp.";
+
 export function mensagemRecusaBraspag(returnCode?: string): string {
   const code = (returnCode || "").trim();
   const map: Record<string, string> = {
