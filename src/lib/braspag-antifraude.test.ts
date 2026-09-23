@@ -139,6 +139,10 @@ vi.mock("@/lib/braspag-pix-confirm", () => ({ confirmPixPaymentIfPaid: vi.fn(asy
 
 import {
   normalizarFraudStatus,
+  ehFalhaTecnicaAntifraude,
+  ehDecisaoAntifraude,
+  FRAUD_STATUS_FALHA_TECNICA,
+  MENSAGEM_FALHA_TECNICA_PAGAMENTO,
   rotuloFraudStatus,
   redigirParaRegistro,
   resumoAntifraude,
@@ -406,7 +410,16 @@ describe("persistência no KV", () => {
 
 // ===========================================================================
 // Fluxo real da rota de crédito com o gateway simulado por fetch.
-type CenarioGateway = { fraudStatus?: unknown; semBloco?: boolean; voidStatus?: number; voidLanca?: boolean };
+type CenarioGateway = {
+  fraudStatus?: unknown;
+  semBloco?: boolean;
+  voidStatus?: number;
+  voidLanca?: boolean;
+  /** Payment.Status da autorização (AF2). Diferente de 1 = emissor não autorizou. */
+  paymentStatus?: number;
+  /** HTTP da chamada de autorização (AF2): não-2xx = erro de requisição, não recusa do emissor. */
+  httpStatus?: number;
+};
 
 function simularGateway(c: CenarioGateway): string[] {
   const chamadas: string[] = [];
@@ -417,13 +430,19 @@ function simularGateway(c: CenarioGateway): string[] {
       const u = String(url);
       if (u.endsWith("/v2/sales/")) {
         chamadas.push("autorizacao");
+        if (c.httpStatus && c.httpStatus >= 300) {
+          return new Response(JSON.stringify([{ Code: 126, Message: "Merchant credentials invalid" }]), {
+            status: c.httpStatus,
+            headers: { "content-type": "application/json" },
+          });
+        }
         return resposta({
           MerchantOrderId: `${DRAFT_ID}-x`,
           Customer: { Name: NOME, Email: EMAIL, Identity: CPF },
           Payment: {
             PaymentId: PAYMENT_ID,
-            Status: 1,
-            ReturnCode: "00",
+            Status: c.paymentStatus ?? 1,
+            ReturnCode: c.paymentStatus !== undefined && c.paymentStatus !== 1 ? "05" : "00",
             CreditCard: { CardNumber: "411111******1111", Holder: NOME },
             ...(c.semBloco
               ? {}
@@ -513,21 +532,23 @@ function prepararRota(propertyId = "solarium-1") {
 type Desfecho = "captura" | "recusa" | "analise";
 
 // Desde a A2a o if lê o status normalizado: "1" e "Accept" em texto capturam.
-// Review só muda de desfecho com a flag ligada.
+// Review só muda de desfecho com a flag ligada. Desde a AF2, a falha técnica do
+// antifraude (Unknown 0, Aborted 4, Unfinished 5 e bloco ausente) também espera
+// em vez de recusar — com a flag ligada. Com a flag desligada, nada mudou.
 const casosDecisao: Array<[string, CenarioGateway, Desfecho, Desfecho]> = [
   //  nome                    gateway                        flag off   flag on
-  ["Unknown (0)", { fraudStatus: 0 }, "recusa", "recusa"],
+  ["Unknown (0)", { fraudStatus: 0 }, "recusa", "analise"],
   ["Accept (1)", { fraudStatus: 1 }, "captura", "captura"],
   ["Reject (2)", { fraudStatus: 2 }, "recusa", "recusa"],
   ["Review (3)", { fraudStatus: 3 }, "recusa", "analise"],
-  ["Aborted (4)", { fraudStatus: 4 }, "recusa", "recusa"],
-  ["Unfinished (5)", { fraudStatus: 5 }, "recusa", "recusa"],
+  ["Aborted (4)", { fraudStatus: 4 }, "recusa", "analise"],
+  ["Unfinished (5)", { fraudStatus: 5 }, "recusa", "analise"],
   ['"1" como texto', { fraudStatus: "1" }, "captura", "captura"],
   ['"Accept" como texto', { fraudStatus: "Accept" }, "captura", "captura"],
   ['"accept" em minúsculas', { fraudStatus: "accept" }, "captura", "captura"],
   ['"Review" como texto', { fraudStatus: "Review" }, "recusa", "analise"],
   ['"2" como texto', { fraudStatus: "2" }, "recusa", "recusa"],
-  ["bloco ausente", { semBloco: true }, "recusa", "recusa"],
+  ["bloco ausente", { semBloco: true }, "recusa", "analise"],
 ];
 
 async function conferirDesfecho(esperado: Desfecho, chamadas: string[], res: Response) {
@@ -1385,5 +1406,208 @@ describe("A3 — e-mails de desfecho", () => {
       expect(e.assunto + e.html + e.texto).not.toMatch(re);
     }
     expect(e.texto).toMatch(/Total pago: R\$\s?1\.234,50/);
+  });
+});
+
+// ===========================================================================
+// AF2 — falha técnica do antifraude não pode recusar venda.
+//
+// Caso real (22/09/2026 23:27 UTC, R$ 4.660 perdidos): emissor AUTORIZOU
+// (Status 1, ProviderReturnCode "00", AuthorizationCode 1DZ61S), 3DS concluído,
+// e o FraudAnalysis voltou Aborted (4) com Id, ReasonCode e Score nulos — ou
+// seja, a análise não rodou. O código tratava isso como bloqueio, dava void e
+// devolvia 402.
+describe("AF2 — falha técnica do antifraude", () => {
+  const ID_SOL1 = getPropertyBySlug("solarium-1")!.id;
+
+  beforeEach(() => {
+    process.env.ANTIFRAUDE_REVIEW_ENABLED = "true";
+    prepararRota();
+  });
+  afterEach(() => {
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("classificação: 0, 4 e 5 são falha técnica; 1, 2 e 3 são decisão", () => {
+    expect(FRAUD_STATUS_FALHA_TECNICA).toEqual([0, 4, 5]);
+    for (const st of [0, 4, 5] as const) {
+      expect(ehFalhaTecnicaAntifraude(st)).toBe(true);
+      expect(ehDecisaoAntifraude(st)).toBe(false);
+    }
+    for (const st of [1, 2, 3] as const) {
+      expect(ehDecisaoAntifraude(st)).toBe(true);
+      expect(ehFalhaTecnicaAntifraude(st)).toBe(false);
+    }
+  });
+
+  /** O corpo que a Braspag devolveu no caso real. */
+  function simularCasoReal(): string[] {
+    const chamadas: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const u = String(url);
+        if (u.endsWith("/v2/sales/")) {
+          chamadas.push("autorizacao");
+          return new Response(
+            JSON.stringify({
+              MerchantOrderId: `${DRAFT_ID}-x`,
+              Customer: { Name: NOME, Email: EMAIL, Identity: CPF },
+              Payment: {
+                PaymentId: PAYMENT_ID,
+                Status: 1,
+                ReturnCode: "00",
+                ReturnMessage: "Operation Successful",
+                ProviderReturnCode: "00",
+                ProviderReturnMessage: "Transacao autorizada",
+                AuthorizationCode: "1DZ61S",
+                CreditCard: { CardNumber: "411111******1111", Holder: NOME },
+                FraudAnalysis: { Id: null, Status: 4, FraudAnalysisReasonCode: null, ReplyData: { Score: null } },
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (u.includes("/capture")) chamadas.push("captura");
+        if (u.includes("/void")) chamadas.push("void");
+        return new Response(JSON.stringify({ Status: 10 }), { status: 200, headers: { "content-type": "application/json" } });
+      }),
+    );
+    return chamadas;
+  }
+
+  it("o caso real termina em espera, não em void", async () => {
+    const chamadas = simularCasoReal();
+    const res = await postCredito(requisicaoCredito());
+
+    expect(chamadas).toEqual(["autorizacao"]); // sem void, sem captura
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ approved: false, estado: "aguardando_analise", paymentId: PAYMENT_ID });
+
+    const draft = await getDraft(DRAFT_ID);
+    expect(draft?.status).toBe("aguardando_analise");
+    expect(draft?.analise).toMatchObject({ paymentId: PAYMENT_ID, motivo: "falha-tecnica", fraudStatusNome: "Aborted" });
+    expect(redis.ttls.get(`draft:${DRAFT_ID}`)).toBe(DRAFT_TTL_ANALISE);
+    expect(mocks.blockCalendarNight.mock.calls).toEqual([
+      [ID_SOL1, "2026-10-10"],
+      [ID_SOL1, "2026-10-11"],
+    ]);
+    expect(mocks.unblockCalendarNight).not.toHaveBeenCalled();
+    expect(mocks.enviarAlertaRecusa).not.toHaveBeenCalled();
+  });
+
+  it("o alerta interno diz que a decisão é humana", async () => {
+    simularCasoReal();
+    await postCredito(requisicaoCredito());
+    const alerta = (mocks.enviarAlertaEmAnalise.mock.calls[0] as unknown as [{ motivo?: string; decisaoAntifraude?: string; paymentId: string }])[0];
+    expect(alerta).toMatchObject({ motivo: "falha-tecnica", paymentId: PAYMENT_ID });
+    expect(alerta.decisaoAntifraude).toMatch(/Aborted/);
+  });
+
+  it.each([
+    [0, "Unknown"],
+    [4, "Aborted"],
+    [5, "Unfinished"],
+  ])("fraudStatus %s (%s): espera com motivo de falha técnica", async (status, nome) => {
+    const chamadas = simularGateway({ fraudStatus: status });
+    const res = await postCredito(requisicaoCredito());
+    expect(chamadas).toEqual(["autorizacao"]);
+    expect(res.status).toBe(202);
+    expect((await getDraft(DRAFT_ID))?.analise).toMatchObject({ motivo: "falha-tecnica", fraudStatusNome: nome });
+    expect(mocks.enviarAlertaEmAnalise).toHaveBeenCalledTimes(1);
+  });
+
+  it("Review continua marcado como review, e não como falha técnica", async () => {
+    simularGateway({ fraudStatus: 3 });
+    await postCredito(requisicaoCredito());
+    expect((await getDraft(DRAFT_ID))?.analise).toMatchObject({ motivo: "review", fraudStatusNome: "Review" });
+    const alerta = (mocks.enviarAlertaEmAnalise.mock.calls[0] as unknown as [{ motivo?: string }])[0];
+    expect(alerta.motivo).toBe("review");
+  });
+
+  it("Reject (2) segue recusando, com void", async () => {
+    const chamadas = simularGateway({ fraudStatus: 2 });
+    const res = await postCredito(requisicaoCredito());
+    expect(chamadas).toEqual(["autorizacao", "void"]);
+    expect(res.status).toBe(402);
+    expect((await getDraft(DRAFT_ID))?.status).toBe("pending");
+    expect(mocks.enviarAlertaEmAnalise).not.toHaveBeenCalled();
+  });
+
+  it("Accept (1) segue capturando", async () => {
+    const chamadas = simularGateway({ fraudStatus: 1 });
+    const res = await postCredito(requisicaoCredito());
+    expect(chamadas).toEqual(["autorizacao", "captura"]);
+    expect(res.status).toBe(200);
+  });
+
+  it("falha técnica SEM autorização não muda nada", async () => {
+    const chamadas = simularGateway({ fraudStatus: 4, paymentStatus: 0 });
+    const res = await postCredito(requisicaoCredito());
+    // Emissor negou: não há hold a liberar, então não se chama void (regra antiga).
+    expect(chamadas).toEqual(["autorizacao"]);
+    expect(res.status).toBe(402);
+    expect(mocks.blockCalendarNight).not.toHaveBeenCalled();
+    expect(mocks.enviarAlertaEmAnalise).not.toHaveBeenCalled();
+    expect((await getDraft(DRAFT_ID))?.status).toBe("pending");
+  });
+
+  it("o painel separa a espera por falha técnica da espera por review", async () => {
+    simularGateway({ fraudStatus: 4 });
+    await postCredito(requisicaoCredito());
+    const obs = await lerObservabilidadeAntifraude();
+    expect(obs.emAnalise.review).toEqual([]);
+    expect(obs.emAnalise.falhaTecnica).toHaveLength(1);
+    expect(obs.emAnalise.falhaTecnica[0]).toMatchObject({
+      draftId: DRAFT_ID,
+      paymentId: PAYMENT_ID,
+      motivo: "falha-tecnica",
+      fraudStatusNome: "Aborted",
+      noitesBloqueadas: 2,
+    });
+    const texto = JSON.stringify(obs.emAnalise);
+    for (const proibido of [NOME, EMAIL, CPF, PAN]) expect(texto).not.toContain(proibido);
+  });
+
+  it("erro de requisição não atribui a recusa ao banco do hóspede", async () => {
+    const chamadas = simularGateway({ httpStatus: 400 });
+    const res = await postCredito(requisicaoCredito());
+    expect(chamadas).toEqual(["autorizacao"]);
+    expect(res.status).toBe(402);
+    const corpo = await res.json();
+    expect(corpo.returnMessage).toBe(MENSAGEM_FALHA_TECNICA_PAGAMENTO);
+    expect(corpo.returnMessage).not.toMatch(/banco|emissor|dados do cartão/i);
+  });
+
+  it("nenhuma mensagem ao hóspede culpa o emissor por decisão do antifraude ou nossa", async () => {
+    simularGateway({ fraudStatus: 2 });
+    const reject = await (await postCredito(requisicaoCredito())).json();
+    prepararRota();
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+    simularGateway({ fraudStatus: 4 });
+    const semFlag = await (await postCredito(requisicaoCredito())).json();
+    for (const corpo of [reject, semFlag]) {
+      expect(corpo.returnMessage).not.toMatch(/banco|emissor/i);
+      expect(corpo.returnMessage).toMatch(/[Nn]enhum valor foi cobrado/);
+    }
+  });
+
+  it("flag desligada: os seis valores mantêm o comportamento de antes da AF2", async () => {
+    delete process.env.ANTIFRAUDE_REVIEW_ENABLED;
+    for (const status of [0, 2, 3, 4, 5]) {
+      prepararRota();
+      const chamadas = simularGateway({ fraudStatus: status });
+      const res = await postCredito(requisicaoCredito());
+      expect(chamadas, `fraudStatus ${status}`).toEqual(["autorizacao", "void"]);
+      expect(res.status, `fraudStatus ${status}`).toBe(402);
+      expect((await getDraft(DRAFT_ID))?.status).toBe("pending");
+      expect(mocks.enviarAlertaEmAnalise).not.toHaveBeenCalled();
+    }
+    prepararRota();
+    const chamadas = simularGateway({ fraudStatus: 1 });
+    expect((await postCredito(requisicaoCredito())).status).toBe(200);
+    expect(chamadas).toEqual(["autorizacao", "captura"]);
   });
 });
