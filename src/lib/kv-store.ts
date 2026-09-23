@@ -36,6 +36,15 @@ function ttlDoDraft(draft: Pick<ReservationDraft, "status">): number {
 export type BloqueioAnalise = { listingId: number; noite: string };
 
 /** Autorização viva à espera da decisão do antifraude. Sem dado do hóspede. */
+/**
+ * Por que o draft está em espera (AF2):
+ *  - `review`: a Cybersource pediu revisão. A decisão chega por notificação.
+ *  - `falha-tecnica`: a análise não rodou (Unknown/Aborted/Unfinished). NÃO vem
+ *    notificação nenhuma — só sai daqui por decisão humana.
+ * Ausente = `review` (drafts gravados antes da AF2).
+ */
+export type MotivoAnalise = "review" | "falha-tecnica";
+
 export type AnaliseAntifraude = {
   paymentId: string;
   merchantOrderId: string;
@@ -46,6 +55,10 @@ export type AnaliseAntifraude = {
   parcelas: number;
   /** Exatamente o que foi bloqueado — é isso que se desbloqueia depois. */
   bloqueios: BloqueioAnalise[];
+  /** Por que entrou em espera (AF2). Ausente = review. */
+  motivo?: MotivoAnalise;
+  /** Nome do FraudAnalysis.Status que levou à espera (AF2), para o painel. */
+  fraudStatusNome?: string;
   /** Tentativas de captura que falharam depois do Accept (A3). */
   tentativasCaptura?: { em: string; origem: string; statusCode: number | null; returnCode: string | null }[];
   /** Como a espera terminou (A3). */
@@ -488,6 +501,58 @@ async function lerLista(chave: string, limite: number): Promise<unknown[]> {
   return saida;
 }
 
+export type PendenteDeAnalise = {
+  draftId: string;
+  paymentId: string;
+  motivo: MotivoAnalise;
+  fraudStatusNome: string | null;
+  entrouEm: string;
+  horasEsperando: number;
+  valorAutorizado: number;
+  propriedade: string;
+  checkin: string;
+  checkout: string;
+  noitesBloqueadas: number;
+};
+
+/**
+ * Drafts parados em `aguardando_analise`, separados por motivo (AF2). São
+ * coisas diferentes: `review` se resolve sozinho pela notificação da Braspag;
+ * `falhaTecnica` NÃO recebe notificação nenhuma e só sai daqui por decisão
+ * humana. Sem nome, e-mail ou CPF: só o que o operador precisa para agir.
+ */
+export async function lerPendentesDeAnalise(agora = Date.now()): Promise<{ review: PendenteDeAnalise[]; falhaTecnica: PendenteDeAnalise[] }> {
+  const saida = { review: [] as PendenteDeAnalise[], falhaTecnica: [] as PendenteDeAnalise[] };
+  try {
+    for (const draft of await scanAllDrafts()) {
+      if (draft.status !== "aguardando_analise" || !draft.analise) continue;
+      const a = draft.analise;
+      const motivo: MotivoAnalise = a.motivo ?? "review";
+      const entrouEm = a.entrouEm;
+      const pendente: PendenteDeAnalise = {
+        draftId: draft.id,
+        paymentId: a.paymentId,
+        motivo,
+        fraudStatusNome: a.fraudStatusNome ?? null,
+        entrouEm,
+        horasEsperando: Math.max(0, Math.round(((agora - Date.parse(entrouEm)) / 3600_000) * 10) / 10) || 0,
+        valorAutorizado: a.valorAutorizado,
+        propriedade: draft.propertyName,
+        checkin: draft.checkin,
+        checkout: draft.checkout,
+        noitesBloqueadas: a.bloqueios.length,
+      };
+      (motivo === "falha-tecnica" ? saida.falhaTecnica : saida.review).push(pendente);
+    }
+  } catch (err) {
+    console.error("[kv-store:lerPendentesDeAnalise] Failed:", err);
+  }
+  const maisAntigoPrimeiro = (a: PendenteDeAnalise, b: PendenteDeAnalise) => a.entrouEm.localeCompare(b.entrouEm);
+  saida.review.sort(maisAntigoPrimeiro);
+  saida.falhaTecnica.sort(maisAntigoPrimeiro);
+  return saida;
+}
+
 /**
  * Leitura para a rota admin. 24h = as 24 horas-balde mais recentes (inclui a
  * hora corrente); 7d = as 168 mais recentes.
@@ -506,13 +571,14 @@ export async function lerObservabilidadeAntifraude(agora = Date.now()) {
     somarNaJanela(janela7d, hash);
   });
 
-  const [ultimosEventos, ultimosWebhooksNaoTratados, ultimosVoidsSemSucesso] = await Promise.all([
+  const [ultimosEventos, ultimosWebhooksNaoTratados, ultimosVoidsSemSucesso, emAnalise] = await Promise.all([
     lerLista(AF_EVENTOS_KEY, 50),
     lerLista(AF_WEBHOOKS_KEY, AF_WEBHOOKS_MAX),
     lerLista(AF_VOIDS_KEY, AF_VOIDS_MAX),
+    lerPendentesDeAnalise(agora),
   ]);
 
-  return { geradoEm: new Date(agora).toISOString(), janela24h, janela7d, ultimosEventos, ultimosWebhooksNaoTratados, ultimosVoidsSemSucesso };
+  return { geradoEm: new Date(agora).toISOString(), janela24h, janela7d, emAnalise, ultimosEventos, ultimosWebhooksNaoTratados, ultimosVoidsSemSucesso };
 }
 
 // ---------------------------------------------------------------------------
