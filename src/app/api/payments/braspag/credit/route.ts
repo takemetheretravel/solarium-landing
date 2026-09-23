@@ -9,6 +9,7 @@ import {
   type ReservationDraft,
   type AnaliseAntifraude,
   type BloqueioAnalise,
+  type MotivoAnalise,
 } from "@/lib/kv-store";
 import {
   createBraspagAuthorization,
@@ -18,6 +19,10 @@ import {
   maskIfSecretLike,
   resumoAntifraude,
   rotuloFraudStatus,
+  ehFalhaTecnicaAntifraude,
+  nomeFraudStatus,
+  normalizarFraudStatus,
+  MENSAGEM_FALHA_TECNICA_PAGAMENTO,
   redigirParaRegistro,
   BRASPAG_URLS,
   fingerprintIdValido,
@@ -95,6 +100,8 @@ async function segurarParaAnalise(p: {
   valor: number;
   amountCents: number;
   parcelas: number;
+  motivoEspera: MotivoAnalise;
+  fraudStatusNome: string;
 }): Promise<{ ok: true; analise: AnaliseAntifraude } | { ok: false; motivo: string }> {
   const property = getPropertyBySlug(p.draft.propertyId);
   if (!property) return { ok: false, motivo: "propriedade não resolvida" };
@@ -149,6 +156,8 @@ async function segurarParaAnalise(p: {
     valorAutorizadoCentavos: p.amountCents,
     parcelas: p.parcelas,
     bloqueios: bloqueados,
+    motivo: p.motivoEspera,
+    fraudStatusNome: p.fraudStatusNome,
   };
   try {
     await updateDraft(p.draftId, { status: "aguardando_analise", analise });
@@ -480,7 +489,9 @@ export async function POST(req: Request) {
     //    - httpStatus 2xx com Status de negativa → recusa real → "[Braspag:Recusa]".
     if (auth.statusCode !== 1) {
       const httpOk = auth.status >= 200 && auth.status < 300;
-      const mensagemCliente = mensagemRecusaBraspag(auth.returnCode);
+      // Só o que veio DO EMISSOR pode falar em banco/cartão. Erro de requisição
+      // é falha nossa ou do gateway — mensagem neutra (AF2).
+      const mensagemCliente = httpOk ? mensagemRecusaBraspag(auth.returnCode) : MENSAGEM_FALHA_TECNICA_PAGAMENTO;
       if (!httpOk) {
         console.error(
           "[Braspag:ErroRequisicao]",
@@ -520,10 +531,21 @@ export async function POST(req: Request) {
 
     // Daqui em diante: AUTORIZADO (Status 1). Qualquer saída sem captura → VOID.
 
-    // 2a) Review com a flag ligada → autorização viva, noites seguradas, sem
-    // captura nem reserva. A decisão chega por notificação (A3).
-    let notaReview: string | null = null;
-    if (auth.fraudStatus === 3 && antifraudeReviewAtivo()) {
+    // 2a) Espera com a autorização viva, sem captura nem reserva. Dois motivos,
+    // com desfechos diferentes (AF2):
+    //   review        → a Cybersource julgou e pediu revisão; a decisão chega
+    //                   por notificação (A3).
+    //   falha-tecnica → Unknown/Aborted/Unfinished: a análise NÃO rodou. Não há
+    //                   recusa e não virá notificação — quem decide é o
+    //                   operador, por POST /api/admin/antifraude. Recusar aqui
+    //                   seria jogar fora uma venda que o emissor autorizou.
+    const statusAf = normalizarFraudStatus(auth.fraudStatusCru ?? auth.fraudStatus);
+    const motivoEspera: MotivoAnalise | null =
+      statusAf === 3 ? "review" : ehFalhaTecnicaAntifraude(statusAf) ? "falha-tecnica" : null;
+    let notaEspera: string | null = null;
+    if (motivoEspera && antifraudeReviewAtivo()) {
+      const falhaTecnica = motivoEspera === "falha-tecnica";
+      const rotuloAf = rotuloFraudStatus(auth.fraudStatusCru);
       const seg = auth.paymentId
         ? await segurarParaAnalise({
             draftId,
@@ -533,12 +555,20 @@ export async function POST(req: Request) {
             valor: valorACobrar,
             amountCents,
             parcelas: installments || 1,
+            motivoEspera,
+            fraudStatusNome: nomeFraudStatus(statusAf),
           })
         : { ok: false as const, motivo: "autorização sem PaymentId" };
       if (seg.ok) {
-        console.log(
-          "[Braspag:Review-aguardando]",
-          JSON.stringify({ draftId, paymentId: auth.paymentId, merchantOrderId: tentativaId, bloqueios: seg.analise.bloqueios.length }),
+        console[falhaTecnica ? "error" : "log"](
+          falhaTecnica ? "[Braspag:AF-falha-tecnica] 🚨 análise não executada, autorização segurada" : "[Braspag:Review-aguardando]",
+          JSON.stringify({
+            draftId,
+            paymentId: auth.paymentId,
+            merchantOrderId: tentativaId,
+            decisao: rotuloAf,
+            bloqueios: seg.analise.bloqueios.length,
+          }),
         );
         // E-mail ao hóspede primeiro: o alerta interno diz se ele saiu.
         const emailHospede = await enviarEmailEsperaUmaVez({ ...draft, status: "aguardando_analise", analise: seg.analise }, draftId);
@@ -554,15 +584,19 @@ export async function POST(req: Request) {
           draftId,
           merchantOrderId: tentativaId,
           bloqueios: seg.analise.bloqueios,
+          motivo: motivoEspera,
+          decisaoAntifraude: rotuloAf,
         });
         return respostaAguardandoAnalise(draftId, auth.paymentId);
       }
       // SALVAGUARDA: sem as noites seguradas não há espera. Segue para o void.
-      console.error("[Braspag:Review-salvaguarda]", JSON.stringify({ draftId, paymentId: auth.paymentId, motivo: seg.motivo }));
-      notaReview = `Review com a espera ligada, mas ${seg.motivo} — revertido para void`;
+      console.error("[Braspag:Espera-salvaguarda]", JSON.stringify({ draftId, paymentId: auth.paymentId, motivoEspera, motivo: seg.motivo }));
+      notaEspera = `${falhaTecnica ? "Falha técnica do antifraude" : "Review"} com a espera ligada, mas ${seg.motivo} — revertido para void`;
     }
 
-    // 2) Antifraude NÃO aprovou (Reject 2 / Review 3 / ausente) → void + alerta.
+    // 2) Sem Accept e sem espera possível → void + alerta. Com a flag ligada
+    //    sobra aqui o Reject (2) e a salvaguarda da espera; com a flag
+    //    desligada, também Review e falha técnica, como antes da AF2.
     if (auth.fraudStatus !== 1) {
       const notaVoidAf = await voidConferido(auth.paymentId, amountCents, "antifraude", tentativaId);
       // Rótulo a partir do valor cru: o antigo só conhecia 2 e 3 como número e
@@ -573,7 +607,7 @@ export async function POST(req: Request) {
         hospede: `${draft.guestFirstName} ${draft.guestLastName}`,
         propriedade: draft.propertyName,
         valor: valorACobrar,
-        motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorizado mas cancelado (void). PaymentId ${auth.paymentId ?? "-"}${notaVoidAf ? ` · ${notaVoidAf}` : ""}${notaReview ? ` · ${notaReview}` : ""}`,
+        motivo: `Antifraude ${afLabel} (score ${auth.fraudScore ?? "?"}) — autorizado mas cancelado (void). PaymentId ${auth.paymentId ?? "-"}${notaVoidAf ? ` · ${notaVoidAf}` : ""}${notaEspera ? ` · ${notaEspera}` : ""}`,
         pacoteNome: draft.pacoteNome,
         merchantOrderId: tentativaId,
         diagnostico,
