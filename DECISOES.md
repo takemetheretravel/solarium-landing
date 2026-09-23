@@ -8,6 +8,145 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada AF3 — Limites de tamanho dos campos enviados ao antifraude (set/2026)
+
+Branch `fix/limites-campos-antifraude`, a partir da `main`.
+
+### O caso que motivou
+
+As duas transações de 22/09 que a AF2 tratou (Aborted com `Id`, `ReasonCode` e
+`Score` nulos) nunca foram analisadas. A Braspag confirmou o porquê: a chamada
+da análise de risco devolveu
+
+```
+riskapirest.braspag.com.br/Analysis/v2 | Status 400 - BadRequest
+{"FraudAnalysisRequestError":["The Shipping.Complement length is greater than 14."]}
+```
+
+O hóspede preencheu o complemento como `Apto 406 bloco 1` — 16 caracteres, o
+limite é 14. A transação de 17/09 foi aprovada porque o complemento coube.
+
+A AF2 fez a coisa certa com o sintoma: a venda não é mais recusada por falha
+técnica. Esta rodada ataca a causa.
+
+### Por que a validação é preventiva
+
+Esse erro **não chega até nós**. O corpo de 400 fica entre a Braspag e a
+Cybersource; a rota só enxerga `FraudAnalysisStatus 4`, sem id, score nem
+motivo. Não há como reagir ao erro — só como evitá-lo. E evitar só o
+complemento não bastaria: o próximo a estourar pode ser o logradouro, o nome ou
+o e-mail.
+
+### De onde vem o "Shipping" que a Braspag cita
+
+Não é o bloco `Payment.FraudAnalysis.Shipping` (esse só tem `Addressee`,
+`Method` e `Phone`, e não tem complemento). É o nosso
+`Customer.DeliveryAddress`, que a Braspag traduz para o Shipping da
+Cybersource. Em `src/app/api/payments/braspag/credit/route.ts` mandamos
+`deliveryAddress: billingAddress` — o mesmo objeto —, então o complemento
+digitado no formulário chega à análise por dois caminhos. A função trata os
+dois, e os testes cobrem os dois.
+
+### Tabela de limites
+
+Fonte: <https://docs.cielo.com.br/gateway/reference/antifraude-cybersource>
+(consultada em 23/09/2026). Todos os campos abaixo passam por
+`ajustarLimitesBraspag`.
+
+| Campo enviado | Limite | Observação |
+|---|---|---|
+| `MerchantOrderId` | 50 | `draftId` + timestamp base36 = 46 |
+| `Customer.Name` | 120 | obrigatório |
+| `Customer.Identity` | 14 | obrigatório, só dígitos |
+| `Customer.Email` | 100 | obrigatório |
+| `Customer.Phone` | 15 | só dígitos |
+| `Customer.Birthdate` | 10 | não enviamos hoje |
+| `Customer.IpAddress` | 45 | ver nota abaixo |
+| `Customer.BillingAddress.Street` | 54 | obrigatório |
+| `Customer.BillingAddress.Number` | 5 | obrigatório |
+| `Customer.BillingAddress.Complement` | 14 | **o campo de 22/09** |
+| `Customer.BillingAddress.ZipCode` | 9 | obrigatório, só dígitos |
+| `Customer.BillingAddress.City` | 50 | obrigatório |
+| `Customer.BillingAddress.State` | 2 | obrigatório |
+| `Customer.BillingAddress.Country` | 2 | **exceção — ver abaixo** |
+| `Customer.BillingAddress.District` | 45 | obrigatório |
+| `Customer.DeliveryAddress.*` | idem | é o Shipping da Cybersource |
+| `Payment.FraudAnalysis.FingerPrintId` | 88 | GUID de 32, folgado |
+| `Payment.FraudAnalysis.Browser.Email` | 100 | reusa `Customer.Email` |
+| `Payment.FraudAnalysis.Browser.HostName` | 60 | header `host` |
+| `Payment.FraudAnalysis.Browser.IpAddress` | 45 | reusa `Customer.IpAddress` |
+| `Payment.FraudAnalysis.Browser.Type` | 40 | constante `"Chrome"` |
+| `Payment.FraudAnalysis.Cart.Items[].Name` | 255 | obrigatório |
+| `Payment.FraudAnalysis.Cart.Items[].Sku` | 255 | obrigatório |
+| `Payment.FraudAnalysis.Cart.Items[].Risk` | 6 | `"Normal"` = 6, no limite |
+| `Payment.FraudAnalysis.Cart.Items[].Type` | 19 | `"Default"` |
+| `Payment.FraudAnalysis.Shipping.Addressee` | 120 | padrão = `Customer.Name` |
+| `Payment.FraudAnalysis.Shipping.Method` | 8 | `"None"` |
+| `Payment.FraudAnalysis.Shipping.Phone` | 15 | padrão = `Customer.Phone` |
+| `Payment.FraudAnalysis.MerchantDefinedFields[].Value` | 255 | não enviamos hoje |
+
+Os três campos de `Browser` que reusam valores de `Customer` têm o mesmo limite
+da origem, então já chegam ajustados; não há corte próprio para eles.
+
+**`Customer.IpAddress`** não aparece na tabela da página do antifraude.
+Aplicamos 45, o mesmo de `Browser.IpAddress` — é o mesmo dado, e 45 é o
+comprimento máximo de um IPv6.
+
+### Decisões
+
+1. **Uma função pura, num ponto só.** `ajustarLimitesBraspag`, em
+   `src/lib/braspag-limites.ts`, recebe os dados e devolve uma cópia com cada
+   campo dentro do limite, mais a lista do que mudou. É chamada uma única vez,
+   no início de `createBraspagAuthorization`, ao montar o corpo. Nenhum corte
+   espalhado pelo código, e a entrada nunca é modificada.
+2. **Ordem do ajuste:** normalizar espaços (sem espaço duplo, sem espaço nas
+   pontas) → transformação específica do campo (CEP e telefone só com dígitos;
+   complemento abreviado) → cortar no limite.
+3. **Abreviações do complemento**, sem diferenciar maiúsculas e minúsculas:
+   Apartamento/Apto/Apt → `Ap` · Bloco → `Bl` · Torre → `T` · Andar → `And` ·
+   Casa → `Cs` · Sala → `Sl` · Conjunto → `Cj` · Lote → `Lt` · Quadra → `Qd`.
+   O ponto final é absorvido: `Apto.` vira `Ap`, não `Ap.`.
+   `Apto 406 bloco 1` → `Ap 406 Bl 1`, 11 de 14.
+4. **Abreviar só quando não cabe.** Um complemento que já cabe vai como o
+   hóspede digitou — encurtar dado de terceiro sem necessidade não se justifica.
+   O corte só entra depois das abreviações.
+5. **Campo obrigatório nunca fica vazio por causa do ajuste.** Se a
+   normalização zerar um valor que veio preenchido (um CEP digitado sem nenhum
+   dígito, por exemplo), volta o valor original cortado no limite.
+6. **Acentos ficam.** A documentação não exige removê-los, e a análise de risco
+   compara o nome com o do cadastro do cartão.
+7. **`Country` fica fora do corte.** A documentação diz 2 e nós enviamos
+   `"BRA"`. É constante nossa, nunca vem do hóspede, e é assim que as
+   transações aprovadas — inclusive a de 17/09 — foram aceitas. Cortar para
+   `"BR"` mudaria um campo que comprovadamente funciona, para corrigir um
+   problema que não se manifesta. Fica registrado, com teste que trava o
+   comportamento atual, para confirmar com a Braspag numa próxima rodada.
+8. **O registro do ajuste não carrega conteúdo.** `camposAjustados` traz
+   `{ campo, de, para }` — caminho do campo e tamanhos. Vai para o authlog da
+   rota de crédito (`null` quando nada mudou) e para um `console.warn`
+   `[Braspag:limites]` em `braspag.ts`. Um campo cortado é sinal de que o
+   formulário recebe mais do que a Braspag aceita; isso precisa ficar visível
+   sem expor dado do hóspede.
+
+### O que não mudou
+
+- **O formulário continua aceitando o que o hóspede digitar.** Nada de
+  `maxlength` novo nem validação que impeça a compra. O único `maxlength`
+  existente é o da UF, de antes desta rodada.
+- **O endereço vai à Braspag ajustado e a lugar nenhum mais.** Hoje o endereço
+  de cobrança não é guardado no rascunho nem enviado ao Hostaway — o Hostaway
+  recebe nome, e-mail e telefone direto do draft. Como a função é pura, nada do
+  que ela corta chega a esses caminhos, e há teste que trava isso.
+- A decisão do antifraude, o fluxo de Review, a AF2, o 3DS, o fingerprint, a
+  página de pagamento e `src/lib/cielo` seguem intactos.
+
+### Pendência
+
+- Confirmar com a Braspag se `Address.Country` deve ser `"BR"` (documentação)
+  ou `"BRA"` (o que aceitam hoje).
+
+---
+
 ## Rodada AF2 — Falha técnica do antifraude não recusa venda (set/2026)
 
 Branch `fix/antifraude-falha-tecnica`, a partir da `main`.
