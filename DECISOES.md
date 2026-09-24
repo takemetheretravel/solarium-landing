@@ -8,6 +8,100 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada SEO-1a — SEO local: Itanhandu, metadados e vocabulário (set/2026)
+
+Branch `feature/seo-local`, a partir da `main` (produção publica da `main`,
+conforme CLAUDE.md; não foi possível reconfirmar pela CLI da Vercel nesta
+rodada).
+
+A rodada SEO-1 original foi dividida antes de escrever código (passava de 8
+arquivos e a parte de imagens depende de um Supabase que ainda não existe no
+projeto):
+
+- **SEO-1a** (esta): titles/descriptions, canonical, og/twitter por página,
+  textos com Itanhandu, FAQ, vocabulário da marca, sitemap, robots, carrossel
+  acessível, `sizes` em todo `next/image`.
+- **SEO-1b**: JSON-LD (`LodgingBusiness`, `VacationRental`, `BreadcrumbList`).
+- **SEO-1c**: imagens via Supabase Storage, manifesto, `<Galeria>` sem
+  duplicação, alts, sitemap de imagens. **Espera a rodada IMG-0**, que gera os
+  manifestos e sobe as fotos.
+
+A Rodada 1 (manifesto `content/galerias/`, `<Galeria>`) **não foi mergeada**:
+existe só em `feat/galeria-cloudinary`. Nada dela foi reaproveitado aqui.
+
+### Decisões
+
+- **Um helper para todos os metadados** (`src/lib/seo.ts`):
+  `metadadosPagina()` devolve title absoluto, description, canonical e
+  og/twitter próprios. Motivo: o Next não mescla `openGraph`/`twitter` entre
+  layout e página — página que definia só title herdava og e twitter da home
+  (era o caso de todas as internas, com o texto "casas exclusivas").
+- **Canonical só nas páginas, nunca no layout.** No layout ele seria herdado
+  por todas as páginas, apontando tudo para a home. Há teste para isso.
+- **`SITE_URL` fixo em `https://www.solariummantiqueira.com`**, não mais
+  `NEXT_PUBLIC_SITE_URL`. Canonical e sitemap não podem variar por ambiente;
+  o fallback antigo era sem `www`, diferente do que produção serve.
+- **Title absoluto** nas páginas com texto fixado (evita o template do
+  layout). Template do layout mudou de `%s | Solarium Mantiqueira` para
+  `%s · Solarium Mantiqueira`. De quebra, `/pacotes` deixava de sair com a
+  marca duplicada ("Pacotes — Solarium Mantiqueira | Solarium Mantiqueira").
+- **Todos os titles e descriptions da tabela couberam** em 65/160
+  caracteres; nenhum ajuste. Descriptions de `/pacotes` e `/experiencias`
+  derivadas do conteúdo das páginas. Há teste de limite.
+- **og:image 1200x630 gerada localmente** (`scripts/gerar-og.mjs`, `sharp`,
+  recorte `attention`) a partir das fotos que o site já serve, em
+  `public/og/`: uma da home e uma por casa. Sai o `drive.google.com`. Na
+  SEO-1c a origem passa a ser `comum/og/` no Supabase.
+- **`SITE.region`** passou a ser "Bairro Jardim · Itanhandu, MG" (usado pelo
+  rodapé). O eyebrow do hero ganhou texto próprio, "Itanhandu · Serra da
+  Mantiqueira · MG".
+- **Termos proibidos fora da lista do prompt, trocados pelo mesmo
+  critério**: `/ofertas` ("cupons exclusivos", "Ofertas exclusivas"), home
+  ("Cupons exclusivos", com a flag V2 desligada), `packages.ts` ("casa
+  completa e exclusiva" → "casa completa, só para vocês"), `coupons.ts`
+  ("desconto exclusivo"), `properties.ts` ("Roupa de cama e banho premium" →
+  "Roupa de cama e banho G3 Hotelaria"; "uma experiência exclusiva" → "um
+  grupo só"). Só texto: nenhum preço, pacote ou regra de cupom mudou.
+- **Teste de marca** (`src/lib/vocabulario-marca.test.ts`): varre
+  `src/app/(site)`, `src/components`, `src/config` e `src/lib/seo.ts`, só
+  literais e texto JSX, sem acento, com `` inicial (senão "fluxo" casa com
+  "luxo"). Exceções: o array `REVIEWS` inteiro e o item de FAQ "É uma cabana
+  ou um chalé?". Um segundo caso falha se alguma exceção sumir (para a
+  liberação não ficar órfã). "unidade", que está no CLAUDE.md mas não na
+  lista desta rodada, ficou de fora: aparece nos Termos, texto jurídico.
+- **Testes em `src/lib/`, não em `tests/`**: o `vitest.config.ts` só inclui
+  `src/**/*.test.ts` e todos os testes do projeto vivem ali.
+- **`sizes` em todo `next/image`, com allowlist para a página de
+  pagamento** (`src/app/(checkout)/reservar/[draftId]/pagamento/page.tsx`),
+  por instrução explícita do Lucas: a rota não pode ser alterada (regra 2 do
+  CLAUDE.md). Ela já declara `sizes="420px"` hoje; a allowlist só a tira da
+  varredura. O teste falha se o arquivo da allowlist deixar de usar
+  `next/image`. O único `next/image` sem `sizes` era o logo do Header
+  (`sizes="200px"`).
+- **Robots**: bloqueia `/reservar` (inclui pagamento e confirmação), `/api`,
+  `/admin`, `/debug` e `/braspag-3ds-test`. A lista mora em `seo.ts`
+  (`BLOQUEADOS_ROBOTS`).
+- **Sitemap** inclui `/pacotes` e cada pacote visível só com a flag V2
+  ligada (sem ela, `/pacotes` responde 404), e revalida a cada 24h para o
+  pacote sazonal entrar e sair sem deploy. Imagens no sitemap ficam para a
+  SEO-1c.
+- **Carrossel de depoimentos**: a segunda metade (clones do loop) sai com
+  `aria-hidden="true"`.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **`DriveImage` e `src/lib/drive-image.ts` são código morto** que ainda
+   gera URL do `drive.google.com`; o `next.config.mjs` segue liberando os
+   hosts do Drive em `remotePatterns`. Remover na SEO-1c, junto do teste
+   "nenhum `drive.google.com` no bundle".
+2. **As páginas de casa já emitem um JSON-LD `LodgingBusiness`** com
+   `priceRange: "R$$"`, URL sem `www` e comodidades vindas da API do
+   Hostaway. Substituído na SEO-1b.
+3. **Galeria duplicada nas páginas de casa e alts genéricos** ("— prévia 1")
+   — SEO-1c.
+4. **`scripts/lint-copy.mjs` só olha a copy dos pacotes.** O teste novo
+   cobre o site, mas roda no `npm test`, não no build.
+
 ## Rodada AF3 — Limites de tamanho dos campos enviados ao antifraude (set/2026)
 
 Branch `fix/limites-campos-antifraude`, a partir da `main`.
