@@ -8,6 +8,54 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada SEO-1b — Dados estruturados (JSON-LD) (set/2026)
+
+Branch `feature/seo-jsonld`, a partir de `feature/seo-local` (SEO-1a), porque
+reaproveita `SITE_URL` de `src/lib/seo.ts`. Mergear depois da SEO-1a.
+
+### Decisões
+
+- **Construtores puros em `src/lib/json-ld.ts` e um único emissor,
+  `<JsonLd>`** (`src/components/seo/JsonLd.tsx`). O `<` é escapado como
+  `<`: texto com `</script>` não fecha a tag. Há teste que falha se
+  outro arquivo emitir `application/ld+json`.
+- **Home: `LodgingBusiness`** com `@id` `https://www.solariummantiqueira.com/#negocio`,
+  endereço, `geo` (-22.29, -44.94), `priceRange` "R$ 1.150+",
+  `petsAllowed`, as quatro comodidades, `checkinTime`/`checkoutTime` (15:00 e
+  11:00, do FAQ) e `containsPlace` com as três casas.
+- **Casas: `VacationRental` com a acomodação em `containsPlace`
+  (`Accommodation`)**, como no guia do Google para aluguel por temporada:
+  `occupancy`, `numberOfBedrooms` e `amenityFeature` são propriedades de
+  `Accommodation`, não do negócio. O prompt listava esses campos no nível de
+  cima; assim o dado fica válido no schema.org. `identifier` é o id do listing
+  no Hostaway. `containedInPlace` aponta para o `@id` do negócio.
+- **`numberOfBedrooms` vem do Hostaway (`bedroomsNumber`)**, que a página já
+  consulta. Sem o dado (build sem credencial, API fora), o campo é omitido,
+  nunca inventado. O config das casas não tem número de quartos.
+- **Comodidades das casas vêm de `amenitiesFallback`** (curadas no config),
+  não da API do Hostaway: o texto da API não passa pelo vocabulário da marca.
+  O Completo soma as duas casas.
+- **Imagens**: as casas usam a galeria atual em URL absoluta (10 no Solarium 1,
+  10 no Solarium 2, 15 no Completo). A home usa três fotos locais. **Trocar
+  pela origem Supabase na SEO-1c.**
+- **`sameAs` sem o Booking**: não há link do Booking no repositório nem no
+  site. Entra quando o Lucas informar a URL.
+- **Breadcrumb**: casas (Início > Casa), `/pacotes` (Início > Pacotes) e cada
+  pacote (Início > Pacotes > Pacote). Com a flag V2 desligada `/pacotes`
+  responde 404, então a migalha do pacote pula direto de Início para ele.
+- **Sem `aggregateRating` nem `review`** em nenhum nível, com teste.
+- **O `LodgingBusiness` antigo das páginas de casa foi removido** (achado 2 da
+  SEO-1a): `priceRange` "R$$", URL sem `www`, comodidades da API.
+- **`vitest.config.ts` passa a usar o runtime automático de JSX**
+  (`esbuild.jsx: "automatic"`), o mesmo do Next, para o teste renderizar o
+  componente com `react-dom/server` e parsear o JSON como sai na página. Não
+  afeta o build.
+
+### Pendências
+
+- Validar em produção, depois do merge, no Teste de Pesquisa Aprimorada do
+  Google e no validator.schema.org (não dá para testar localhost).
+
 ## Rodada SEO-1a — SEO local: Itanhandu, metadados e vocabulário (set/2026)
 
 Branch `feature/seo-local`, a partir da `main` (produção publica da `main`,
