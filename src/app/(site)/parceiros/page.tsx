@@ -6,12 +6,14 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import { PARTNERS, instagramLink } from "@/config/site";
+import { metadadosPagina } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Parceiros",
+export const metadata: Metadata = metadadosPagina({
+  caminho: "/parceiros",
+  title: "Parceiros · Solarium Mantiqueira",
   description:
     "Os parceiros que tornam o Solarium Mantiqueira possível: gestão, paisagismo, conforto, hotelaria, mobiliário e tecnologia.",
-};
+});
 
 function partnerWhatsappLink(p: typeof PARTNERS[number]) {
   if (!p.whatsapp || !p.whatsappMessage) return null;

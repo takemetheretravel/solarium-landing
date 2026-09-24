@@ -4,12 +4,14 @@ import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import { SITE } from "@/config/site";
+import { metadadosPagina } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Política de Privacidade",
+export const metadata: Metadata = metadadosPagina({
+  caminho: "/privacidade",
+  title: "Política de privacidade · Solarium Mantiqueira",
   description:
     "Como o Solarium Mantiqueira coleta, armazena, usa e compartilha seus dados pessoais — em conformidade com a LGPD.",
-};
+});
 
 export const revalidate = 86400;
 

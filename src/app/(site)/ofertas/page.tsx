@@ -7,12 +7,14 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import { COUPONS } from "@/config/coupons";
 import { SITE, whatsappLink } from "@/config/site";
+import { metadadosPagina } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Ofertas e Cupons",
+export const metadata: Metadata = metadadosPagina({
+  caminho: "/ofertas",
+  title: "Ofertas e cupons · Solarium Mantiqueira",
   description:
-    "Cupons de desconto exclusivos para reservas diretas no Solarium Mantiqueira. Economize na sua próxima estadia na Serra da Mantiqueira.",
-};
+    "Cupons de desconto para reservas diretas no Solarium Mantiqueira. Economize na sua próxima estadia em Itanhandu, na Serra da Mantiqueira.",
+});
 
 export default function OfertasPage() {
   const publicCoupons = COUPONS.filter((c) => c.isPublic);
@@ -25,7 +27,7 @@ export default function OfertasPage() {
             Reservas diretas
           </Kicker>
           <Heading level={1} className="text-cream">
-            Ofertas exclusivas.
+            Ofertas da reserva direta.
           </Heading>
           <p className="mt-6 font-sans text-base leading-relaxed text-cream/75">
             Quanto mais tempo conosco, melhor o preço da sua estadia.

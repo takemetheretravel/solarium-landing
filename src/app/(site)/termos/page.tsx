@@ -4,12 +4,13 @@ import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import { SITE } from "@/config/site";
+import { metadadosPagina } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Termos e Condições",
+export const metadata: Metadata = metadadosPagina({
+  caminho: "/termos",
+  title: "Termos e condições · Solarium Mantiqueira",
   description: "Termos e condições de hospedagem do Solarium Mantiqueira.",
-  robots: { index: true, follow: true },
-};
+});
 
 export const revalidate = 86400;
 
