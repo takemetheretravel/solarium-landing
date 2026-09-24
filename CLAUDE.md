@@ -89,6 +89,16 @@ tráfego real.
   `PAYMENT_PROVIDER`, `ADMIN_API_TOKEN`,
   `ANTIFRAUDE_REVIEW_ENABLED`, `EMAIL_REMETENTE_HOSPEDE`.
   Valores nunca neste arquivo.
+- **Todo campo de texto enviado à Braspag passa pela função de ajuste de
+  limites** — `ajustarLimitesBraspag`, em `src/lib/braspag-limites.ts`,
+  chamada num ponto só, no início de `createBraspagAuthorization`. Campo acima
+  do tamanho documentado faz a análise de risco responder 400 e a transação
+  voltar `Aborted`, sem motivo legível do nosso lado (foi a causa dos dois
+  casos de 22/09: `Complement` com 16 onde cabem 14). Ao acrescentar um campo
+  ao corpo, adicione o limite em `LIMITES_BRASPAG`, passe o campo pela função
+  e registre na tabela do `DECISOES.md` — há teste que falha se um campo entrar
+  na tabela sem caso de limite. A função é pura: o ajuste vale só para o que
+  vai à Braspag, nunca para o rascunho nem para o Hostaway.
 
 ### Antifraude Cybersource — fluxo de Review (implementado)
 

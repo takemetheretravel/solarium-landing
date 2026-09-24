@@ -1,5 +1,7 @@
 // Cliente Braspag (gateway de pagamento) — em paralelo à Cielo, atrás de feature flag.
 // Credenciais vêm SEMPRE de env vars; nunca hardcode (repo é público).
+import { ajustarLimitesBraspag, type CampoAjustado } from "./braspag-limites";
+
 const ENV = process.env.BRASPAG_ENVIRONMENT === "production" ? "production" : "sandbox";
 
 export const BRASPAG_URLS = {
@@ -191,6 +193,9 @@ export type BraspagTransactionResult = {
   // Corpo CRU do erro da Braspag quando a resposta NÃO foi 2xx (ex.: array
   // [{Code, Message}] de credencial inválida). Sem truncar. undefined em sucesso.
   errorBody?: unknown;
+  // AF3: campos que precisaram ser encurtados para caber no limite da Braspag.
+  // Só nome do campo e tamanhos — nunca o conteúdo. Vazio quando nada mudou.
+  camposAjustados?: CampoAjustado[];
   raw: unknown;
 };
 
@@ -487,14 +492,25 @@ export async function createBraspagAuthorization(params: {
   };
   fraud?: BraspagFraudParams;
 }): Promise<BraspagTransactionResult> {
-  const f = params.fraud;
+  // AF3 — PONTO ÚNICO de ajuste de tamanho. Todo campo de texto que vai à
+  // Braspag passa por aqui antes de virar corpo da requisição; nada de cortes
+  // espalhados pelo código. Um campo acima do limite faz a análise de risco
+  // responder 400 e a transação voltar Aborted, sem motivo legível.
+  // Nada disso altera o rascunho nem o que vai ao Hostaway: a função é pura.
+  const { dados: limitado, ajustes: camposAjustados } = ajustarLimitesBraspag({
+    orderId: params.orderId,
+    customer: params.customer,
+    fraud: params.fraud,
+  });
+  const cliente = limitado.customer;
+  const f = limitado.fraud;
 
   const Customer: Record<string, unknown> = {
-    Name: params.customer.name,
-    Identity: params.customer.identity,
+    Name: cliente.name,
+    Identity: cliente.identity,
     IdentityType: "CPF",
-    Email: params.customer.email,
-    IpAddress: params.customer.ipAddress,
+    Email: cliente.email,
+    IpAddress: cliente.ipAddress,
   };
   // Campos exigidos pela análise antifraude (endereço completo, telefone etc.).
   if (f) {
@@ -502,10 +518,12 @@ export async function createBraspagAuthorization(params: {
     // Antifraude Gateway standalone. No Pagador, o fingerprint vai em
     // Payment.FraudAnalysis.FingerPrintId (o eco de Customer.BrowserFingerprint
     // vinha null e a Cybersource acusava "Device Fingerprint: Not Submitted").
-    if (params.customer.phone) Customer.Phone = params.customer.phone;
-    if (params.customer.birthdate) Customer.Birthdate = params.customer.birthdate;
-    if (params.customer.billingAddress) Customer.BillingAddress = params.customer.billingAddress;
-    if (params.customer.deliveryAddress) Customer.DeliveryAddress = params.customer.deliveryAddress;
+    if (cliente.phone) Customer.Phone = cliente.phone;
+    if (cliente.birthdate) Customer.Birthdate = cliente.birthdate;
+    if (cliente.billingAddress) Customer.BillingAddress = cliente.billingAddress;
+    // A Cybersource lê o Shipping a partir daqui — é o DeliveryAddress.Complement
+    // que estourou 14 em 22/09.
+    if (cliente.deliveryAddress) Customer.DeliveryAddress = cliente.deliveryAddress;
   }
 
   const cardProvider = getCardProvider();
@@ -558,10 +576,12 @@ export async function createBraspagAuthorization(params: {
       Browser: {
         // Contrato do Pagador: Browser NÃO tem BrowserFingerprint (o exemplo
         // oficial traz só estes campos; Type = navegador, ex. "Chrome").
+        // Email e IpAddress reusam os valores de Customer já ajustados (mesmos
+        // limites: 100 e 45); Type é constante, 6 de 40.
         CookiesAccepted: false,
-        Email: params.customer.email,
+        Email: cliente.email,
         HostName: f.hostName || "",
-        IpAddress: params.customer.ipAddress,
+        IpAddress: cliente.ipAddress,
         Type: "Chrome",
       },
       Cart: {
@@ -580,16 +600,27 @@ export async function createBraspagAuthorization(params: {
       ...(f.shipping
         ? {
             Shipping: {
-              Addressee: f.shipping.addressee || params.customer.name,
+              // Os padrões vêm de Customer, já ajustado nos mesmos limites
+              // (Addressee 120 = Name 120; Phone 15 = Phone 15).
+              Addressee: f.shipping.addressee || cliente.name,
               Method: f.shipping.method || "None",
-              Phone: f.shipping.phone || params.customer.phone || "",
+              Phone: f.shipping.phone || cliente.phone || "",
             },
           }
         : {}),
     };
   }
 
-  const body = { MerchantOrderId: params.orderId, Customer, Payment };
+  const body = { MerchantOrderId: limitado.orderId, Customer, Payment };
+
+  // Um campo encurtado é sinal de que o formulário está recebendo mais do que a
+  // Braspag aceita. Registrar nome e tamanho ajuda a decidir se vale ajustar o
+  // campo na origem — sem nunca escrever o conteúdo, que é dado do hóspede.
+  if (camposAjustados.length) {
+    console.warn(
+      "[Braspag:limites] " + JSON.stringify({ merchantOrderId: limitado.orderId, camposAjustados }),
+    );
+  }
 
   // Avisa (sem bloquear) se as credenciais parecem mal configuradas — isso
   // explica um 400 com corpo de credencial inválida.
@@ -626,7 +657,7 @@ export async function createBraspagAuthorization(params: {
         merchantId: maskIfSecretLike(process.env.BRASPAG_MERCHANT_ID || ""),
         providerUsed: cardProvider,
         httpStatus: res.status,
-        merchantOrderId: params.orderId,
+        merchantOrderId: limitado.orderId,
         cardBin: cardDigits.slice(0, 6),
         cardLast4: cardDigits.slice(-4),
         PaymentId: payment.PaymentId ?? null,
@@ -643,11 +674,13 @@ export async function createBraspagAuthorization(params: {
         FraudAnalysisReasonCode: fa.FraudAnalysisReasonCode ?? null,
         FraudScore: replyData.Score ?? null,
         errorBody: errorBody ?? null,
+        camposAjustados,
       }),
   );
   return {
     status: res.status,
     providerUsed: cardProvider,
+    camposAjustados,
     paymentId: payment.PaymentId as string | undefined,
     returnCode: payment.ReturnCode as string | undefined,
     returnMessage: payment.ReturnMessage as string | undefined,

@@ -464,6 +464,9 @@ export async function POST(req: Request) {
         FraudScore: auth.fraudScore ?? null,
         // Corpo cru do erro da Braspag quando não-2xx (ex.: [{Code,Message}]).
         errorBody: auth.errorBody ?? null,
+        // AF3: campos encurtados para caber no limite da Braspag. Só nome do
+        // campo e tamanhos — nenhum dado pessoal. null quando nada foi ajustado.
+        camposAjustados: auth.camposAjustados?.length ? auth.camposAjustados : null,
       };
       console.log("[Braspag:authorize-result] " + JSON.stringify(authResultLog));
       await pushAuthLog(authResultLog);
