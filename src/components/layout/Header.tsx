@@ -68,6 +68,7 @@ export default function Header() {
             alt="Solarium Mantiqueira"
             width={200}
             height={56}
+            sizes="200px"
             priority
             className="h-10 w-auto object-contain md:h-12"
           />

@@ -20,6 +20,9 @@ export default function ReviewsMarquee({ reviews }: { reviews: Review[] }) {
         {loop.map((r, i) => (
           <article
             key={`${r.id}-${i}`}
+            // A segunda metade são clones para o loop contínuo: leitor de tela
+            // lê cada depoimento uma vez só.
+            aria-hidden={i >= reviews.length ? true : undefined}
             className="flex w-[320px] flex-shrink-0 flex-col bg-cream p-8 shadow-sm shadow-charcoal/5 sm:w-[380px]"
           >
             <Quote className="h-6 w-6 text-copper" strokeWidth={1.5} />
