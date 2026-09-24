@@ -20,6 +20,8 @@ import { REVIEWS, SITE, AIRBNB_LINKS, whatsappLink } from "@/config/site";
 import { getListing } from "@/lib/hostaway";
 import TrackViewContent from "@/components/tracking/TrackViewContent";
 import { metadadosDe, OG_IMAGENS } from "@/lib/seo";
+import JsonLd from "@/components/seo/JsonLd";
+import { jsonLdCasa, jsonLdBreadcrumb, MIGALHA_INICIO } from "@/lib/json-ld";
 
 export const revalidate = 300;
 
@@ -57,27 +59,6 @@ export default async function PropertyPage({
   const isCompleto = property.slug === "solarium-completo";
 
   const airbnbUrl = AIRBNB_LINKS[property.slug] || "";
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "LodgingBusiness",
-    name: `${property.name} — Solarium Mantiqueira`,
-    description: property.description.slice(0, 300),
-    url: `${process.env.NEXT_PUBLIC_SITE_URL || "https://solariummantiqueira.com"}/${property.slug}`,
-    image: property.heroImage,
-    address: {
-      "@type": "PostalAddress",
-      addressLocality: "Itanhandu",
-      addressRegion: "MG",
-      addressCountry: "BR",
-    },
-    priceRange: "R$$",
-    telephone: `+${SITE.whatsappNumber}`,
-    amenityFeature: fullAmenities.slice(0, 20).map((name) => ({
-      "@type": "LocationFeatureSpecification",
-      name,
-      value: true,
-    })),
-  };
 
   return (
     <main>
@@ -86,9 +67,9 @@ export default async function PropertyPage({
         propertyName={property.name}
         fromPriceNightly={property.fromPriceNightly}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      <JsonLd dados={jsonLdCasa(property, listing?.bedroomsNumber)} />
+      <JsonLd
+        dados={jsonLdBreadcrumb([MIGALHA_INICIO, { nome: property.name, caminho: `/${property.slug}` }])}
       />
 
       {/* HERO — full width, fora do grid de 2 colunas */}

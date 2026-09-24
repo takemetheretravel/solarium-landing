@@ -15,6 +15,8 @@ import { pacotesVisiveis } from "@/lib/pricing/elegibilidade";
 import { totalMinimoDoPacote } from "@/lib/pricing/pacote-server";
 import { getPropertyBySlug } from "@/config/properties";
 import { metadadosDe } from "@/lib/seo";
+import JsonLd from "@/components/seo/JsonLd";
+import { jsonLdBreadcrumb, MIGALHA_INICIO, MIGALHA_PACOTES } from "@/lib/json-ld";
 
 export const revalidate = 300;
 
@@ -49,6 +51,7 @@ export default async function PaginaPacotes() {
 
   return (
     <main>
+      <JsonLd dados={jsonLdBreadcrumb([MIGALHA_INICIO, MIGALHA_PACOTES])} />
       <Section className="pt-32">
         <Container>
           <div className="mb-16 max-w-2xl">

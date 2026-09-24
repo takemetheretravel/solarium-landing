@@ -11,6 +11,8 @@ import { pacotesV2Ativo } from "@/config/flags";
 import { vistaPacote, slugsDePacote, textoNoites } from "@/lib/pricing/vista-pacote";
 import { JANELA_CANCELAMENTO_EXTRAS_DIAS } from "@/config/precos-e-extras";
 import { metadadosPagina } from "@/lib/seo";
+import JsonLd from "@/components/seo/JsonLd";
+import { jsonLdBreadcrumb, MIGALHA_INICIO, MIGALHA_PACOTES } from "@/lib/json-ld";
 
 export const revalidate = 300;
 
@@ -68,6 +70,14 @@ export default function PackagePage({
 
   return (
     <main>
+      {/* /pacotes só existe com a V2; sem ela a migalha pula direto para o pacote. */}
+      <JsonLd
+        dados={jsonLdBreadcrumb([
+          MIGALHA_INICIO,
+          ...(v2Ativo ? [MIGALHA_PACOTES] : []),
+          { nome: vista.nome, caminho: `/pacotes/${vista.slug}` },
+        ])}
+      />
       {/* HERO */}
       <section className="relative h-[70vh] min-h-[480px] w-full overflow-hidden">
         <SmartImage src={vista.imagem} alt={vista.nome} priority sizes="100vw" />
