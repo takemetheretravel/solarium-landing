@@ -50,7 +50,7 @@ export const PACKAGES: PackageConfig[] = [
     stayDiscountPct: 12,
     extras: [{ label: "Cesta de café da manhã Café Café (casal)", price: 180, perNight: true }],
     included: [
-      "3 noites em casa completa e exclusiva",
+      "3 noites em casa completa, só para vocês",
       "Cesta de café da manhã Café Café nas 3 manhãs (para o casal)",
       "Concierge para personalizar a estadia",
     ],
@@ -70,7 +70,7 @@ export const PACKAGES: PackageConfig[] = [
       { label: "Passeio de quadriciclo — Cachoeira da Gomeira (~2h)", price: 300 },
     ],
     included: [
-      "4 noites em casa completa e exclusiva",
+      "4 noites em casa completa, só para vocês",
       "Cesta de café da manhã nas 4 manhãs (para o casal)",
       "Passeio de quadriciclo até a Cachoeira da Gomeira",
       "Concierge para personalizar a estadia",
@@ -99,7 +99,7 @@ export const PACKAGES: PackageConfig[] = [
       { label: "Espumante Chandon Reserve Brut", price: 140, removable: true },
     ],
     included: [
-      "2 noites em casa completa e exclusiva",
+      "2 noites em casa completa, só para vocês",
       "Decoração romântica na chegada: coração de pétalas, velas eletrônicas, buquê de rosas e balões de coração",
       "Cesta de café da manhã à sua escolha: Di.Luia ou Dani Queijos e Frios",
       "Espumante Chandon gelado na chegada",

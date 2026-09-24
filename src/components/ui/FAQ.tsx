@@ -4,6 +4,16 @@ export type FAQItem = { q: string; a: string };
 
 export const FAQ_ITEMS: FAQItem[] = [
   {
+    q: "Onde fica o Solarium Mantiqueira?",
+    a: "No bairro Jardim, em Itanhandu, Sul de Minas, na Serra da Mantiqueira. Os últimos 3,5 km são de estrada de terra bem conservada, e o ponto exato de acesso vai com o manual da casa depois da reserva.",
+  },
+  {
+    // Único texto do site que cita "chalé": responde a quem chega pela busca.
+    // Liberado no teste de marca (vocabulario-marca.test.ts).
+    q: "É uma cabana ou um chalé?",
+    a: "Muita gente chega procurando cabana ou chalé em Itanhandu. O Solarium são duas casas completas, cada uma entregue a um grupo só, com SPA aquecido, piso aquecido e vista para a serra.",
+  },
+  {
     q: "Posso levar meu pet?",
     a: "Pode sim e ficamos felizes com isso! Os pets que se hospedam aqui costumam aproveitar muito — área aberta, ar puro, e total liberdade dentro da propriedade. Pedimos apenas que você nos avise no momento da reserva (quantidade e porte) e siga regras simples de convivência: pets fora dos sofás e camas, e supervisão em áreas comuns. Lembrete importante: enxoval manchado ou estofados danificados podem gerar taxa adicional, então uma toalha ou capa extra para o seu pet pode ser uma boa ideia.",
   },
