@@ -27,7 +27,7 @@ import {
   descricaoDoNomeOriginal,
   nomeFinal,
 } from "./galerias/nomes";
-import type { Estacao, Grupo, ItemGaleria } from "../src/lib/galerias/manifesto";
+import { podeSerVitrine, type Estacao, type Grupo, type ItemGaleria } from "../src/lib/galerias/manifesto";
 
 const RAIZ = path.resolve(__dirname, "..");
 const SAIDA = path.join(RAIZ, "galerias-processadas");
@@ -61,6 +61,8 @@ type Curadoria = {
   motivoExclusao?: string;
   gmb?: boolean;
   gmbCapa?: boolean;
+  marcaDagua?: boolean;
+  telaComConteudo?: boolean;
 };
 
 type Fonte = {
@@ -356,11 +358,13 @@ async function main() {
 
   // Ordem, nome e dimensões finais por grupo.
   const finais: Registro[] = [];
+  const usados = new Set<string>();
   for (const grupo of ["solarium-1", "solarium-2", "completo", "experiencias", "comum"] as Grupo[]) {
     for (const r of ordenar(regs.filter((x) => x.grupo === grupo))) {
       const ext = r.ehLogo ? "png" : "jpg";
       const descricao = r.cur.descricao ?? descricaoDoNomeOriginal(path.basename(r.fonte.origem));
-      const arquivo = `${pastaDestino(r)}/${nomeFinal(r.ordem!, descricao, ext)}`;
+      const pasta = pastaDestino(r);
+      const arquivo = `${pasta}/${nomeFinal(pasta, descricao, ext, usados)}`;
       const cache = path.join(CACHE, `${r.sha}.${ext}`);
       const destino = path.join(SAIDA, arquivo);
       fs.mkdirSync(path.dirname(destino), { recursive: true });
@@ -373,6 +377,7 @@ async function main() {
   // Manifestos.
   fs.mkdirSync(DIR_MANIFESTOS, { recursive: true });
   const manifestos: Record<string, ItemGaleria[]> = {};
+  const vitrine = new Map<string, boolean>();
   for (const r of finais) {
     const baixa = Math.max(r.larguraOriginal, r.alturaOriginal) < LIMITE_BAIXA_RESOLUCAO;
     const excluir = r.cur.excluirDoSite ?? false;
@@ -383,13 +388,20 @@ async function main() {
       alt: r.cur.alt ?? altProvisorio(r),
       ambiente: r.ambiente,
       estacao: r.cur.estacao ?? "neutra",
-      destaque: (r.cur.destaque ?? false) && !baixa && !excluir,
+      destaque: r.cur.destaque ?? false,
       ordem: r.ordem!,
       tambemEm: r.tambemEm,
       baixaResolucao: baixa,
       excluirDoSite: excluir,
       creditoPendente: r.grupo === "experiencias",
+      marcaDagua: r.cur.marcaDagua ?? false,
+      telaComConteudo: r.cur.telaComConteudo ?? false,
     };
+    // Curadoria que pede capa ou Google para foto que não pode ser vitrine é
+    // erro de curadoria: falha alto em vez de corrigir em silêncio.
+    vitrine.set(r.sha, podeSerVitrine(item));
+    if (item.destaque && !vitrine.get(r.sha)) throw new Error(`Capa inválida: ${item.arquivo}`);
+    if (r.cur.gmb && !vitrine.get(r.sha)) throw new Error(`Foto do Google inválida: ${item.arquivo}`);
     (manifestos[r.grupo] ??= []).push(item);
   }
   for (const [grupo, itens] of Object.entries(manifestos)) {
@@ -457,6 +469,8 @@ function escreverRelatorio(
   L(`- Convertidos de HEIC/PNG para JPG: **${conv.length}**`);
   L(`- Baixa resolução (lado maior < ${LIMITE_BAIXA_RESOLUCAO}px no original): **${itens.filter((i) => i.baixaResolucao).length}**`);
   L(`- Excluídos do site: **${itens.filter((i) => i.excluirDoSite).length}**`);
+  L(`- Com marca d'água "T": **${itens.filter((i) => i.marcaDagua).length}**`);
+  L(`- Com tela mostrando conteúdo: **${itens.filter((i) => i.telaComConteudo).length}**`);
   L();
 
   L("## Fotos por casa e por ambiente");
@@ -503,6 +517,20 @@ function escreverRelatorio(
   for (const r of finais.filter((x) => x.cur.excluirDoSite)) {
     L(`- \`${r.arquivo}\` — ${r.cur.motivoExclusao ?? "sem motivo registrado"}`);
   }
+  L();
+
+  L("## Marca d'água \"T\"");
+  L();
+  L("Ficam na galeria; nunca capa, mosaico ou Google.");
+  L();
+  for (const i of itens.filter((x) => x.marcaDagua)) L(`- \`${i.arquivo}\``);
+  L();
+
+  L("## Tela com conteúdo (Netflix ou outra interface)");
+  L();
+  L("Mesmas restrições da marca d'água, e no fim do próprio ambiente.");
+  L();
+  for (const i of itens.filter((x) => x.telaComConteudo)) L(`- \`${i.arquivo}\``);
   L();
 
   L("## Capas");

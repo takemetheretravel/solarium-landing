@@ -26,7 +26,16 @@ export type ItemGaleria = {
   baixaResolucao: boolean;
   excluirDoSite: boolean;
   creditoPendente: boolean;
+  /** Marca d'água "T" no canto: pode ir para a galeria, nunca para capa, mosaico ou Google. */
+  marcaDagua: boolean;
+  /** TV/tela mostrando Netflix ou outra interface: mesmas restrições, e no fim do ambiente. */
+  telaComConteudo: boolean;
 };
+
+/** Pode ser capa, entrar no mosaico e ir para o Perfil da Empresa no Google. */
+export function podeSerVitrine(i: ItemGaleria): boolean {
+  return !i.excluirDoSite && !i.baixaResolucao && !i.marcaDagua && !i.telaComConteudo;
+}
 
 const CAMPOS: (keyof ItemGaleria)[] = [
   "arquivo",
@@ -41,6 +50,8 @@ const CAMPOS: (keyof ItemGaleria)[] = [
   "baixaResolucao",
   "excluirDoSite",
   "creditoPendente",
+  "marcaDagua",
+  "telaComConteudo",
 ];
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -74,7 +85,7 @@ export function validarManifesto(grupo: Grupo, itens: unknown): string[] {
       const nome = partes[partes.length - 1];
       if (partes[0] !== (grupo === "comum" ? "comum" : grupo)) erros.push(`${onde}: fora da pasta ${grupo}`);
       if (!partes.slice(0, -1).every((p) => SLUG.test(p))) erros.push(`${onde}: pasta fora do padrão (${arq})`);
-      if (!/^\d{2,3}-[a-z0-9]+(-[a-z0-9]+)*\.(jpg|png)$/.test(nome)) erros.push(`${onde}: nome fora do padrão (${nome})`);
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*\.(jpg|png)$/.test(nome)) erros.push(`${onde}: nome fora do padrão (${nome})`);
       if (vistos.has(arq)) erros.push(`${onde}: arquivo repetido (${arq})`);
       vistos.add(arq);
     }
@@ -90,14 +101,14 @@ export function validarManifesto(grupo: Grupo, itens: unknown): string[] {
     if (typeof it.alt !== "string" || !it.alt.trim()) erros.push(`${onde}: alt vazio`);
     if (typeof it.ambiente !== "string" || !SLUG.test(it.ambiente)) erros.push(`${onde}: ambiente`);
     if (!ESTACOES.includes(it.estacao as Estacao)) erros.push(`${onde}: estacao`);
-    for (const b of ["destaque", "baixaResolucao", "excluirDoSite", "creditoPendente"] as const) {
+    for (const b of ["destaque", "baixaResolucao", "excluirDoSite", "creditoPendente", "marcaDagua", "telaComConteudo"] as const) {
       if (typeof it[b] !== "boolean") erros.push(`${onde}: ${b} não é booleano`);
     }
     if (!Array.isArray(it.tambemEm) || !it.tambemEm.every((t) => typeof t === "string" && SLUG.test(t))) {
       erros.push(`${onde}: tambemEm`);
     }
-    if (it.destaque === true && (it.baixaResolucao === true || it.excluirDoSite === true)) {
-      erros.push(`${onde}: destaque não pode ser baixa resolução nem excluída`);
+    if (it.destaque === true && !podeSerVitrine(it as ItemGaleria)) {
+      erros.push(`${onde}: destaque não pode ser baixa resolução, excluída, com marca d'água ou tela com conteúdo`);
     }
   });
 

@@ -80,10 +80,20 @@ export function descricaoDoNomeOriginal(nomeArquivo: string): string {
   return slug(semNomes) || "foto";
 }
 
-/** `{nn}-{descricao}.{ext}`, com `nn` de 2 dígitos (3 acima de 99). */
-export function nomeFinal(ordem: number, descricao: string, ext: "jpg" | "png"): string {
-  const nn = String(ordem).padStart(ordem > 99 ? 3 : 2, "0");
-  return `${nn}-${slug(descricao)}.${ext}`;
+/**
+ * Nome estável: só o slug da descrição. A ordem mora no campo `ordem` do
+ * manifesto — mudar a ordem não muda o caminho no bucket. Colisão na mesma
+ * pasta ganha `-2`, `-3`… (`usados` guarda os caminhos já atribuídos).
+ */
+export function nomeFinal(pasta: string, descricao: string, ext: "jpg" | "png", usados: Set<string>): string {
+  const base = slug(descricao) || "foto";
+  for (let n = 1; ; n++) {
+    const nome = `${n === 1 ? base : `${base}-${n}`}.${ext}`;
+    if (!usados.has(`${pasta}/${nome}`)) {
+      usados.add(`${pasta}/${nome}`);
+      return nome;
+    }
+  }
 }
 
 /** Nome de pessoa em qualquer segmento do caminho. */
