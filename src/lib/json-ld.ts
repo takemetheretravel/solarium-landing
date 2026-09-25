@@ -1,5 +1,6 @@
 import type { PropertyConfig } from "@/config/properties";
-import { PROPERTIES, SOLARIUM_COMPLETO_GALLERY_GROUPS } from "@/config/properties";
+import { PROPERTIES } from "@/config/properties";
+import { montarGaleriaDaCasa, podeSerVitrine, urlGaleria } from "@/lib/galerias";
 import { AIRBNB_LINKS, HERO_IMAGE, SITE } from "@/config/site";
 import { SITE_URL, NOME_SITE } from "@/lib/seo";
 
@@ -84,11 +85,18 @@ export function jsonLdNegocio(): JsonLdObjeto {
   };
 }
 
-/** Fotos da casa, sem repetir. O Completo soma a própria galeria às das duas casas. */
+/** No máximo tantas fotos por casa no JSON-LD (o Google pede 8 ou mais). */
+const MAX_IMAGENS_CASA = 20;
+
+/**
+ * Fotos da casa vindas do manifesto: a capa e as seguintes que podem ser
+ * vitrine (sem marca d'água, tela com conteúdo ou baixa resolução — IMG-0).
+ * O Completo soma o conjunto às duas casas.
+ */
 function imagensDaCasa(casa: PropertyConfig): string[] {
-  const extras =
-    casa.slug === "solarium-completo" ? SOLARIUM_COMPLETO_GALLERY_GROUPS.flatMap((g) => g.images) : [];
-  return semRepetir([casa.heroImage, ...casa.galleryImages, ...extras]).map(absoluta);
+  const { hero, todas } = montarGaleriaDaCasa(casa.slug);
+  const vitrines = [hero, ...todas.filter(podeSerVitrine)].map((i) => i.arquivo);
+  return semRepetir(vitrines).slice(0, MAX_IMAGENS_CASA).map(urlGaleria);
 }
 
 /** Comodidades do config (curadas), não da API do Hostaway. O Completo herda as duas casas. */
