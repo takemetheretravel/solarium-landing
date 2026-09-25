@@ -12,5 +12,7 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
+    // URL de exemplo: os testes nunca dependem do projeto real do Supabase.
+    env: { NEXT_PUBLIC_SUPABASE_URL: "https://exemplo.supabase.co" },
   },
 });

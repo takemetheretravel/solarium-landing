@@ -1,7 +1,21 @@
+// Fotos do site: bucket público `galerias` do Supabase Storage (IMG-0/IMG-1).
+// Sem a variável o build falha aqui, com mensagem clara, em vez de publicar um
+// site com todas as fotos quebradas.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+if (!SUPABASE_URL) {
+  throw new Error("NEXT_PUBLIC_SUPABASE_URL não definida: cadastre na Vercel (Production e Preview) e no .env.local.");
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
+      {
+        protocol: "https",
+        hostname: new URL(SUPABASE_URL).hostname,
+        pathname: "/storage/v1/object/public/galerias/**",
+      },
       { protocol: "https", hostname: "drive.google.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "lh4.googleusercontent.com" },
