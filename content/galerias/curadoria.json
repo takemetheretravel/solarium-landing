@@ -48,7 +48,8 @@
     "descricao": "piso-aquecido-e-spa-vistos-do-quarto",
     "alt": "Piso aquecido e luminária ao lado do SPA interno, com assistente de voz na mesinha",
     "estacao": "neutra",
-    "ordem": 19
+    "ordem": 19,
+    "marcaDagua": true
   },
   "0c711071ce2782c175c9668707f46cd48a2c315124200f05ed1454e37402290f": {
     "descricao": "jantar-no-deck",
@@ -85,7 +86,7 @@
     "descricao": "pufe-diante-do-telao",
     "alt": "Hóspede sentado no pufe diante do telão e da churrasqueira no deck coberto",
     "estacao": "neutra",
-    "ordem": 19
+    "ordem": 17
   },
   "1219cd1294c3a4b7cf5203a81ab2186cccc5f91cc1ca97f85ccc8a385abadf02": {
     "descricao": "fogao-e-forno-com-janela",
@@ -103,7 +104,8 @@
     "descricao": "cinema-no-deck-ao-por-do-sol",
     "alt": "Telão do cinema externo aberto para o deck, com o vale ao pôr do sol",
     "estacao": "seca",
-    "ordem": 16
+    "ordem": 18,
+    "telaComConteudo": true
   },
   "144d40824eee516037e2a53ef996d82e77750c9674e5668a3ab99f80221f256f": {
     "descricao": "borda-do-spa-e-colinas-douradas",
@@ -130,7 +132,8 @@
     "estacao": "neutra",
     "ordem": 53,
     "excluirDoSite": true,
-    "motivoExclusao": "foto desfocada"
+    "motivoExclusao": "foto desfocada",
+    "telaComConteudo": true
   },
   "24fd17c1fd3507457e794b82a5f7301dd82e25c327d34fe43ce487261b8e9f60": {
     "descricao": "nevoa-no-vale-e-rede",
@@ -148,7 +151,7 @@
     "descricao": "cinema-aberto-com-neblina",
     "alt": "Telão visto da cama com o deck e a neblina envolvendo a serra lá fora",
     "estacao": "neutra",
-    "ordem": 17,
+    "ordem": 16,
     "gmb": true
   },
   "2891c5c2f66b1895b6e71724b9ed999e9bab12a69b7562d5f1060da0dece5bf7": {
@@ -162,7 +165,7 @@
     "alt": "Cozinha completa do Solarium 1 com cooktop, forno e janelas para o campo",
     "estacao": "verde",
     "ordem": 32,
-    "gmb": true
+    "marcaDagua": true
   },
   "2a5e4c0f294f167f51ca63b6812e4cff7519e0e099376a8c17f833ab8690b192": {
     "descricao": "rede-suspensa-com-almofadas",
@@ -175,7 +178,7 @@
     "descricao": "deck-iluminado-a-noite",
     "alt": "Deck com pufes e churrasqueira iluminados à noite, sob o céu estrelado da serra",
     "estacao": "neutra",
-    "ordem": 32,
+    "ordem": 31,
     "gmb": true
   },
   "2bf2c8929147640a56bc79ce3a120d801c767be7d3eef2d01b5f2636e21f894f": {
@@ -189,7 +192,7 @@
     "descricao": "cama-spa-e-banheiro-ao-fundo",
     "alt": "Cama com vista para o SPA e para o banheiro com bancada dupla ao fundo",
     "estacao": "neutra",
-    "ordem": 12
+    "ordem": 9
   },
   "318c1ebe96f63966bcbbacd74900948b1680ff1cf692ead4e085826b7578fb50": {
     "descricao": "amanhecer-parque-itatiaia",
@@ -197,7 +200,8 @@
     "estacao": "verde",
     "ordem": 75,
     "excluirDoSite": true,
-    "motivoExclusao": "foto desfocada e escura"
+    "motivoExclusao": "foto desfocada e escura",
+    "marcaDagua": true
   },
   "3244d60c3d1fa1ee1363128665f2655097d629f53a34644561ccedddcbd9c81c": {
     "descricao": "cuba-e-torneira-com-vista",
@@ -217,13 +221,15 @@
     "descricao": "bancada-e-toalhas-da-suite",
     "alt": "Bancada de granito com toalhas enroladas e box de vidro no banheiro da suíte",
     "estacao": "neutra",
-    "ordem": 67
+    "ordem": 67,
+    "marcaDagua": true
   },
   "37d8ddeb10cc513ccf0c5c631ccad2dcaaf76fb23e917a2ebe3a1464f813a667": {
     "descricao": "cozinha-no-reflexo-do-nascer-do-sol",
     "alt": "Bancada da cozinha refletida no vidro com o nascer do sol sobre a serra",
     "estacao": "neutra",
-    "ordem": 38
+    "ordem": 38,
+    "marcaDagua": true
   },
   "3908f29e5188d36bf0bdf37ee1fd0668778d3ea3b155888d11572ec4104f3965": {
     "descricao": "cama-de-casal-parede-azul",
@@ -254,7 +260,8 @@
     "descricao": "quarto-com-nascer-do-sol",
     "alt": "Sol nascendo sobre as montanhas visto da cama do quarto pela porta de vidro",
     "estacao": "neutra",
-    "ordem": 18
+    "ordem": 18,
+    "marcaDagua": true
   },
   "3cc74dfe8c063faf8f789696afec232d3b7f35fef18312dd00554ca10d4bb91b": {
     "descricao": "espuma-da-hidro-com-tacas",
@@ -295,7 +302,8 @@
     "descricao": "lateral-ao-por-do-sol",
     "alt": "Pôr do sol sobre o vale verde visto da lateral iluminada da casa",
     "estacao": "verde",
-    "ordem": 60
+    "ordem": 60,
+    "marcaDagua": true
   },
   "40e33b1910b8c0a052b1680726ce09088f63281c50761fe026f33fe9a60ff3c3": {
     "descricao": "rede-com-edredom-e-spa",
@@ -323,13 +331,15 @@
     "estacao": "neutra",
     "ordem": 80,
     "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa"
+    "motivoExclusao": "limite de 3 fotos de banheiro por casa",
+    "marcaDagua": true
   },
   "47e70b71bb8908e5b0099a3e36dc944eda2ef825d556122c9d7a6bcae05e5108": {
     "descricao": "cama-de-frente-para-o-telao",
     "alt": "Cama de casal de frente para o telão, com roupões no closet e portas de vidro",
     "estacao": "neutra",
-    "ordem": 10
+    "ordem": 14,
+    "telaComConteudo": true
   },
   "48ba27d07ca8da6351eed8194d5d16f326a1e4a32acbf6f52b73f029aff0bd14": {
     "descricao": "area-gourmet-com-churrasqueira",
@@ -354,13 +364,15 @@
     "descricao": "maturacao-de-queijos",
     "alt": "Queijos maturando em prateleiras de madeira na queijaria Pérola da Serra",
     "estacao": "neutra",
-    "ordem": 5
+    "ordem": 5,
+    "marcaDagua": true
   },
   "4dde15352321681cdd9a126f7df596f98cbfdd0a20352aef8e55025676dcc19a": {
     "descricao": "mesa-posta-ao-nascer-do-sol",
     "alt": "Mesa posta na cozinha com o sol nascendo atrás das montanhas pela janela",
     "estacao": "neutra",
-    "ordem": 34
+    "ordem": 34,
+    "marcaDagua": true
   },
   "4f2918e256ff76e9baac6e20d118f2af9a8de0f91187afcd3c5ea4cd5b73559c": {
     "descricao": "cama-e-spa-de-imersao",
@@ -384,7 +396,8 @@
     "descricao": "agulhas-negras-parque-itatiaia",
     "alt": "Escalada nas Agulhas Negras, no Parque Nacional do Itatiaia, com vista das montanhas",
     "estacao": "seca",
-    "ordem": 2
+    "ordem": 2,
+    "marcaDagua": true
   },
   "5225a164b84d735766a9f642a979f0ee098aec94bb8d323141e219ad7c2a9f2f": {
     "descricao": "carregador-de-carro-eletrico",
@@ -396,7 +409,8 @@
     "descricao": "spa-vidro-fechado-reflexo-por-do-sol",
     "alt": "SPA fechado por vidro refletindo as luzes internas e as nuvens do pôr do sol",
     "estacao": "neutra",
-    "ordem": 7
+    "ordem": 7,
+    "marcaDagua": true
   },
   "561b8c5785b1729d1b8f49dc91d8d4daf0955b1f888471dac219abaed444c6bc": {
     "descricao": "cozinha-completa-com-fondue",
@@ -417,7 +431,7 @@
     "descricao": "roupao-bordado",
     "alt": "Roupão bordado com a logo do Solarium ao lado da cama arrumada",
     "estacao": "neutra",
-    "ordem": 14
+    "ordem": 11
   },
   "6434ee53eb682c6dda8bc7728e57e095b55906f3bf8621ff3566be160a04b856": {
     "descricao": "toalhas-bordadas",
@@ -431,7 +445,8 @@
     "descricao": "vista-aerea-da-casa-ao-anoitecer",
     "alt": "Vista aérea do Solarium 1 iluminado ao anoitecer entre colinas de Itanhandu",
     "estacao": "verde",
-    "ordem": 47
+    "ordem": 47,
+    "gmb": true
   },
   "6740312c3adc6a58d056516dd30f29ec7abf0a80fef3776fac68531844fe7585": {
     "descricao": "ducha-e-pufe-no-deck",
@@ -477,7 +492,8 @@
     "descricao": "cozinha-com-vista-parque-itatiaia",
     "alt": "Cozinha e sala integradas com vista para o Parque Nacional do Itatiaia ao entardecer",
     "estacao": "verde",
-    "ordem": 33
+    "ordem": 33,
+    "marcaDagua": true
   },
   "6e5156fd916023ed8a5728d4212498d227eb8ad1bdfc5eac33a21c92560cad3e": {
     "descricao": "eletroportateis-na-prateleira",
@@ -490,7 +506,7 @@
     "alt": "Mesa redonda posta para o café no deck, com eucaliptal e montanhas ao fundo",
     "estacao": "verde",
     "ordem": 39,
-    "gmb": true
+    "marcaDagua": true
   },
   "6e992807a38b68ca007d636699841bf20e15434ec7f1845d40e072e97c2f66b5": {
     "descricao": "quarto-no-anoitecer",
@@ -528,7 +544,8 @@
     "descricao": "fachada-com-cachorro-no-gramado",
     "alt": "Fachada de vidro do Solarium 1 sob céu azul, com cachorro no gramado seco",
     "estacao": "seca",
-    "ordem": 50
+    "ordem": 50,
+    "marcaDagua": true
   },
   "7c83a13196b086c6d0c353be42c831a31b0fdbd28804d64bd08e56773fcbaf0a": {
     "descricao": "spa-borda-infinita-serra-fina",
@@ -553,7 +570,8 @@
     "descricao": "fachada-com-palmeira",
     "alt": "Fachada lateral com palmeira e deck da área gourmet sob nuvens de fim de tarde",
     "estacao": "verde",
-    "ordem": 51
+    "ordem": 51,
+    "marcaDagua": true
   },
   "7ff8be11395508a7c83cd14e292c38664d4ff32a5c996aa1de11c0afe845454f": {
     "descricao": "hospede-na-borda-do-spa",
@@ -585,13 +603,14 @@
     "descricao": "escada-e-deck-com-ombrelones",
     "alt": "Escada externa e deck com ombrelones sob a fachada envidraçada do Solarium 1",
     "estacao": "neutra",
-    "ordem": 52
+    "ordem": 52,
+    "marcaDagua": true
   },
   "8d0bcc2475aea7582d212f41759f3cbb0c6b61f56982551ae19d684f99313468": {
     "descricao": "brinde-no-pufe-do-deck",
     "alt": "Duas hóspedes de roupão brindando com vinho no pufe do deck, serra ao fundo",
     "estacao": "seca",
-    "ordem": 35
+    "ordem": 34
   },
   "944a27fb98f6bc8fbcb2f56154ef3aff537f56b3214de1bdceec39eb00fb3707": {
     "descricao": "cesta-de-cafe-na-bancada",
@@ -605,7 +624,8 @@
     "estacao": "verde",
     "ordem": 70,
     "excluirDoSite": true,
-    "motivoExclusao": "HDR ou saturação pesada; mangueira amarela em primeiro plano"
+    "motivoExclusao": "HDR ou saturação pesada; mangueira amarela em primeiro plano",
+    "marcaDagua": true
   },
   "95d1ad3f91db833815ed69ed967525652c6a0fdd61c9d55c4047c7a7c23a365d": {
     "descricao": "cama-diante-do-spa",
@@ -617,7 +637,8 @@
     "descricao": "adega-tacas-e-cafeteira",
     "alt": "Adega climatizada, taças penduradas e cafeteira de cápsulas no móvel da cozinha",
     "estacao": "neutra",
-    "ordem": 37
+    "ordem": 37,
+    "marcaDagua": true
   },
   "994fc6bb06f05f3bc56077601ce2a96b23bdd45cf270639e897a9bc6910a4441": {
     "descricao": "espumante-com-serra-ao-fundo",
@@ -631,7 +652,8 @@
     "estacao": "neutra",
     "ordem": 83,
     "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa"
+    "motivoExclusao": "limite de 3 fotos de banheiro por casa",
+    "marcaDagua": true
   },
   "9d80b1fad335506d613f10d577ac294662a2d0b5c897c589f3cf6e1471e92d06": {
     "descricao": "rede-e-spa-no-por-do-sol",
@@ -670,7 +692,7 @@
     "alt": "SPA e rede suspensa do Solarium 1 com vista aberta para a Serra da Mantiqueira",
     "estacao": "verde",
     "ordem": 2,
-    "gmb": true
+    "marcaDagua": true
   },
   "a9bcc665ee0705b57be22b466c8611fcd3d9b4fdf0dd1015d3cfbd329780d2be": {
     "descricao": "lavabo-com-janela-estreita",
@@ -704,7 +726,7 @@
     "descricao": "churrasqueira-no-deck",
     "alt": "Churrasqueira a gás e carvão no deck, com pufes e vista para as colinas",
     "estacao": "verde",
-    "ordem": 34
+    "ordem": 33
   },
   "b22755375340edeae282979eca07317b32a779e6ab8f3ffc0a189fb7bb257c95": {
     "descricao": "abrindo-vinho-na-cozinha",
@@ -716,7 +738,7 @@
     "descricao": "casal-no-pufe-ao-por-do-sol",
     "alt": "Casal de roupão no pufe do deck durante o pôr do sol sobre as colinas",
     "estacao": "seca",
-    "ordem": 36,
+    "ordem": 35,
     "gmb": true
   },
   "b4b80d1b4e4a64e0a2326ad91a55eaba30798c76f8ac2eabd9f91ceac1f0f727": {
@@ -747,7 +769,7 @@
     "descricao": "decoracao-com-petalas-e-velas",
     "alt": "Cama com coração de pétalas e caminho de velas no quarto à noite",
     "estacao": "neutra",
-    "ordem": 15
+    "ordem": 12
   },
   "b8e7fb685e875f3c7abb4d9780acde12c259c5aba7785e2c65b3ce4954fd7ccd": {
     "descricao": "telao-abrindo-ao-por-do-sol",
@@ -755,13 +777,15 @@
     "estacao": "seca",
     "ordem": 60,
     "excluirDoSite": true,
-    "motivoExclusao": "quase idêntica a cinema-no-deck-ao-por-do-sol"
+    "motivoExclusao": "quase idêntica a cinema-no-deck-ao-por-do-sol",
+    "telaComConteudo": true
   },
   "ba66158582c7d3f1fd6b926e0fb59b8a0e8f5226dca47f050798937f2c33aad1": {
     "descricao": "casa-vista-do-jardim-florido",
     "alt": "Casa vista do jardim florido, com o pufe branco no deck superior",
     "estacao": "verde",
-    "ordem": 44
+    "ordem": 44,
+    "gmb": true
   },
   "be1df687a053ed6c5250a5f5be4a90fd47075747ff30b35d7fb8abaef3dc5011": {
     "descricao": "logo-branco",
@@ -773,7 +797,8 @@
     "descricao": "spa-vidro-meio-aberto",
     "alt": "SPA do Solarium 1 com o vidro meio aberto e o campo verde ao redor",
     "estacao": "verde",
-    "ordem": 5
+    "ordem": 5,
+    "marcaDagua": true
   },
   "c0d6067b4fa3900aaac7541dad3a2139142b13595b2de0f61ef8bbd582a38527": {
     "descricao": "box-com-chuveiro-de-teto",
@@ -787,14 +812,15 @@
     "descricao": "mar-de-nuvens-ao-amanhecer",
     "alt": "Mar de nuvens sobre o vale ao amanhecer, visto do caminho de pedras da casa",
     "estacao": "verde",
-    "ordem": 58
+    "ordem": 58,
+    "gmb": true
   },
   "c43d17b17cfb17284622ca240f1860b7dc18c3a74944b8733be836e8531dde41": {
     "descricao": "fire-pit-ao-entardecer",
     "alt": "Fogueira acesa no fire pit de pedra com o vale e as montanhas no entardecer",
     "estacao": "verde",
     "ordem": 45,
-    "gmb": true
+    "marcaDagua": true
   },
   "c5428a010eb485dfdb68709c66265cfd17826286622c1b545550d4efe73576e2": {
     "descricao": "reflexo-na-rede-suspensa",
@@ -806,7 +832,8 @@
     "descricao": "lavatorio-social-e-cozinha",
     "alt": "Lavatório com cuba branca e espelho orgânico, com a cozinha integrada ao fundo",
     "estacao": "neutra",
-    "ordem": 69
+    "ordem": 69,
+    "marcaDagua": true
   },
   "c694600f58ba5861550918d777ff88e1db98a577e29eaa0717dd534960d72565": {
     "descricao": "vista-norte-com-nevoa",
@@ -839,20 +866,22 @@
     "descricao": "sessao-de-cinema-a-noite",
     "alt": "Sessão de cinema à noite com pipoca, telão aceso e manta sobre as pernas",
     "estacao": "neutra",
-    "ordem": 18
+    "ordem": 19,
+    "telaComConteudo": true
   },
   "cd875767f26bfadfd240d2251b123ad466d65b6bbccba9928b7db7ee237f4f19": {
     "descricao": "deck-com-vista-serra-fina",
     "alt": "Deck de madeira com vista para a mata e as montanhas da Serra Fina",
     "estacao": "verde",
-    "ordem": 59
+    "ordem": 59,
+    "gmb": true
   },
   "cdbbf53dc0c6560abb24877b899d0409eea49fff1832121d840fd5ab6236acfa": {
     "descricao": "quarto-com-telao-e-spa",
     "alt": "Quarto com telão de cinema na parede e SPA de imersão ao pé da cama",
     "estacao": "neutra",
-    "ordem": 9,
-    "gmb": true
+    "ordem": 13,
+    "telaComConteudo": true
   },
   "d3332db0bf5817a143ddd88d57521b6f32d08c2f95a91b42bf23ef7fab688aa5": {
     "descricao": "estacionamento-a-noite",
@@ -866,7 +895,8 @@
     "descricao": "quarto-amplo-com-closet",
     "alt": "Quarto amplo com cama, closet aberto e janelas de vidro para o vale enevoado",
     "estacao": "neutra",
-    "ordem": 11
+    "ordem": 15,
+    "telaComConteudo": true
   },
   "d5570d42d1a03701e94061beaa1be46e6bd4d842422d5296d36164507e071bf6": {
     "descricao": "casal-na-rede-suspensa",
@@ -878,7 +908,8 @@
     "descricao": "vista-aerea-serra-do-papagaio",
     "alt": "Casa vista do alto pela manhã, com pasto dourado e a Serra do Papagaio",
     "estacao": "seca",
-    "ordem": 49
+    "ordem": 49,
+    "gmb": true
   },
   "dc4ac3c117f43c1fdf3ecb602e70805c8e2e08e693810bf99a6e6428452f3cb5": {
     "descricao": "fondue-e-espumante-na-bancada",
@@ -902,7 +933,8 @@
     "descricao": "lareira-de-pedras-vulcanicas",
     "alt": "Lareira de pedras vulcânicas diante da cama, com janela lateral aberta para o verde",
     "estacao": "neutra",
-    "ordem": 17
+    "ordem": 17,
+    "marcaDagua": true
   },
   "df7f9d22fd5894a58b2bb02d4a4075690f697738401cffb9961e20fffb7ddc90": {
     "descricao": "decoracao-romantica-no-quarto",
@@ -914,13 +946,15 @@
     "descricao": "reflexo-da-serra-na-agua-do-spa",
     "alt": "Reflexo das montanhas e do céu azul na água do SPA do Solarium 1",
     "estacao": "verde",
-    "ordem": 4
+    "ordem": 4,
+    "marcaDagua": true
   },
   "e1cca416eb12858ae5aa844050915c48dcf9becb5c43c34aefc1411185096abd": {
     "descricao": "quarto-com-lareira-acesa",
     "alt": "Lareira acesa ao pé da cama no quarto do Solarium 1, com TV na parede",
     "estacao": "neutra",
-    "ordem": 16
+    "ordem": 16,
+    "marcaDagua": true
   },
   "e2c0a8ce5d391176337fe0346de608c05026435f50780eee803793688557d2a7": {
     "descricao": "mesa-no-deck-e-sala-envidracada",
@@ -932,7 +966,7 @@
     "descricao": "cafe-na-cama-com-vista",
     "alt": "Hóspede de roupão tomando café na cama, com a serra vista pela janela",
     "estacao": "neutra",
-    "ordem": 13
+    "ordem": 10
   },
   "e5f3e0c5c42bfcf03186c95fd5db265579b2292ac5a7b1a814671bf9a1b5c0a9": {
     "descricao": "praca-entre-as-casas",
@@ -1004,7 +1038,8 @@
     "descricao": "home-office-com-vista",
     "alt": "Notebook sobre a mesa de trabalho diante da janela com vista para o eucaliptal",
     "estacao": "neutra",
-    "ordem": 31
+    "ordem": 36,
+    "telaComConteudo": true
   },
   "f5f754e7885ad5e666633de4c5ff55e5991e333c871c4f8e7ca230dbc035ca5f": {
     "descricao": "spa-hidro-ligada-vista-serra-fina",
@@ -1020,7 +1055,8 @@
     "descricao": "spa-integrado-ao-quarto",
     "alt": "SPA interno do Solarium 1 com água azul-turquesa, integrado ao quarto e ao closet",
     "estacao": "neutra",
-    "ordem": 6
+    "ordem": 6,
+    "marcaDagua": true
   },
   "f9b3ca0b029a0ed758f27d9f32ab2cbe760e144860998f3f6581d2e040757428": {
     "descricao": "rede-com-almofadas-fim-de-tarde",
@@ -1061,7 +1097,7 @@
     "descricao": "pufe-no-deck-com-cachorro",
     "alt": "Pufe no deck com pratos na mesa lateral e cachorro ao lado, vale ao fundo",
     "estacao": "verde",
-    "ordem": 33
+    "ordem": 32
   },
   "ffbd442dfceba4dffdb4119e5239b3152a92cd83b8880eaeee425cda20fe04bf": {
     "descricao": "logo-preto",

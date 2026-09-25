@@ -1,6 +1,6 @@
 [
   {
-    "arquivo": "solarium-1/spa/01-spa-hidro-ligada-vista-serra-fina.jpg",
+    "arquivo": "solarium-1/spa/spa-hidro-ligada-vista-serra-fina.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "SPA do Solarium 1 com hidromassagem ligada e vista para as montanhas da Serra Fina",
@@ -11,10 +11,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/02-spa-e-rede-suspensa-vista-serra.jpg",
+    "arquivo": "solarium-1/rede/spa-e-rede-suspensa-vista-serra.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "SPA e rede suspensa do Solarium 1 com vista aberta para a Serra da Mantiqueira",
@@ -28,10 +30,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/03-spa-borda-infinita-serra-fina.jpg",
+    "arquivo": "solarium-1/vista/spa-borda-infinita-serra-fina.jpg",
     "largura": 2048,
     "altura": 1537,
     "alt": "SPA de borda infinita diante do vale e do eucaliptal, com a Serra Fina ao fundo",
@@ -42,10 +46,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/04-reflexo-da-serra-na-agua-do-spa.jpg",
+    "arquivo": "solarium-1/spa/reflexo-da-serra-na-agua-do-spa.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Reflexo das montanhas e do céu azul na água do SPA do Solarium 1",
@@ -58,10 +64,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/05-spa-vidro-meio-aberto.jpg",
+    "arquivo": "solarium-1/spa/spa-vidro-meio-aberto.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "SPA do Solarium 1 com o vidro meio aberto e o campo verde ao redor",
@@ -72,10 +80,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/06-spa-integrado-ao-quarto.jpg",
+    "arquivo": "solarium-1/spa/spa-integrado-ao-quarto.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "SPA interno do Solarium 1 com água azul-turquesa, integrado ao quarto e ao closet",
@@ -88,10 +98,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/07-spa-vidro-fechado-reflexo-por-do-sol.jpg",
+    "arquivo": "solarium-1/spa/spa-vidro-fechado-reflexo-por-do-sol.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "SPA fechado por vidro refletindo as luzes internas e as nuvens do pôr do sol",
@@ -102,10 +114,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/08-spa-rede-e-quarto-vista-externa.jpg",
+    "arquivo": "solarium-1/spa/spa-rede-e-quarto-vista-externa.jpg",
     "largura": 2400,
     "altura": 1350,
     "alt": "Vista externa do SPA, da rede suspensa e do quarto do Solarium 1 ao entardecer",
@@ -116,10 +130,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/09-borda-do-spa-e-colinas-douradas.jpg",
+    "arquivo": "solarium-1/spa/borda-do-spa-e-colinas-douradas.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Borda do SPA em primeiro plano e colinas douradas da serra em foco ao fundo",
@@ -130,10 +146,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/10-hospede-no-spa-ao-por-do-sol.jpg",
+    "arquivo": "solarium-1/spa/hospede-no-spa-ao-por-do-sol.jpg",
     "largura": 2048,
     "altura": 1652,
     "alt": "Hóspede se divertindo no SPA aquecido do Solarium 1 com o pôr do sol na serra",
@@ -144,10 +162,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/11-hidromassagem-ao-por-do-sol.jpg",
+    "arquivo": "solarium-1/spa/hidromassagem-ao-por-do-sol.jpg",
     "largura": 1199,
     "altura": 900,
     "alt": "Hidromassagem borbulhando no SPA ao pôr do sol, com rede e colinas ao lado",
@@ -158,10 +178,12 @@
     "tambemEm": [],
     "baixaResolucao": true,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/12-spa-iluminado-a-noite.jpg",
+    "arquivo": "solarium-1/spa/spa-iluminado-a-noite.jpg",
     "largura": 1124,
     "altura": 1124,
     "alt": "SPA iluminado de azul à noite, com hóspede brindando diante do último clarão do dia",
@@ -172,10 +194,12 @@
     "tambemEm": [],
     "baixaResolucao": true,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/13-quarto-cama-closet-e-janela.jpg",
+    "arquivo": "solarium-1/quarto/quarto-cama-closet-e-janela.jpg",
     "largura": 2400,
     "altura": 1600,
     "alt": "Quarto do Solarium 1 com cama de casal, roupões no closet e janela para a serra",
@@ -186,10 +210,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/14-cama-de-casal-parede-azul.jpg",
+    "arquivo": "solarium-1/quarto/cama-de-casal-parede-azul.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Cama de casal com roupa branca e parede azul no quarto do Solarium 1",
@@ -200,10 +226,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/15-quarto-no-anoitecer.jpg",
+    "arquivo": "solarium-1/quarto/quarto-no-anoitecer.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Quarto iluminado por luz quente no anoitecer, com paredes de vidro voltadas para o campo",
@@ -214,10 +242,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/16-quarto-com-lareira-acesa.jpg",
+    "arquivo": "solarium-1/quarto/quarto-com-lareira-acesa.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Lareira acesa ao pé da cama no quarto do Solarium 1, com TV na parede",
@@ -228,10 +258,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/17-lareira-de-pedras-vulcanicas.jpg",
+    "arquivo": "solarium-1/quarto/lareira-de-pedras-vulcanicas.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Lareira de pedras vulcânicas diante da cama, com janela lateral aberta para o verde",
@@ -242,10 +274,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/18-quarto-com-nascer-do-sol.jpg",
+    "arquivo": "solarium-1/quarto/quarto-com-nascer-do-sol.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Sol nascendo sobre as montanhas visto da cama do quarto pela porta de vidro",
@@ -256,10 +290,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/19-piso-aquecido-e-spa-vistos-do-quarto.jpg",
+    "arquivo": "solarium-1/quarto/piso-aquecido-e-spa-vistos-do-quarto.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Piso aquecido e luminária ao lado do SPA interno, com assistente de voz na mesinha",
@@ -270,10 +306,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/20-decoracao-romantica-no-quarto.jpg",
+    "arquivo": "solarium-1/quarto/decoracao-romantica-no-quarto.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Cama decorada com coração de pétalas, buquê e balões, com roupão bordado em primeiro plano",
@@ -284,10 +322,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/21-quarto-com-berco.jpg",
+    "arquivo": "solarium-1/quarto/quarto-com-berco.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Quarto do Solarium 1 com berço portátil ao lado da cama, preparado para famílias",
@@ -298,10 +338,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/22-rede-suspensa-com-almofadas.jpg",
+    "arquivo": "solarium-1/rede/rede-suspensa-com-almofadas.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Rede suspensa com almofadas sobre o gramado e o vale ensolarado da Serra da Mantiqueira",
@@ -312,10 +354,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/23-cafe-na-rede-com-edredom.jpg",
+    "arquivo": "solarium-1/rede/cafe-na-rede-com-edredom.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "Hóspede tomando café coberta por edredom na rede suspensa, com o vale ao fundo",
@@ -326,10 +370,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/24-casal-na-rede-suspensa.jpg",
+    "arquivo": "solarium-1/rede/casal-na-rede-suspensa.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Casal abraçado na rede suspensa do Solarium 1 com as colinas verdes ao fundo",
@@ -340,10 +386,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/25-hospede-deitada-na-rede.jpg",
+    "arquivo": "solarium-1/rede/hospede-deitada-na-rede.jpg",
     "largura": 2400,
     "altura": 1600,
     "alt": "Hóspede deitada na rede suspensa sobre o gramado, iluminada pelo sol do fim de tarde",
@@ -354,10 +402,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/26-redario-com-vista-da-serra.jpg",
+    "arquivo": "solarium-1/rede/redario-com-vista-da-serra.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Redário com duas redes coloridas no gramado, sob céu azul e montanhas no horizonte",
@@ -368,10 +418,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/27-rede-com-edredom-e-spa.jpg",
+    "arquivo": "solarium-1/rede/rede-com-edredom-e-spa.jpg",
     "largura": 1199,
     "altura": 900,
     "alt": "Rede com edredom branco e o SPA do Solarium 1 sob o sol se pondo",
@@ -382,10 +434,12 @@
     "tambemEm": [],
     "baixaResolucao": true,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/geral/28-rede-e-spa-no-por-do-sol.jpg",
+    "arquivo": "solarium-1/geral/rede-e-spa-no-por-do-sol.jpg",
     "largura": 1199,
     "altura": 900,
     "alt": "Edredom na rede e hóspede relaxando no SPA durante o pôr do sol laranja",
@@ -396,10 +450,12 @@
     "tambemEm": [],
     "baixaResolucao": true,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/29-reflexo-na-rede-suspensa.jpg",
+    "arquivo": "solarium-1/rede/reflexo-na-rede-suspensa.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Reflexo no vidro de hóspede sentada na rede suspensa, com luz dourada da manhã",
@@ -410,10 +466,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/sala/30-sala-sofa-lareira-teto-de-madeira.jpg",
+    "arquivo": "solarium-1/sala/sala-sofa-lareira-teto-de-madeira.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Sala do Solarium 1 com sofá, poltrona, lareira e teto de madeira aparente",
@@ -424,10 +482,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/sala/31-descanso-na-poltrona.jpg",
+    "arquivo": "solarium-1/sala/descanso-na-poltrona.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Hóspede descansando na poltrona da sala, junto à porta de vidro iluminada pelo sol",
@@ -438,10 +498,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/cozinha/32-cozinha-completa-com-vista.jpg",
+    "arquivo": "solarium-1/cozinha/cozinha-completa-com-vista.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Cozinha completa do Solarium 1 com cooktop, forno e janelas para o campo",
@@ -452,10 +514,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/cozinha/33-cozinha-com-vista-parque-itatiaia.jpg",
+    "arquivo": "solarium-1/cozinha/cozinha-com-vista-parque-itatiaia.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Cozinha e sala integradas com vista para o Parque Nacional do Itatiaia ao entardecer",
@@ -468,10 +532,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/sala/34-mesa-posta-ao-nascer-do-sol.jpg",
+    "arquivo": "solarium-1/sala/mesa-posta-ao-nascer-do-sol.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Mesa posta na cozinha com o sol nascendo atrás das montanhas pela janela",
@@ -484,10 +550,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/cozinha/35-mesa-posta-com-fondue-e-vinho.jpg",
+    "arquivo": "solarium-1/cozinha/mesa-posta-com-fondue-e-vinho.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Mesa posta para dois com fondue, vinho e taças na cozinha do Solarium 1",
@@ -498,10 +566,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/cozinha/36-vinho-e-tacas-com-serra-ao-fundo.jpg",
+    "arquivo": "solarium-1/cozinha/vinho-e-tacas-com-serra-ao-fundo.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Garrafa de vinho, taças e pratos na mesa com a serra atrás do vidro",
@@ -512,10 +582,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/cozinha/37-adega-tacas-e-cafeteira.jpg",
+    "arquivo": "solarium-1/cozinha/adega-tacas-e-cafeteira.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Adega climatizada, taças penduradas e cafeteira de cápsulas no móvel da cozinha",
@@ -526,10 +598,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/38-cozinha-no-reflexo-do-nascer-do-sol.jpg",
+    "arquivo": "solarium-1/vista/cozinha-no-reflexo-do-nascer-do-sol.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Bancada da cozinha refletida no vidro com o nascer do sol sobre a serra",
@@ -540,10 +614,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/area-gourmet/39-cafe-no-deck-com-vista.jpg",
+    "arquivo": "solarium-1/area-gourmet/cafe-no-deck-com-vista.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Mesa redonda posta para o café no deck, com eucaliptal e montanhas ao fundo",
@@ -554,10 +630,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/area-gourmet/40-area-gourmet-com-churrasqueira.jpg",
+    "arquivo": "solarium-1/area-gourmet/area-gourmet-com-churrasqueira.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Área gourmet coberta do Solarium 1 com churrasqueira, pia e mesa sob ombrelone",
@@ -568,10 +646,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/area-gourmet/41-churrasco-e-fondue-de-queijo.jpg",
+    "arquivo": "solarium-1/area-gourmet/churrasco-e-fondue-de-queijo.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Churrasco na grelha e fondue de queijo servidos na bancada de madeira da área gourmet",
@@ -582,10 +662,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/area-gourmet/42-churrasqueira-a-gas.jpg",
+    "arquivo": "solarium-1/area-gourmet/churrasqueira-a-gas.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Churrasqueira a gás de inox diante da parede de azulejos geométricos azuis",
@@ -596,10 +678,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/area-gourmet/43-jantar-no-deck.jpg",
+    "arquivo": "solarium-1/area-gourmet/jantar-no-deck.jpg",
     "largura": 1199,
     "altura": 1200,
     "alt": "Jantar no deck com medalhões de carne, risoto e taças de vinho tinto",
@@ -610,10 +694,12 @@
     "tambemEm": [],
     "baixaResolucao": true,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/44-casal-caminhando-no-deck.jpg",
+    "arquivo": "solarium-1/externa/casal-caminhando-no-deck.jpg",
     "largura": 2400,
     "altura": 1600,
     "alt": "Casal caminhando pelo deck de vidro do Solarium 1, refletido na fachada com a serra",
@@ -624,10 +710,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/45-fire-pit-ao-entardecer.jpg",
+    "arquivo": "solarium-1/externa/fire-pit-ao-entardecer.jpg",
     "largura": 2400,
     "altura": 1711,
     "alt": "Fogueira acesa no fire pit de pedra com o vale e as montanhas no entardecer",
@@ -638,10 +726,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/46-fachada-iluminada-ao-anoitecer.jpg",
+    "arquivo": "solarium-1/externa/fachada-iluminada-ao-anoitecer.jpg",
     "largura": 2400,
     "altura": 1600,
     "alt": "Fachada do Solarium 1 iluminada ao anoitecer, com deck suspenso e céu lilás",
@@ -652,10 +742,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/47-vista-aerea-da-casa-ao-anoitecer.jpg",
+    "arquivo": "solarium-1/externa/vista-aerea-da-casa-ao-anoitecer.jpg",
     "largura": 2400,
     "altura": 1350,
     "alt": "Vista aérea do Solarium 1 iluminado ao anoitecer entre colinas de Itanhandu",
@@ -666,10 +758,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/48-vista-aerea-parque-itatiaia.jpg",
+    "arquivo": "solarium-1/vista/vista-aerea-parque-itatiaia.jpg",
     "largura": 2400,
     "altura": 1350,
     "alt": "Vista aérea da casa entre colinas e névoa, com o Parque do Itatiaia ao fundo",
@@ -682,10 +776,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/amanhecer/49-vista-aerea-serra-do-papagaio.jpg",
+    "arquivo": "solarium-1/amanhecer/vista-aerea-serra-do-papagaio.jpg",
     "largura": 2400,
     "altura": 1350,
     "alt": "Casa vista do alto pela manhã, com pasto dourado e a Serra do Papagaio",
@@ -696,10 +792,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/50-fachada-com-cachorro-no-gramado.jpg",
+    "arquivo": "solarium-1/externa/fachada-com-cachorro-no-gramado.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Fachada de vidro do Solarium 1 sob céu azul, com cachorro no gramado seco",
@@ -710,10 +808,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/area-gourmet/51-fachada-com-palmeira.jpg",
+    "arquivo": "solarium-1/area-gourmet/fachada-com-palmeira.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Fachada lateral com palmeira e deck da área gourmet sob nuvens de fim de tarde",
@@ -724,10 +824,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/area-gourmet/52-escada-e-deck-com-ombrelones.jpg",
+    "arquivo": "solarium-1/area-gourmet/escada-e-deck-com-ombrelones.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Escada externa e deck com ombrelones sob a fachada envidraçada do Solarium 1",
@@ -738,10 +840,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/53-mesa-sob-ombrelone-com-vista.jpg",
+    "arquivo": "solarium-1/externa/mesa-sob-ombrelone-com-vista.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Mesa redonda sob ombrelone no deck, com vale verde e montanhas azuladas",
@@ -752,10 +856,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/54-mesa-no-deck-e-sala-envidracada.jpg",
+    "arquivo": "solarium-1/externa/mesa-no-deck-e-sala-envidracada.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Mesa com xícaras sob ombrelone e sala envidraçada do Solarium 1 ao fundo",
@@ -766,10 +872,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/55-reflexo-da-serra-no-vidro.jpg",
+    "arquivo": "solarium-1/externa/reflexo-da-serra-no-vidro.jpg",
     "largura": 2048,
     "altura": 1496,
     "alt": "Corredor de vidro refletindo a serra e o deck como um espelho ao entardecer",
@@ -780,10 +888,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/56-jardim-e-mar-de-nuvens.jpg",
+    "arquivo": "solarium-1/externa/jardim-e-mar-de-nuvens.jpg",
     "largura": 2048,
     "altura": 1537,
     "alt": "Palmeiras e lavandas no jardim diante do mar de nuvens no vale",
@@ -794,10 +904,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/57-nevoa-no-vale-e-rede.jpg",
+    "arquivo": "solarium-1/vista/nevoa-no-vale-e-rede.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Névoa cobrindo o vale ao amanhecer, vista da rede suspensa ao lado do vidro",
@@ -808,10 +920,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/amanhecer/58-mar-de-nuvens-ao-amanhecer.jpg",
+    "arquivo": "solarium-1/amanhecer/mar-de-nuvens-ao-amanhecer.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Mar de nuvens sobre o vale ao amanhecer, visto do caminho de pedras da casa",
@@ -822,10 +936,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/59-deck-com-vista-serra-fina.jpg",
+    "arquivo": "solarium-1/vista/deck-com-vista-serra-fina.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Deck de madeira com vista para a mata e as montanhas da Serra Fina",
@@ -836,10 +952,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/60-lateral-ao-por-do-sol.jpg",
+    "arquivo": "solarium-1/vista/lateral-ao-por-do-sol.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Pôr do sol sobre o vale verde visto da lateral iluminada da casa",
@@ -850,10 +968,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/amanhecer/61-nascer-do-sol-na-serra.jpg",
+    "arquivo": "solarium-1/amanhecer/nascer-do-sol-na-serra.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Primeiros raios de sol sobre as montanhas vistos do gramado ao lado da cerca",
@@ -864,10 +984,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/amanhecer/62-nascer-do-sol-no-vidro.jpg",
+    "arquivo": "solarium-1/amanhecer/nascer-do-sol-no-vidro.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "Sol nascendo atrás da serra refletido na parede de vidro do quarto",
@@ -878,10 +1000,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/63-silhueta-da-serra-ao-amanhecer.jpg",
+    "arquivo": "solarium-1/vista/silhueta-da-serra-ao-amanhecer.jpg",
     "largura": 1600,
     "altura": 1200,
     "alt": "Silhueta das montanhas e céu alaranjado no nascer do sol em Itanhandu",
@@ -894,10 +1018,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/amanhecer/64-sol-surgindo-ao-lado-da-casa.jpg",
+    "arquivo": "solarium-1/amanhecer/sol-surgindo-ao-lado-da-casa.jpg",
     "largura": 2048,
     "altura": 1537,
     "alt": "Sol surgindo entre as montanhas ao lado da parede branca da casa",
@@ -908,10 +1034,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/cozinha/65-eletroportateis-na-prateleira.jpg",
+    "arquivo": "solarium-1/cozinha/eletroportateis-na-prateleira.jpg",
     "largura": 2400,
     "altura": 1600,
     "alt": "Liquidificador, fritadeira elétrica e potes de sal, café e açúcar na prateleira",
@@ -922,10 +1050,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/cozinha/66-geladeira-e-adega.jpg",
+    "arquivo": "solarium-1/cozinha/geladeira-e-adega.jpg",
     "largura": 1366,
     "altura": 2048,
     "alt": "Geladeira inox, adega e cafeteira na cozinha com porta aberta para o campo",
@@ -936,10 +1066,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-suite/67-bancada-e-toalhas-da-suite.jpg",
+    "arquivo": "solarium-1/banheiro-suite/bancada-e-toalhas-da-suite.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Bancada de granito com toalhas enroladas e box de vidro no banheiro da suíte",
@@ -950,10 +1082,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-suite/68-itens-de-banho-no-nicho.jpg",
+    "arquivo": "solarium-1/banheiro-suite/itens-de-banho-no-nicho.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Nicho iluminado com frascos de xampu, condicionador e sabonete no banheiro da suíte",
@@ -964,10 +1098,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-social/69-lavatorio-social-e-cozinha.jpg",
+    "arquivo": "solarium-1/banheiro-social/lavatorio-social-e-cozinha.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Lavatório com cuba branca e espelho orgânico, com a cozinha integrada ao fundo",
@@ -978,10 +1114,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/70-rede-e-spa-serra-fina.jpg",
+    "arquivo": "solarium-1/externa/rede-e-spa-serra-fina.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Rede suspensa e SPA com céu azul, eucaliptal e montanhas da serra",
@@ -992,10 +1130,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/71-rede-com-almofadas-fim-de-tarde.jpg",
+    "arquivo": "solarium-1/vista/rede-com-almofadas-fim-de-tarde.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Rede com almofadas e vista para o vale dourado ao fim da tarde",
@@ -1006,10 +1146,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/spa/72-espuma-da-hidro-com-tacas.jpg",
+    "arquivo": "solarium-1/spa/espuma-da-hidro-com-tacas.jpg",
     "largura": 1199,
     "altura": 900,
     "alt": "Espuma da hidromassagem com duas taças de vinho na borda e o sol se pondo",
@@ -1020,10 +1162,12 @@
     "tambemEm": [],
     "baixaResolucao": true,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/73-roupao-refletido-no-vidro.jpg",
+    "arquivo": "solarium-1/quarto/roupao-refletido-no-vidro.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Roupão pendurado refletido no vidro com a serra ao fundo no fim de tarde",
@@ -1034,10 +1178,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/quarto/74-cabeceira-e-janela.jpg",
+    "arquivo": "solarium-1/quarto/cabeceira-e-janela.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Cabeceira iluminada por arandela com a janela aberta para o verde",
@@ -1048,10 +1194,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/vista/75-amanhecer-parque-itatiaia.jpg",
+    "arquivo": "solarium-1/vista/amanhecer-parque-itatiaia.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Céu do amanhecer sobre o Parque Nacional do Itatiaia visto do gramado",
@@ -1062,10 +1210,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/rede/76-musica-na-rede.jpg",
+    "arquivo": "solarium-1/rede/musica-na-rede.jpg",
     "largura": 1199,
     "altura": 900,
     "alt": "Mãos tocando ukulele na rede com manta, diante do pasto seco e da serra",
@@ -1076,10 +1226,12 @@
     "tambemEm": [],
     "baixaResolucao": true,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/77-amigos-no-deck-ao-por-do-sol.jpg",
+    "arquivo": "solarium-1/externa/amigos-no-deck-ao-por-do-sol.jpg",
     "largura": 768,
     "altura": 1024,
     "alt": "Três amigos comemorando no deck ao pôr do sol com a serra ao fundo",
@@ -1090,10 +1242,12 @@
     "tambemEm": [],
     "baixaResolucao": true,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-suite/78-box-com-chuveiro-de-teto.jpg",
+    "arquivo": "solarium-1/banheiro-suite/box-com-chuveiro-de-teto.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Box com chuveiro de teto, nicho iluminado e vaso sanitário no banheiro da suíte",
@@ -1104,10 +1258,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-social/79-banheiro-social-com-chuveiro.jpg",
+    "arquivo": "solarium-1/banheiro-social/banheiro-social-com-chuveiro.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Banheiro social com chuveiro, janela alta e vaso em primeiro plano",
@@ -1118,10 +1274,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-social/80-chuveiro-do-banheiro-social.jpg",
+    "arquivo": "solarium-1/banheiro-social/chuveiro-do-banheiro-social.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Chuveiro do banheiro social com revestimento amadeirado e janela para as árvores",
@@ -1132,10 +1290,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-social/81-lavatorio-social-ao-por-do-sol.jpg",
+    "arquivo": "solarium-1/banheiro-social/lavatorio-social-ao-por-do-sol.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Lavatório social com espelho orgânico e céu de pôr do sol pela janela",
@@ -1146,10 +1306,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-suite/82-toalhas-bordadas.jpg",
+    "arquivo": "solarium-1/banheiro-suite/toalhas-bordadas.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Toalhas brancas bordadas com a logo da casa no toalheiro aquecido",
@@ -1160,10 +1322,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-suite/83-banheiro-da-suite-com-roupoes.jpg",
+    "arquivo": "solarium-1/banheiro-suite/banheiro-da-suite-com-roupoes.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Banheiro da suíte com roupões, toalhas e bancada iluminada pela luz do fim da tarde",
@@ -1174,10 +1338,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-suite/84-bancada-com-espelho-amplo.jpg",
+    "arquivo": "solarium-1/banheiro-suite/bancada-com-espelho-amplo.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Bancada com cuba esculpida, espelho amplo e toalheiro no banheiro da suíte",
@@ -1188,10 +1354,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/banheiro-social/85-cuba-e-torneira-com-vista.jpg",
+    "arquivo": "solarium-1/banheiro-social/cuba-e-torneira-com-vista.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Cuba branca de apoio e torneira dourada com a mata vista pela porta",
@@ -1202,6 +1370,8 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   }
 ]

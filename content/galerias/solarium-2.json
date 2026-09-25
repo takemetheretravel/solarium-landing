@@ -1,6 +1,6 @@
 [
   {
-    "arquivo": "solarium-2/vista/01-quarto-e-spa-ao-por-do-sol.jpg",
+    "arquivo": "solarium-2/vista/quarto-e-spa-ao-por-do-sol.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Quarto do Solarium 2 com cama, SPA interno e janelas abertas para o pôr do sol",
@@ -11,10 +11,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/spa/02-spa-de-imersao-ao-por-do-sol.jpg",
+    "arquivo": "solarium-2/spa/spa-de-imersao-ao-por-do-sol.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "SPA de imersão ao lado da cama, com o sol se pondo nas janelas da casa",
@@ -27,10 +29,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/spa/03-banheira-e-chuveiro-ao-nascer-do-sol.jpg",
+    "arquivo": "solarium-2/spa/banheira-e-chuveiro-ao-nascer-do-sol.jpg",
     "largura": 2400,
     "altura": 1801,
     "alt": "Banheira de imersão e chuveiro atrás do vidro, com o nascer do sol dourado",
@@ -44,10 +48,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/spa/04-teto-retratil-aberto-sobre-o-spa.jpg",
+    "arquivo": "solarium-2/spa/teto-retratil-aberto-sobre-o-spa.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Teto retrátil de vidro aberto sobre o SPA do Solarium 2, com parede de madeira clara",
@@ -58,10 +64,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/spa/05-claraboia-e-janela-da-banheira.jpg",
+    "arquivo": "solarium-2/spa/claraboia-e-janela-da-banheira.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Claraboia de vidro e janela lateral iluminando a banheira com vista para o campo",
@@ -72,10 +80,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/spa/06-hospede-na-borda-do-spa.jpg",
+    "arquivo": "solarium-2/spa/hospede-na-borda-do-spa.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "Hóspede de roupão sentado na borda do SPA com vista para a serra pela janela",
@@ -86,10 +96,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/spa/07-cama-diante-do-spa.jpg",
+    "arquivo": "solarium-2/spa/cama-diante-do-spa.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "Cama de casal diante do SPA, com hóspede de roupão brindando junto à janela",
@@ -100,10 +112,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/spa/08-cama-e-spa-de-imersao.jpg",
+    "arquivo": "solarium-2/spa/cama-e-spa-de-imersao.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "Travesseiros da cama em primeiro plano e o SPA de imersão logo atrás",
@@ -114,29 +128,33 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/quarto/09-quarto-com-telao-e-spa.jpg",
+    "arquivo": "solarium-2/quarto/cama-spa-e-banheiro-ao-fundo.jpg",
     "largura": 2048,
     "altura": 1537,
-    "alt": "Quarto com telão de cinema na parede e SPA de imersão ao pé da cama",
+    "alt": "Cama com vista para o SPA e para o banheiro com bancada dupla ao fundo",
     "ambiente": "quarto",
     "estacao": "neutra",
     "destaque": false,
     "ordem": 9,
     "tambemEm": [
-      "cinema"
+      "banheiro"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/quarto/10-cama-de-frente-para-o-telao.jpg",
-    "largura": 2400,
-    "altura": 1800,
-    "alt": "Cama de casal de frente para o telão, com roupões no closet e portas de vidro",
+    "arquivo": "solarium-2/quarto/cafe-na-cama-com-vista.jpg",
+    "largura": 2048,
+    "altura": 1536,
+    "alt": "Hóspede de roupão tomando café na cama, com a serra vista pela janela",
     "ambiente": "quarto",
     "estacao": "neutra",
     "destaque": false,
@@ -144,13 +162,15 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/quarto/11-quarto-amplo-com-closet.jpg",
-    "largura": 2400,
-    "altura": 1800,
-    "alt": "Quarto amplo com cama, closet aberto e janelas de vidro para o vale enevoado",
+    "arquivo": "solarium-2/quarto/roupao-bordado.jpg",
+    "largura": 2048,
+    "altura": 1537,
+    "alt": "Roupão bordado com a logo do Solarium ao lado da cama arrumada",
     "ambiente": "quarto",
     "estacao": "neutra",
     "destaque": false,
@@ -158,43 +178,49 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/quarto/12-cama-spa-e-banheiro-ao-fundo.jpg",
-    "largura": 2048,
-    "altura": 1537,
-    "alt": "Cama com vista para o SPA e para o banheiro com bancada dupla ao fundo",
+    "arquivo": "solarium-2/quarto/decoracao-com-petalas-e-velas.jpg",
+    "largura": 1800,
+    "altura": 2400,
+    "alt": "Cama com coração de pétalas e caminho de velas no quarto à noite",
     "ambiente": "quarto",
     "estacao": "neutra",
     "destaque": false,
     "ordem": 12,
-    "tambemEm": [
-      "banheiro"
-    ],
+    "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/quarto/13-cafe-na-cama-com-vista.jpg",
+    "arquivo": "solarium-2/quarto/quarto-com-telao-e-spa.jpg",
     "largura": 2048,
-    "altura": 1536,
-    "alt": "Hóspede de roupão tomando café na cama, com a serra vista pela janela",
+    "altura": 1537,
+    "alt": "Quarto com telão de cinema na parede e SPA de imersão ao pé da cama",
     "ambiente": "quarto",
     "estacao": "neutra",
     "destaque": false,
     "ordem": 13,
-    "tambemEm": [],
+    "tambemEm": [
+      "cinema"
+    ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": true
   },
   {
-    "arquivo": "solarium-2/quarto/14-roupao-bordado.jpg",
-    "largura": 2048,
-    "altura": 1537,
-    "alt": "Roupão bordado com a logo do Solarium ao lado da cama arrumada",
+    "arquivo": "solarium-2/quarto/cama-de-frente-para-o-telao.jpg",
+    "largura": 2400,
+    "altura": 1800,
+    "alt": "Cama de casal de frente para o telão, com roupões no closet e portas de vidro",
     "ambiente": "quarto",
     "estacao": "neutra",
     "destaque": false,
@@ -202,13 +228,15 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": true
   },
   {
-    "arquivo": "solarium-2/quarto/15-decoracao-com-petalas-e-velas.jpg",
-    "largura": 1800,
-    "altura": 2400,
-    "alt": "Cama com coração de pétalas e caminho de velas no quarto à noite",
+    "arquivo": "solarium-2/quarto/quarto-amplo-com-closet.jpg",
+    "largura": 2400,
+    "altura": 1800,
+    "alt": "Quarto amplo com cama, closet aberto e janelas de vidro para o vale enevoado",
     "ambiente": "quarto",
     "estacao": "neutra",
     "destaque": false,
@@ -216,27 +244,31 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": true
   },
   {
-    "arquivo": "solarium-2/cinema/16-cinema-no-deck-ao-por-do-sol.jpg",
-    "largura": 2048,
-    "altura": 1536,
-    "alt": "Telão do cinema externo aberto para o deck, com o vale ao pôr do sol",
+    "arquivo": "solarium-2/cinema/cinema-aberto-com-neblina.jpg",
+    "largura": 2400,
+    "altura": 1800,
+    "alt": "Telão visto da cama com o deck e a neblina envolvendo a serra lá fora",
     "ambiente": "cinema",
-    "estacao": "seca",
+    "estacao": "neutra",
     "destaque": false,
     "ordem": 16,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cinema/17-cinema-aberto-com-neblina.jpg",
-    "largura": 2400,
-    "altura": 1800,
-    "alt": "Telão visto da cama com o deck e a neblina envolvendo a serra lá fora",
+    "arquivo": "solarium-2/cinema/pufe-diante-do-telao.jpg",
+    "largura": 2048,
+    "altura": 1537,
+    "alt": "Hóspede sentado no pufe diante do telão e da churrasqueira no deck coberto",
     "ambiente": "cinema",
     "estacao": "neutra",
     "destaque": false,
@@ -244,27 +276,31 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cinema/18-sessao-de-cinema-a-noite.jpg",
-    "largura": 1800,
-    "altura": 2400,
-    "alt": "Sessão de cinema à noite com pipoca, telão aceso e manta sobre as pernas",
+    "arquivo": "solarium-2/cinema/cinema-no-deck-ao-por-do-sol.jpg",
+    "largura": 2048,
+    "altura": 1536,
+    "alt": "Telão do cinema externo aberto para o deck, com o vale ao pôr do sol",
     "ambiente": "cinema",
-    "estacao": "neutra",
+    "estacao": "seca",
     "destaque": false,
     "ordem": 18,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": true
   },
   {
-    "arquivo": "solarium-2/cinema/19-pufe-diante-do-telao.jpg",
-    "largura": 2048,
-    "altura": 1537,
-    "alt": "Hóspede sentado no pufe diante do telão e da churrasqueira no deck coberto",
+    "arquivo": "solarium-2/cinema/sessao-de-cinema-a-noite.jpg",
+    "largura": 1800,
+    "altura": 2400,
+    "alt": "Sessão de cinema à noite com pipoca, telão aceso e manta sobre as pernas",
     "ambiente": "cinema",
     "estacao": "neutra",
     "destaque": false,
@@ -272,10 +308,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": true
   },
   {
-    "arquivo": "solarium-2/cozinha/20-cozinha-completa-com-fondue.jpg",
+    "arquivo": "solarium-2/cozinha/cozinha-completa-com-fondue.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Cozinha completa do Solarium 2 com geladeira inox, fondue e taças sobre a bancada",
@@ -286,10 +324,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/21-cozinha-com-mesa-e-vista.jpg",
+    "arquivo": "solarium-2/cozinha/cozinha-com-mesa-e-vista.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Cozinha com mesa de quatro lugares e janela ampla para o eucaliptal e a serra",
@@ -300,10 +340,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/22-cantinho-do-cafe-com-vista.jpg",
+    "arquivo": "solarium-2/cozinha/cantinho-do-cafe-com-vista.jpg",
     "largura": 1961,
     "altura": 1471,
     "alt": "Cantinho do café com purificador e cafeteira diante da janela para o vale",
@@ -316,10 +358,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/23-bancada-posta-para-o-jantar.jpg",
+    "arquivo": "solarium-2/cozinha/bancada-posta-para-o-jantar.jpg",
     "largura": 2048,
     "altura": 1537,
     "alt": "Bancada branca com pratos e taças postos para o jantar no fim do dia",
@@ -330,10 +374,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/24-fondue-e-espumante-na-bancada.jpg",
+    "arquivo": "solarium-2/cozinha/fondue-e-espumante-na-bancada.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Fondue, espumante no balde e taças na bancada, com a Serra da Mantiqueira ao fundo",
@@ -344,10 +390,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/25-preparando-pao-com-vista.jpg",
+    "arquivo": "solarium-2/cozinha/preparando-pao-com-vista.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Pão sendo tostado no fogão diante da janela com vista para as montanhas",
@@ -360,10 +408,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/26-abrindo-vinho-na-cozinha.jpg",
+    "arquivo": "solarium-2/cozinha/abrindo-vinho-na-cozinha.jpg",
     "largura": 1920,
     "altura": 1280,
     "alt": "Hóspede de roupão abrindo uma garrafa de vinho na cozinha iluminada pelo sol",
@@ -374,10 +424,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/27-cafe-na-bancada-com-vista.jpg",
+    "arquivo": "solarium-2/cozinha/cafe-na-bancada-com-vista.jpg",
     "largura": 1601,
     "altura": 2400,
     "alt": "Cafeteira, potes de café e açúcar e xícaras na bancada com vista para a serra",
@@ -388,10 +440,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/28-entrada-home-office-e-cozinha.jpg",
+    "arquivo": "solarium-2/cozinha/entrada-home-office-e-cozinha.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Corredor de entrada com home office, claraboia e a cozinha ao fundo",
@@ -402,10 +456,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/29-fogao-e-forno-com-janela.jpg",
+    "arquivo": "solarium-2/cozinha/fogao-e-forno-com-janela.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Fogão e forno embutidos sob a janela com vista para o vale e as nuvens",
@@ -416,10 +472,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cozinha/30-prato-e-taca-na-bancada.jpg",
+    "arquivo": "solarium-2/cozinha/prato-e-taca-na-bancada.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "Prato de cerâmica e taça em primeiro plano, com a cozinha e a mata ao fundo",
@@ -430,41 +488,47 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/vista/31-home-office-com-vista.jpg",
-    "largura": 2048,
-    "altura": 1537,
-    "alt": "Notebook sobre a mesa de trabalho diante da janela com vista para o eucaliptal",
-    "ambiente": "vista",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 31,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": false,
-    "creditoPendente": false
-  },
-  {
-    "arquivo": "solarium-2/area-gourmet/32-deck-iluminado-a-noite.jpg",
+    "arquivo": "solarium-2/area-gourmet/deck-iluminado-a-noite.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Deck com pufes e churrasqueira iluminados à noite, sob o céu estrelado da serra",
     "ambiente": "area-gourmet",
     "estacao": "neutra",
     "destaque": false,
+    "ordem": 31,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-2/area-gourmet/pufe-no-deck-com-cachorro.jpg",
+    "largura": 2048,
+    "altura": 1537,
+    "alt": "Pufe no deck com pratos na mesa lateral e cachorro ao lado, vale ao fundo",
+    "ambiente": "area-gourmet",
+    "estacao": "verde",
+    "destaque": false,
     "ordem": 32,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/area-gourmet/33-pufe-no-deck-com-cachorro.jpg",
-    "largura": 2048,
-    "altura": 1537,
-    "alt": "Pufe no deck com pratos na mesa lateral e cachorro ao lado, vale ao fundo",
+    "arquivo": "solarium-2/area-gourmet/churrasqueira-no-deck.jpg",
+    "largura": 2400,
+    "altura": 1800,
+    "alt": "Churrasqueira a gás e carvão no deck, com pufes e vista para as colinas",
     "ambiente": "area-gourmet",
     "estacao": "verde",
     "destaque": false,
@@ -472,54 +536,62 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/area-gourmet/34-churrasqueira-no-deck.jpg",
-    "largura": 2400,
-    "altura": 1800,
-    "alt": "Churrasqueira a gás e carvão no deck, com pufes e vista para as colinas",
-    "ambiente": "area-gourmet",
-    "estacao": "verde",
-    "destaque": false,
-    "ordem": 34,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": false,
-    "creditoPendente": false
-  },
-  {
-    "arquivo": "solarium-2/area-gourmet/35-brinde-no-pufe-do-deck.jpg",
+    "arquivo": "solarium-2/area-gourmet/brinde-no-pufe-do-deck.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Duas hóspedes de roupão brindando com vinho no pufe do deck, serra ao fundo",
     "ambiente": "area-gourmet",
     "estacao": "seca",
     "destaque": false,
-    "ordem": 35,
+    "ordem": 34,
     "tambemEm": [
       "vista"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/vista/36-casal-no-pufe-ao-por-do-sol.jpg",
+    "arquivo": "solarium-2/vista/casal-no-pufe-ao-por-do-sol.jpg",
     "largura": 2048,
     "altura": 1537,
     "alt": "Casal de roupão no pufe do deck durante o pôr do sol sobre as colinas",
     "ambiente": "vista",
     "estacao": "seca",
     "destaque": false,
+    "ordem": 35,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-2/vista/home-office-com-vista.jpg",
+    "largura": 2048,
+    "altura": 1537,
+    "alt": "Notebook sobre a mesa de trabalho diante da janela com vista para o eucaliptal",
+    "ambiente": "vista",
+    "estacao": "neutra",
+    "destaque": false,
     "ordem": 36,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": true
   },
   {
-    "arquivo": "solarium-2/area-gourmet/37-mesa-de-cafe-no-deck.jpg",
+    "arquivo": "solarium-2/area-gourmet/mesa-de-cafe-no-deck.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Mesa de madeira posta para o café da manhã no deck com montanhas e céu azul",
@@ -530,10 +602,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/area-gourmet/38-espumante-com-serra-ao-fundo.jpg",
+    "arquivo": "solarium-2/area-gourmet/espumante-com-serra-ao-fundo.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Espumante no balde e taças sobre o pufe, com o pasto e a serra atrás",
@@ -544,10 +618,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/area-gourmet/39-descanso-no-pufe-do-deck.jpg",
+    "arquivo": "solarium-2/area-gourmet/descanso-no-pufe-do-deck.jpg",
     "largura": 1280,
     "altura": 1920,
     "alt": "Hóspede de roupão relaxando no pufe do deck coberto com vista para a serra",
@@ -558,10 +634,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/40-vinho-no-deck-ao-por-do-sol.jpg",
+    "arquivo": "solarium-2/externa/vinho-no-deck-ao-por-do-sol.jpg",
     "largura": 2048,
     "altura": 1537,
     "alt": "Hóspede de roupão tomando vinho no deck ao pôr do sol, com a serra escurecendo",
@@ -572,10 +650,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/41-fogueira-e-redario.jpg",
+    "arquivo": "solarium-2/externa/fogueira-e-redario.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Fogueira, cadeiras e redário no gramado sob céu azul com nuvens, em Itanhandu, Minas Gerais",
@@ -586,10 +666,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/42-deck-com-ducha.jpg",
+    "arquivo": "solarium-2/externa/deck-com-ducha.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Deck lateral com ducha, pufe e degraus de madeira voltado para o eucaliptal",
@@ -600,10 +682,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/43-fachada-com-ceu-de-nuvens.jpg",
+    "arquivo": "solarium-2/externa/fachada-com-ceu-de-nuvens.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Fachada do Solarium 2 com deck e janelas refletindo o céu de nuvens",
@@ -614,10 +698,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/44-casa-vista-do-jardim-florido.jpg",
+    "arquivo": "solarium-2/externa/casa-vista-do-jardim-florido.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "Casa vista do jardim florido, com o pufe branco no deck superior",
@@ -628,10 +714,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/45-lateral-com-palmeiras-ao-por-do-sol.jpg",
+    "arquivo": "solarium-2/externa/lateral-com-palmeiras-ao-por-do-sol.jpg",
     "largura": 2048,
     "altura": 1554,
     "alt": "Lateral da casa com palmeiras no gramado e o sol se pondo sobre as colinas",
@@ -642,10 +730,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/amanhecer/46-fachada-ao-nascer-do-sol.jpg",
+    "arquivo": "solarium-2/amanhecer/fachada-ao-nascer-do-sol.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Fachada do Solarium 2 e caminho de pedras com o sol nascendo ao lado",
@@ -656,10 +746,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/47-casa-iluminada-em-noite-de-lua.jpg",
+    "arquivo": "solarium-2/externa/casa-iluminada-em-noite-de-lua.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Casa iluminada por spots quentes numa noite de lua sobre a serra",
@@ -670,10 +762,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/48-arco-iris-e-seriema.jpg",
+    "arquivo": "solarium-2/externa/arco-iris-e-seriema.jpg",
     "largura": 1349,
     "altura": 2400,
     "alt": "Arco-íris sobre o milharal e seriema pousada no mourão, com a Serra da Mantiqueira ao fundo",
@@ -684,10 +778,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/49-carregador-de-carro-eletrico.jpg",
+    "arquivo": "solarium-2/externa/carregador-de-carro-eletrico.jpg",
     "largura": 1349,
     "altura": 2400,
     "alt": "Carro elétrico carregando no estacionamento de pedras ao lado da casa",
@@ -698,10 +794,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/banheiro/50-chuveiro-com-nascer-do-sol.jpg",
+    "arquivo": "solarium-2/banheiro/chuveiro-com-nascer-do-sol.jpg",
     "largura": 2399,
     "altura": 2400,
     "alt": "Chuveiro com janela de vidro emoldurando o nascer do sol sobre o gramado",
@@ -715,10 +813,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/banheiro/51-bancada-com-vista-parque-itatiaia.jpg",
+    "arquivo": "solarium-2/banheiro/bancada-com-vista-parque-itatiaia.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Bancada do banheiro com secador, com o Parque Nacional do Itatiaia pela janela",
@@ -731,10 +831,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/banheiro/52-toalhas-bordadas-e-samambaia.jpg",
+    "arquivo": "solarium-2/banheiro/toalhas-bordadas-e-samambaia.jpg",
     "largura": 2048,
     "altura": 1536,
     "alt": "Toalhas bordadas no toalheiro e samambaia pendente ao lado da bancada do banheiro",
@@ -745,10 +847,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/spa/53-telao-cama-e-spa.jpg",
+    "arquivo": "solarium-2/spa/telao-cama-e-spa.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Telão ligado na parede diante da cama e do SPA de imersão",
@@ -759,10 +863,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": true
   },
   {
-    "arquivo": "solarium-2/banheiro/54-lavabo-com-janela-estreita.jpg",
+    "arquivo": "solarium-2/banheiro/lavabo-com-janela-estreita.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Lavabo com vaso sanitário, janela estreita e porta de madeira",
@@ -773,10 +879,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/banheiro/55-box-de-chuveiro.jpg",
+    "arquivo": "solarium-2/banheiro/box-de-chuveiro.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Box de chuveiro com revestimento de madeira clara e janela lateral",
@@ -787,10 +895,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/banheiro/56-cama-spa-e-box.jpg",
+    "arquivo": "solarium-2/banheiro/cama-spa-e-box.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Cama com travesseiros e SPA iluminado ao lado do box do banheiro",
@@ -801,10 +911,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/amanhecer/57-lavatorio-ao-nascer-do-sol.jpg",
+    "arquivo": "solarium-2/amanhecer/lavatorio-ao-nascer-do-sol.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Lavatório duplo iluminado pelo nascer do sol, com toalhas e samambaia",
@@ -815,10 +927,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/58-ducha-e-pufe-no-deck.jpg",
+    "arquivo": "solarium-2/externa/ducha-e-pufe-no-deck.jpg",
     "largura": 720,
     "altura": 1280,
     "alt": "Ducha externa e pufe no deck com vista para o eucaliptal e o céu azul",
@@ -831,10 +945,12 @@
     ],
     "baixaResolucao": true,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/externa/59-estacionamento-a-noite.jpg",
+    "arquivo": "solarium-2/externa/estacionamento-a-noite.jpg",
     "largura": 2400,
     "altura": 1703,
     "alt": "Caminho de pedras iluminado à noite com lanternas vermelhas de carro ao fundo",
@@ -845,10 +961,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/vista/60-telao-abrindo-ao-por-do-sol.jpg",
+    "arquivo": "solarium-2/vista/telao-abrindo-ao-por-do-sol.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Telão aberto para o deck ao pôr do sol com o vale ao fundo",
@@ -859,6 +977,8 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": true,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": true
   }
 ]

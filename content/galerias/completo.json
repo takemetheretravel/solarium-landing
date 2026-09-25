@@ -1,6 +1,6 @@
 [
   {
-    "arquivo": "completo/01-casas-ao-por-do-sol.jpg",
+    "arquivo": "completo/casas-ao-por-do-sol.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Deck de vidro do Solarium 1 ao pôr do sol, com o Solarium 2 no vale",
@@ -13,10 +13,12 @@
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "completo/02-noite-com-lua-nas-duas-casas.jpg",
+    "arquivo": "completo/noite-com-lua-nas-duas-casas.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "As duas casas iluminadas numa noite de lua, com a serra recortada no céu",
@@ -27,10 +29,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "completo/03-fogueira-e-vista-do-solarium-1.jpg",
+    "arquivo": "completo/fogueira-e-vista-do-solarium-1.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Fogueira e redário no gramado com o Solarium 1 e a serra sob céu de nuvens",
@@ -41,10 +45,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "completo/04-casas-diante-da-serra.jpg",
+    "arquivo": "completo/casas-diante-da-serra.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "As duas casas pequenas na paisagem, diante da Serra da Mantiqueira ao entardecer",
@@ -55,10 +61,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "completo/05-praca-entre-as-casas.jpg",
+    "arquivo": "completo/praca-entre-as-casas.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Solarium 2 e Solarium 1 separados pela praça de terra, com a serra ao fundo",
@@ -69,10 +77,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "completo/06-vista-norte-com-nevoa.jpg",
+    "arquivo": "completo/vista-norte-com-nevoa.jpg",
     "largura": 2400,
     "altura": 1800,
     "alt": "Névoa subindo entre as colinas verdes na vista norte do terreno",
@@ -83,10 +93,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "completo/07-nevoeiro-abaixo-da-estrada.jpg",
+    "arquivo": "completo/nevoeiro-abaixo-da-estrada.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Mar de nuvens abaixo da estrada, visto do gramado com céu azul intenso",
@@ -97,10 +109,12 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   },
   {
-    "arquivo": "completo/08-casal-no-balanco.jpg",
+    "arquivo": "completo/casal-no-balanco.jpg",
     "largura": 1600,
     "altura": 2400,
     "alt": "Casal no balanço do deck com o eucaliptal e a serra ao fundo",
@@ -111,6 +125,8 @@
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
-    "creditoPendente": false
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
   }
 ]
