@@ -30,6 +30,12 @@ export type ItemGaleria = {
   marcaDagua: boolean;
   /** TV/tela mostrando Netflix ou outra interface: mesmas restrições, e no fim do ambiente. */
   telaComConteudo: boolean;
+  /** Opcional. Crédito da foto ("Foto: …"); obrigatório para exibir item com `creditoPendente`. */
+  credito?: string;
+  /** Opcional. Versão retrato para o hero no celular (IMG-1b). */
+  destaqueMobile?: boolean;
+  /** Opcional. Ponto de recorte do hero quando não há versão retrato (IMG-1b). */
+  foco?: "centro" | "esquerda" | "direita";
 };
 
 /** Pode ser capa, entrar no mosaico e ir para o Perfil da Empresa no Google. */
@@ -54,6 +60,8 @@ const CAMPOS: (keyof ItemGaleria)[] = [
   "telaComConteudo",
 ];
 
+const OPCIONAIS: string[] = ["credito", "destaqueMobile", "foco"];
+
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** Devolve a lista de problemas do manifesto; vazia quando válido. */
@@ -72,11 +80,15 @@ export function validarManifesto(grupo: Grupo, itens: unknown): string[] {
     }
     const it = bruto as Record<string, unknown>;
 
-    const chaves = Object.keys(it).sort();
-    const esperadas = [...CAMPOS].sort();
-    if (chaves.join() !== esperadas.join()) {
-      erros.push(`${onde}: campos ${chaves.join(",")} ≠ ${esperadas.join(",")}`);
+    const chaves = Object.keys(it);
+    const faltando = CAMPOS.filter((c) => !chaves.includes(c));
+    const sobrando = chaves.filter((c) => !CAMPOS.includes(c as keyof ItemGaleria) && !OPCIONAIS.includes(c));
+    if (faltando.length || sobrando.length) {
+      erros.push(`${onde}: faltando [${faltando.join(",")}] sobrando [${sobrando.join(",")}]`);
     }
+    if ("credito" in it && (typeof it.credito !== "string" || !it.credito.trim())) erros.push(`${onde}: credito vazio`);
+    if ("destaqueMobile" in it && typeof it.destaqueMobile !== "boolean") erros.push(`${onde}: destaqueMobile`);
+    if ("foco" in it && !["centro", "esquerda", "direita"].includes(it.foco as string)) erros.push(`${onde}: foco`);
 
     const arq = it.arquivo;
     if (typeof arq !== "string") erros.push(`${onde}: arquivo`);
