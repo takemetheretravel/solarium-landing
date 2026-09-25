@@ -18,11 +18,12 @@ página: só scripts, manifestos, curadoria e testes. Independe das SEO-1a/1b.
 - `galerias-local/` presente (com um nível extra: `galerias-local/Solarium/`;
   o script detecta sozinho). **Não estava no `.gitignore`** — adicionado
   (`/galerias-local/`, `/galerias-processadas/`) antes de qualquer outra coisa.
-- **Supabase**: decidido que é o projeto existente da Fernanda, com o bucket
-  `galerias` já criado. Mas em 25/09 o `.env.local` **ainda não tinha
-  nenhuma variável do Supabase** (nem com outro nome; arquivo sem alteração
-  desde 01/09). O `--dry-run` rodou (165 arquivos, 65,4 MB); o upload real e a
-  conferência das 5 URLs **não foram feitos**.
+- **Supabase**: projeto existente da Fernanda, bucket `galerias` público.
+  Variáveis coladas no `.env.local` em 25/09. **Upload feito em 25/09:
+  165/165 arquivos, 68.628.899 bytes (65,4 MB), 5/5 URLs públicas sorteadas
+  com 200.** Logo em PNG servido como `image/png`; `GET` público responde
+  `cache-control: public, max-age=31536000` (o `HEAD` do Storage devolve
+  `no-cache`, particularidade do serviço — não é o cache real).
 
 ### Decisões
 
@@ -82,10 +83,12 @@ página: só scripts, manifestos, curadoria e testes. Independe das SEO-1a/1b.
 - **Testes em `src/lib/galerias/`** (o Vitest só lê `src/**`). O teste dos
   arquivos processados usa `skipIf`: a pasta não está no git, então só roda na
   máquina que executou o preparo.
-- **`tsx`** entrou como devDependency para rodar os scripts em TypeScript;
-  `@supabase/supabase-js` também é devDependency, porque só o script de upload
-  usa. Há teste que falha se `src/` importar a biblioteca ou citar a service
-  role.
+- **`tsx`** entrou como devDependency para rodar os scripts em TypeScript.
+- **Upload pela API REST do Storage, com `fetch`, sem `@supabase/supabase-js`.**
+  A biblioteca exige WebSocket nativo (Node 22+) por causa do realtime, que o
+  upload não usa, e quebrava no Node 20 desta máquina antes de enviar
+  qualquer arquivo. Removida das dependências. Há teste que falha se `src/`
+  importar a biblioteca ou citar a service role.
 - **Upload**: `upsert: true`, `cacheControl: 31536000`, 4 envios em paralelo,
   `contentType` pela extensão; ao fim, HEAD em 5 URLs públicas sorteadas.
 - **Nome de arquivo estável, sem prefixo de ordem** (decisão do Lucas, 25/09).
