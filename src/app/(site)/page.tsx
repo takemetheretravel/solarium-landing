@@ -28,13 +28,15 @@ import {
   REVIEWS,
   PARTNERS,
   EXPERIENCES_ONSITE,
-  SITE,
   AIRBNB_LINKS,
   whatsappLink,
 } from "@/config/site";
 import { formatBRL } from "@/lib/cn";
+import { metadadosDe } from "@/lib/seo";
 
 export const revalidate = 300;
+
+export const metadata = metadadosDe("/");
 
 const ONSITE_ICONS = { coffee: Coffee, spa: Flower2, heart: Heart };
 
@@ -63,7 +65,7 @@ export default async function Home() {
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/55 via-charcoal/20 to-transparent sm:from-charcoal/40" />
 
         <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center text-cream">
-          <Kicker tone="cream" className="mb-6 opacity-90">{SITE.region}</Kicker>
+          <Kicker tone="cream" className="mb-6 opacity-90">Itanhandu · Serra da Mantiqueira · MG</Kicker>
           <Heading level={1} className="text-cream">
             Solarium
             <br />
@@ -103,7 +105,7 @@ export default async function Home() {
                 : { icon: Tag, title: "Até 17% de desconto", text: "Estadias mais longas têm preços melhores — desconto progressivo por noite." },
               V2
                 ? { icon: Sparkles, title: "Reserva direta com o anfitrião", text: "Você fala com quem cuida da casa, do primeiro contato à chegada." }
-                : { icon: Sparkles, title: "Cupons exclusivos", text: "Códigos de desconto disponíveis para reservas diretas." },
+                : { icon: Sparkles, title: "Cupons para reserva direta", text: "Códigos de desconto disponíveis para reservas diretas." },
               { icon: MessageCircle, title: "Atendimento direto com o anfitrião", text: "Sem intermediários, sem fila — falamos com você." },
               { icon: Sparkles, title: "Concierge proativo", text: "Da chegada à partida, cuidamos dos detalhes." },
             ].map((item) => (
@@ -135,7 +137,7 @@ export default async function Home() {
               <p className="font-sans text-xs text-charcoal/70">
                 {V2
                   ? "Melhor condição garantida no site."
-                  : "Cupons exclusivos: até 17% de desconto para reservas diretas."}
+                  : "Cupons de reserva direta: até 17% de desconto."}
               </p>
             </div>
             {!V2 && (
@@ -478,9 +480,9 @@ export default async function Home() {
         <Container>
           <div className="mb-12 max-w-2xl">
             <Kicker className="mb-4">Onde estamos</Kicker>
-            <Heading level={2}>Serra da Mantiqueira, Minas Gerais.</Heading>
+            <Heading level={2}>Bairro Jardim, Itanhandu — Minas Gerais.</Heading>
             <p className="mt-6 font-sans text-base leading-relaxed text-charcoal/70">
-              De fácil acesso por rodovia a partir das principais capitais do Sudeste. A poucos quilômetros de Itanhandu, próximo ao Parque Nacional do Itatiaia.
+              Na Serra da Mantiqueira, com vista para a Serra Fina e para o Parque Nacional do Itatiaia. O ponto exato de acesso é enviado depois da confirmação da reserva.
             </p>
           </div>
 

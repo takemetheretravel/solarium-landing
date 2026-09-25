@@ -10,6 +10,7 @@ import { PACKAGES } from "@/config/packages";
 import { pacotesV2Ativo } from "@/config/flags";
 import { vistaPacote, slugsDePacote, textoNoites } from "@/lib/pricing/vista-pacote";
 import { JANELA_CANCELAMENTO_EXTRAS_DIAS } from "@/config/precos-e-extras";
+import { metadadosPagina } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -25,15 +26,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const vista = vistaPacote(params.slug, pacotesV2Ativo());
   if (!vista) return { title: "Não encontrado" };
-  return {
-    title: `${vista.nome} — Solarium Mantiqueira`,
+  return metadadosPagina({
+    caminho: `/pacotes/${vista.slug}`,
+    title: `${vista.nome} · Solarium Mantiqueira`,
     description: vista.descricao.slice(0, 160),
-    openGraph: {
-      title: `${vista.nome} — Solarium Mantiqueira`,
-      description: vista.descricao.slice(0, 160),
-      images: [{ url: vista.imagem, width: 1200, height: 900, alt: vista.nome }],
-    },
-  };
+    imagem: vista.imagem,
+    imagemAlt: vista.nome,
+  });
 }
 
 type Busca = { checkin?: string; checkout?: string; casa?: string; guests?: string };

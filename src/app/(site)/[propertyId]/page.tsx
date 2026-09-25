@@ -19,14 +19,9 @@ import {
 import { REVIEWS, SITE, AIRBNB_LINKS, whatsappLink } from "@/config/site";
 import { getListing } from "@/lib/hostaway";
 import TrackViewContent from "@/components/tracking/TrackViewContent";
+import { metadadosDe, OG_IMAGENS } from "@/lib/seo";
 
 export const revalidate = 300;
-
-const SEO_TITLES: Record<string, string> = {
-  "solarium-1": "Solarium 1 — Refúgio para Casais na Serra da Mantiqueira",
-  "solarium-2": "Solarium 2 — Cinema e SPA com Vista para a Serra",
-  "solarium-completo": "Solarium Completo — Duas Casas, Privacidade Total",
-};
 
 export function generateStaticParams() {
   return PROPERTIES.map((p) => ({ propertyId: p.slug }));
@@ -39,16 +34,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const property = getPropertyBySlug(params.propertyId);
   if (!property) return { title: "Não encontrado" };
-  const title = SEO_TITLES[property.slug] ?? property.name;
-  return {
-    title,
-    description: property.description.slice(0, 160),
-    openGraph: {
-      title,
-      description: property.description.slice(0, 160),
-      images: [{ url: property.heroImage, width: 1600, height: 900, alt: property.name }],
-    },
-  };
+  return metadadosDe(`/${property.slug}`, OG_IMAGENS[property.slug], property.name);
 }
 
 export default async function PropertyPage({

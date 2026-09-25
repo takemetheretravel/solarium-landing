@@ -79,7 +79,7 @@ const SOLARIUM_1: PropertyConfig = {
   capacity: { ideal: 2, max: 4 },
   fromPriceNightly: 1150,
   badge: "Hidro com Vista Panorâmica",
-  tagline: "Onde tudo começou — íntimo, premium, com vista para a Serra Fina.",
+  tagline: "Onde tudo começou — íntimo, com vista para a Serra Fina.",
   description:
     "Solarium 1 é onde tudo começou. Pensado para casais que buscam um refúgio íntimo, integra design contemporâneo, tecnologia e a vista impressionante da Serra da Mantiqueira. A banheira de hidromassagem com vista para a serra, a cozinha aberta para o Parque Nacional do Itatiaia e o piso aquecido em todos os ambientes garantem que cada momento da sua estadia seja excepcional.",
   differentials: [
@@ -99,7 +99,7 @@ const SOLARIUM_1: PropertyConfig = {
     "Smart TV",
     "Automação Alexa",
     "Estacionamento gratuito",
-    "Roupa de cama e banho premium",
+    "Roupa de cama e banho G3 Hotelaria",
     "Churrasqueira a gás",
   ],
   amenityGroups: [TEC(["Smart TV e som integrado"]), BEM_ESTAR, NATUREZA, COZINHA("Churrasqueira a gás")],
@@ -148,7 +148,7 @@ const SOLARIUM_2: PropertyConfig = {
     "Cozinha completa",
     "Smart TV",
     "Estacionamento gratuito",
-    "Roupa de cama e banho premium",
+    "Roupa de cama e banho G3 Hotelaria",
     "Churrasqueira a gás e a carvão",
   ],
   amenityGroups: [
@@ -184,7 +184,7 @@ const SOLARIUM_COMPLETO: PropertyConfig = {
   badge: "Para Grupos e Celebrações",
   tagline: "As duas casas reservadas para você. Privacidade total.",
   description:
-    "Solarium Completo é a reserva de ambas as casas para uma experiência exclusiva. Privacidade total da propriedade, ideal para celebrações, reuniões de família ou grupos pequenos que querem aproveitar o melhor das duas casas — do cinema integrado do Solarium 2 ao SPA com piscina infinita do Solarium 1, sem nenhum vizinho.",
+    "Solarium Completo é a reserva de ambas as casas para um grupo só. Privacidade total da propriedade, ideal para celebrações, reuniões de família ou grupos pequenos que querem aproveitar o melhor das duas casas — do cinema integrado do Solarium 2 ao SPA com piscina infinita do Solarium 1, sem nenhum vizinho.",
   differentials: [
     "Reserva de ambas as casas",
     "Privacidade total da propriedade",

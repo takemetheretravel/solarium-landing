@@ -6,7 +6,7 @@ export const SITE = {
   whatsappNumber: "5535984075652",
   whatsappDisplay: "+55 35 98407-5652",
   instagram: "solariummantiqueira",
-  region: "Serra da Mantiqueira · Brasil",
+  region: "Bairro Jardim · Itanhandu, MG",
   pixDiscountPercent: 3,
 };
 
@@ -105,7 +105,7 @@ export const PARTNERS: Partner[] = [
   },
   {
     name: "G3 Hotelaria",
-    description: "Pensando em garantir o maior conforto, desenvolvemos uma linha especial junto à G3 Hotelaria. Conforto, luxo e qualidade comprovada.",
+    description: "Pensando em garantir o maior conforto, desenvolvemos uma linha especial junto à G3 Hotelaria. Conforto e qualidade comprovada.",
     couponCode: "Solarium20",
     couponDescription: "20% de desconto",
     instagram: "g3hotelaria",
@@ -113,7 +113,7 @@ export const PARTNERS: Partner[] = [
   },
   {
     name: "Eco Flame Garden",
-    description: "Parceiro alinhado com nosso compromisso de trazer conforto, sofisticação e modernidade. Os puffs se moldam ao seu corpo!",
+    description: "Parceiro alinhado com nosso compromisso de trazer conforto, design e modernidade. Os puffs se moldam ao seu corpo!",
     whatsapp: "5511913287929",
     whatsappMessage: "Olá, Guida. Estive no Solarium Mantiqueira e gostaria de saber mais informações sobre os produtos da Eco Flame Garden!",
     category: "Mobiliário Outdoor",

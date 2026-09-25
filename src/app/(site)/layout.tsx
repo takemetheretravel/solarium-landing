@@ -6,32 +6,25 @@ import "../globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import FloatingWhatsApp from "@/components/ui/FloatingWhatsApp";
+import { SITE_URL, SEO_PAGINAS, OG_IMAGENS } from "@/lib/seo";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://solariummantiqueira.com";
-const siteTitle = "Solarium Mantiqueira | Refúgio de Design na Serra";
-const siteDescription =
-  "Refúgio de design e experiência na Serra da Mantiqueira. Duas casas exclusivas, pensadas para casais que buscam imersão em natureza com tecnologia e conforto.";
-const ogImage = `https://drive.google.com/thumbnail?id=1Eq2UTnGpyyXhx0KPsWzeKtGOvlkWK1-8&sz=w1600`;
-
+// Title, description, og e twitter da home moram em `page.tsx` (via
+// `metadadosDe("/")`). Aqui fica só o que toda página herda: base das URLs
+// relativas, template do title e nome do site. Canonical NÃO fica aqui — o
+// layout o espalharia para todas as páginas, apontando tudo para a home.
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: siteTitle, template: "%s | Solarium Mantiqueira" },
-  description: siteDescription,
-  keywords: ["Solarium Mantiqueira", "Serra da Mantiqueira", "hospedagem", "Itanhandu", "casa de temporada", "Take Me There"],
+  title: { default: SEO_PAGINAS["/"].title, template: "%s · Solarium Mantiqueira" },
+  description: SEO_PAGINAS["/"].description,
   openGraph: {
-    title: siteTitle,
-    description: siteDescription,
-    url: SITE_URL,
     siteName: "Solarium Mantiqueira",
     locale: "pt_BR",
     type: "website",
-    images: [{ url: ogImage, width: 1600, height: 900, alt: "Solarium Mantiqueira" }],
+    images: [{ url: OG_IMAGENS.home, width: 1200, height: 630, alt: "Solarium Mantiqueira" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: siteTitle,
-    description: siteDescription,
-    images: [ogImage],
+    images: [OG_IMAGENS.home],
   },
   robots: { index: true, follow: true },
 };

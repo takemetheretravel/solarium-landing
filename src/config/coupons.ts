@@ -59,7 +59,7 @@ export const COUPONS: Coupon[] = [
     validFrom: "2026-01-01",
     validUntil: "2027-12-31",
     isPublic: false,
-    description: "15% de desconto exclusivo",
+    description: "15% de desconto na reserva direta",
   },
 ];
 

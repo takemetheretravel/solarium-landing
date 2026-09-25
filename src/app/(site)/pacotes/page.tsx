@@ -14,13 +14,11 @@ import { vistaPacote, textoNoites } from "@/lib/pricing/vista-pacote";
 import { pacotesVisiveis } from "@/lib/pricing/elegibilidade";
 import { totalMinimoDoPacote } from "@/lib/pricing/pacote-server";
 import { getPropertyBySlug } from "@/config/properties";
+import { metadadosDe } from "@/lib/seo";
 
 export const revalidate = 300;
 
-export const metadata: Metadata = {
-  title: "Pacotes — Solarium Mantiqueira",
-  description: "Estadias com itens já organizados, em uma reserva só.",
-};
+export const metadata: Metadata = metadadosDe("/pacotes");
 
 export default async function PaginaPacotes() {
   const v2Ativo = pacotesV2Ativo();

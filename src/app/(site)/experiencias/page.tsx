@@ -6,15 +6,12 @@ import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
 import SmartImage from "@/components/ui/SmartImage";
 import { imageUrl } from "@/lib/cloudinary";
+import { metadadosDe } from "@/lib/seo";
 
 const EXP = (name: string, w?: number, h?: number) =>
   imageUrl(`solarium/experiencias/${name}`, w && h ? { width: w, height: h } : undefined);
 
-export const metadata: Metadata = {
-  title: "Experiências",
-  description:
-    "Da cesta de café com produtores locais às cachoeiras da Serra da Mantiqueira — curadoria completa de experiências no Solarium e na região.",
-};
+export const metadata: Metadata = metadadosDe("/experiencias");
 
 const WA = "5535984075652";
 
