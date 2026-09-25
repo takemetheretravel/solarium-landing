@@ -8,6 +8,133 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada IMG-0 — Fotos do Drive preparadas para o Supabase Storage (set/2026)
+
+Branch `feature/img-0-galerias`, a partir da `main`. Não toca em nenhuma
+página: só scripts, manifestos, curadoria e testes. Independe das SEO-1a/1b.
+
+### Estado dos pré-requisitos
+
+- `galerias-local/` presente (com um nível extra: `galerias-local/Solarium/`;
+  o script detecta sozinho). **Não estava no `.gitignore`** — adicionado
+  (`/galerias-local/`, `/galerias-processadas/`) antes de qualquer outra coisa.
+- **Supabase**: projeto existente da Fernanda, bucket `galerias` público.
+  Variáveis coladas no `.env.local` em 25/09. **Upload feito em 25/09:
+  165/165 arquivos, 68.628.899 bytes (65,4 MB), 5/5 URLs públicas sorteadas
+  com 200.** Logo em PNG servido como `image/png`; `GET` público responde
+  `cache-control: public, max-age=31536000` (o `HEAD` do Storage devolve
+  `no-cache`, particularidade do serviço — não é o cache real).
+
+### Decisões
+
+- **Curadoria separada do manifesto.** O que é julgamento humano (descrição,
+  alt, estação, ordem, capa, exclusão e motivo, seleção do Google,
+  reclassificação de ambiente) mora em `content/galerias/curadoria.json`,
+  chaveado pelo **SHA-256 do arquivo original**. Os manifestos são gerados a
+  partir dela e nunca editados à mão (CLAUDE.md §6). Renomear ou mover um
+  arquivo no Drive não perde a curadoria; trocar a foto perde, de propósito.
+- **Nomes originais nunca entram no git.** Vários trazem nome de hóspede
+  ("Banheira Aline", "Quarto Elora"). Curadoria e relatório usam só SHA e
+  descrições saneadas; o mapa nome original → destino fica em
+  `galerias-processadas/_origem.json`, fora do repositório. Há teste que falha
+  se a curadoria contiver nome da lista `NOMES_DE_PESSOAS`.
+- **Duplicata = mesmo SHA-256 dentro do mesmo grupo** (casa, experiências,
+  marca). Entre casas diferentes não se deduplica: a foto pode servir às duas
+  páginas. 18 removidas. Versões retocadas (`Ret_`) e reexportações têm bytes
+  diferentes e não são duplicata para o SHA; as quase idênticas foram tratadas
+  na revisão visual (excluídas do site com motivo "quase idêntica a …").
+- **`conjunto` entrou na ordem de prioridade**, antes de `geral` (o prompt não
+  a listava; só existe no Completo).
+- **Reclassificação de ambiente pela curadoria** (campo `ambiente`): três
+  fotos da pasta de banheiro mostram o SPA ou o quarto e passaram para `spa`
+  ou `quarto`; a pasta original fica em `tambemEm`. Sem isso o limite de 3
+  banheiros descartaria fotos que são do SPA.
+- **Exclusões além da lista do prompt**: quase duplicatas (4) e fotos de
+  banheiro acima do limite de 3 por casa. Todas com motivo no relatório.
+- **Alt**: 8–16 palavras, único em todo o acervo, citação de
+  Itanhandu/Serra da Mantiqueira em no máximo 1/4 por grupo — tudo com teste.
+  Descrições de hóspede neutras ("hóspede descansando na poltrona"). A foto do
+  prompt "grávida na poltrona" virou `descanso-na-poltrona` (a cena não é de
+  leitura); a regra automática do nome provisório usa `leitura-na-poltrona`,
+  como no exemplo do prompt.
+- **Capas**: Solarium 1 `spa/spa-hidro-ligada-vista-serra-fina`,
+  Solarium 2 `vista/quarto-e-spa-ao-por-do-sol`, Completo
+  `casas-ao-por-do-sol`. Ordem conta a história pedida (vista/SPA → quarto
+  → diferencial → cozinha/gourmet → externa e fogo → detalhes → banheiros), e
+  as excluídas ficam depois de todas as visíveis.
+- **`creditoPendente: true` nas 10 fotos de experiências**, não só nas
+  quatro citadas: não há como saber a autoria das demais pelo arquivo.
+- **Destino do Completo e das experiências é plano** (`completo/`,
+  `experiencias/`), como na estrutura pedida; o ambiente fica no manifesto.
+- **Logos**: `comum/marca/logo-branco.png` e `logo-preto.png`, PNG com
+  transparência, lado maior 1200px. O `og` 1200x630 em `comum/og/` não faz
+  parte desta rodada.
+- **Conversão**: HEIC via `heic-convert` (o `sharp` pré-compilado não lê
+  HEVC), depois `sharp().rotate()` e saída sem `withMetadata` — sai sem EXIF,
+  GPS, XMP, IPTC e ICC, em sRGB. PNG de foto recebe fundo branco antes do JPG.
+  154 dos 165 originais tinham EXIF; nenhum processado tem (teste).
+- **Idempotência**: a saída é reconstruída a cada rodada a partir de um cache
+  por SHA (`galerias-processadas/.cache/`). Duas rodadas seguidas deram hash
+  idêntico em todos os arquivos, manifestos e relatório. A primeira rodada foi
+  do zero, sem cache, em ~7,5 min; com cache, ~2 min.
+- **Folhas de contato** (`--folhas`) em `galerias-processadas/_revisao/`, com
+  uma métrica de nitidez (variância do laplaciano) no rótulo, para a revisão
+  visual. Ficam fora do upload.
+- **Testes em `src/lib/galerias/`** (o Vitest só lê `src/**`). O teste dos
+  arquivos processados usa `skipIf`: a pasta não está no git, então só roda na
+  máquina que executou o preparo.
+- **`tsx`** entrou como devDependency para rodar os scripts em TypeScript.
+- **Upload pela API REST do Storage, com `fetch`, sem `@supabase/supabase-js`.**
+  A biblioteca exige WebSocket nativo (Node 22+) por causa do realtime, que o
+  upload não usa, e quebrava no Node 20 desta máquina antes de enviar
+  qualquer arquivo. Removida das dependências. Há teste que falha se `src/`
+  importar a biblioteca ou citar a service role.
+- **Upload**: `upsert: true`, `cacheControl: 31536000`, 4 envios em paralelo,
+  `contentType` pela extensão; ao fim, HEAD em 5 URLs públicas sorteadas.
+- **Nome de arquivo estável, sem prefixo de ordem** (decisão do Lucas, 25/09).
+  O nome é só o slug da descrição; a ordem mora só no campo `ordem` do
+  manifesto. Mudar a ordem não muda mais o caminho no bucket. Colisão na mesma
+  pasta ganha `-2`, `-3`… (nenhuma aconteceu). Isso substitui a regra
+  `{nn}-{descricao}` do prompt original.
+- **`marcaDagua: true`** (decisão do Lucas, 25/09) nas 28 fotos com o "T" no
+  canto inferior esquerdo — 26 do Solarium 1 e 2 de experiências; nenhuma no
+  Solarium 2 nem no Completo. Apurado foto a foto numa folha só com o canto de
+  cada imagem. Ficam na galeria; **nunca capa, nunca mosaico, fora de `gmb/`**.
+- **`telaComConteudo: true`** nas 8 fotos com TV ou tela mostrando Netflix ou
+  outra interface (inclui a tela de bloqueio do notebook no home office, por
+  cautela). Mesmas restrições da marca d'água e, além disso, **no fim do
+  próprio ambiente** (no cinema: `cinema-aberto-com-neblina` e
+  `pufe-diante-do-telao` antes das duas com tela). TV desligada não conta.
+- **`podeSerVitrine()`** (`src/lib/galerias/manifesto.ts`) é a regra única
+  para capa, mosaico e Google: não excluída, não baixa resolução, sem marca
+  d'água, sem tela. O preparo **falha** se a curadoria pedir capa ou Google
+  para foto que não passa; o validador do manifesto recusa capa assim.
+- **Seleção do Google refeita**: saíram 4 fotos com marca d'água e 1 com tela;
+  entraram deck com vista da Serra Fina, vista aérea ao anoitecer, vista aérea
+  da Serra do Papagaio, mar de nuvens ao amanhecer e a casa vista do jardim
+  florido. As capas das três casas já estavam livres de marca e tela.
+- **`creditoPendente` nas 10 fotos de experiências**: aprovado pelo Lucas.
+
+### ⚠️ Exigência para a IMG-1 (e para a SEO-1c)
+
+A rodada que consumir estes manifestos **precisa respeitar `marcaDagua` e
+`telaComConteudo`**: nenhuma das duas pode ser capa, entrar no mosaico ou ir
+para qualquer vitrine (Google, og:image, JSON-LD). Use `podeSerVitrine()`,
+não uma checagem própria. Na galeria completa elas aparecem normalmente, e a
+ordem do manifesto já põe as telas no fim do ambiente.
+
+### Achados fora de escopo (não corrigidos)
+
+1. ~~Marca d'água "T"~~ e ~~telas com conteúdo~~: resolvidos com
+   `marcaDagua` e `telaComConteudo` (ver acima).
+2. **`pacotes/` tinha um `.docx`** ("Documento sem título"), ignorado.
+3. **CLAUDE.md §6 descreve o Cloudinary como origem das fotos do site.** Vale
+   até a SEO-1c trocar as páginas para o Supabase; atualizar lá.
+4. **Parte das 10 fotos em baixa resolução é boa** (SPA ao pôr do sol,
+   rede com edredom, jantar no deck). Vale procurar os arquivos em resolução
+   cheia.
+---
+
 ## Rodada SEO-1b — Dados estruturados (JSON-LD) (set/2026)
 
 Branch `feature/seo-jsonld`, a partir de `feature/seo-local` (SEO-1a), porque
@@ -55,6 +182,8 @@ reaproveita `SITE_URL` de `src/lib/seo.ts`. Mergear depois da SEO-1a.
 
 - Validar em produção, depois do merge, no Teste de Pesquisa Aprimorada do
   Google e no validator.schema.org (não dá para testar localhost).
+
+---
 
 ## Rodada SEO-1a — SEO local: Itanhandu, metadados e vocabulário (set/2026)
 
@@ -149,6 +278,8 @@ existe só em `feat/galeria-cloudinary`. Nada dela foi reaproveitado aqui.
    — SEO-1c.
 4. **`scripts/lint-copy.mjs` só olha a copy dos pacotes.** O teste novo
    cobre o site, mas roda no `npm test`, não no build.
+
+---
 
 ## Rodada AF3 — Limites de tamanho dos campos enviados ao antifraude (set/2026)
 

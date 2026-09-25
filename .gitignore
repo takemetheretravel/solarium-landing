@@ -37,3 +37,7 @@ next-env.d.ts
 
 # temp video downloads (before Cloudinary upload)
 /temp
+
+# fotos originais e processadas (IMG-0) — nunca no repositório público
+/galerias-local/
+/galerias-processadas/

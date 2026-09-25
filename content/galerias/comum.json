@@ -1,0 +1,34 @@
+[
+  {
+    "arquivo": "comum/marca/logo-branco.png",
+    "largura": 1200,
+    "altura": 1109,
+    "alt": "Logotipo do Solarium Mantiqueira em branco, com montanhas desenhadas sobre o nome",
+    "ambiente": "marca",
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 1,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "comum/marca/logo-preto.png",
+    "largura": 1200,
+    "altura": 1109,
+    "alt": "Logotipo do Solarium Mantiqueira em preto, com montanhas desenhadas sobre o nome",
+    "ambiente": "marca",
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 2,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  }
+]
