@@ -8,6 +8,81 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada IMG-1a — Galerias das casas pelo manifesto (set/2026)
+
+Branch `feature/img-1a-galerias-casas`, a partir da `main` (`f40c003`).
+Substitui a SEO-1c. Não toca na página de pagamento.
+
+### Pré-condições
+
+- IMG-0 na `main`, fotos no bucket, manifestos em `content/galerias/`: ok.
+- `NEXT_PUBLIC_SUPABASE_URL` no `.env.local`: ok. **Na Vercel não foi possível
+  conferir** (CLI negada). O `next.config` agora **falha o build** sem ela, com
+  mensagem clara — o próprio build do preview é a prova.
+- SEO-1a e SEO-1b na `main`: ok.
+
+### Decisões
+
+- **`@/lib/galerias` é `src/lib/galerias/index.ts`**, não `lib/galerias.ts`:
+  a pasta já existia (IMG-0) e arquivo e pasta com o mesmo nome confundem a
+  resolução. O import pedido (`@/lib/galerias`) funciona igual.
+- **`urlGaleria()` e `NEBLINA` num módulo leve** (`src/lib/galerias/url.ts`),
+  reexportados pelo índice. Componentes cliente importam dele: importar o
+  índice levaria os cinco manifestos (~100 KB) para o bundle do navegador.
+- **`<ImagemGaleria>`** é o único ponto que renderiza foto do manifesto:
+  `next/image` otimizado (não o `unoptimized` do `SmartImage` para URL
+  externa), `quality` 75, `sizes` obrigatório, fundo Neblina `#E9E5E0`, sem
+  blur.
+- **Nenhuma foto repete no DOM**: hero = capa (`destaque`); mosaico = as 5
+  fotos seguintes que podem ser vitrine; a grade por ambiente mostra **o que
+  sobra**. O lightbox percorre a casa inteira ("3 de 52"), inclusive hero e
+  mosaico — é o único lugar onde tudo aparece junto. Testado para os 12 meses.
+- **Grade por ambiente em abas**: só a categoria ativa vai para o DOM. No
+  Completo seriam 120+ miniaturas de uma vez.
+- **Categorias**: `externa` e `geral` → "Área externa"; ambiente fora do mapa
+  cai em "Área externa" em vez de sumir.
+- **Mosaico do Completo**: a foto grande é a próxima do conjunto depois da
+  capa; as menores são as capas do Solarium 1 e do Solarium 2 e mais duas do
+  conjunto. Grade com os chips "Conjunto", "Solarium 1", "Solarium 2"; o
+  lightbox percorre as três galerias (conjunto, casa 1, casa 2).
+- **Botões fora da foto**: "Ver todas as fotos" / "Ver as N fotos" ficam
+  abaixo do mosaico, não sobre a imagem (manual: nada de texto sobreposto).
+  O hero continua com o nome da casa sobre a foto — não é galeria.
+- **Estação** (`ordenarPorEstacao`): a estação do mês vem antes dentro de cada
+  ambiente; `neutra` fica exatamente na mesma posição. Mês do build.
+- **Crédito**: campo opcional `credito` no manifesto (junto com `destaqueMobile`
+  e `foco`, que servem à IMG-1b). O validador aceita os opcionais sem
+  exigi-los. Item com `creditoPendente` sem `credito` não aparece — **hoje
+  isso esconde as 10 fotos de experiências**; a IMG-1b precisa dos créditos.
+- **Vídeo** segue no Cloudinary, agora sozinho no bloco "Conheça em
+  movimento" (as 6 fotos de prévia ao lado dele saíram: eram a duplicata).
+- **JSON-LD das casas** passa a usar as fotos do manifesto que podem ser
+  vitrine (até 20), pela exigência da IMG-0.
+- **`src/components/property/Gallery.tsx` removido** (sem uso).
+- **`heroImage`/`galleryImages` continuam em `properties.ts`**: a página de
+  pagamento (intocável), a reserva e a home ainda leem. Saem na IMG-1b/1c.
+- **`vitest.config.ts`** ganha `NEXT_PUBLIC_SUPABASE_URL` de exemplo: teste
+  nunca depende do projeto real.
+- **CLAUDE.md**: §6 reescrita (fotos no Supabase, vídeos no Cloudinary), §7,
+  §8 e estado da galeria atualizados.
+
+### Verificado localmente (`next start`)
+
+- /solarium-1, /solarium-2, /solarium-completo: 23, 11 e 10 `<img>` no HTML,
+  todas únicas, todas com alt, todas do Supabase, nenhuma de `/images/`, uma
+  só `priority`.
+- Celular (375px): maior largura pedida `w=828`; só a foto grande do mosaico
+  visível; lightbox com contador, legenda, foco no fechar, Esc devolvendo o
+  foco.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **O logo do Header também é `priority`** — a página tem duas imagens
+   prioritárias (logo + hero). O teste "uma `priority` por página" é da
+   IMG-1c; corrigir lá.
+
+---
+
 ## Rodada IMG-0 — Fotos do Drive preparadas para o Supabase Storage (set/2026)
 
 Branch `feature/img-0-galerias`, a partir da `main`. Não toca em nenhuma
