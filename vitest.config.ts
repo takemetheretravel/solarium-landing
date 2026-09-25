@@ -7,6 +7,8 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },
+  // Mesmo runtime de JSX do Next: componente sem `import React` renderiza no teste.
+  esbuild: { jsx: "automatic" },
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",

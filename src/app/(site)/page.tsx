@@ -33,6 +33,8 @@ import {
 } from "@/config/site";
 import { formatBRL } from "@/lib/cn";
 import { metadadosDe } from "@/lib/seo";
+import JsonLd from "@/components/seo/JsonLd";
+import { jsonLdNegocio } from "@/lib/json-ld";
 
 export const revalidate = 300;
 
@@ -601,6 +603,7 @@ export default async function Home() {
 
   return (
     <main>
+      <JsonLd dados={jsonLdNegocio()} />
       {(V2 ? ORDEM_V2 : ORDEM_ATUAL).map((chave) => (
         <Fragment key={chave}>{S[chave]}</Fragment>
       ))}
