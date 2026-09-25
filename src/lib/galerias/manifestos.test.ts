@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
-import { GRUPOS, validarManifesto, itensVisiveis, type Grupo, type ItemGaleria } from "./manifesto";
+import { GRUPOS, validarManifesto, itensVisiveis, podeSerVitrine, type Grupo, type ItemGaleria } from "./manifesto";
 import { contemNomeDePessoa, NOMES_DE_PESSOAS } from "../../../scripts/galerias/nomes";
 
 const RAIZ = path.resolve(__dirname, "../../..");
@@ -40,6 +40,10 @@ describe("IMG-0 — nomes de arquivo", () => {
       expect(contemNomeDePessoa(arquivo), arquivo).toBeNull();
       expect(arquivo, arquivo).toMatch(/^[a-z0-9/.-]+$/);
     }
+  });
+
+  it("nome é slug estável, sem prefixo numérico de ordem", () => {
+    for (const { arquivo } of TODOS) expect(path.basename(arquivo), arquivo).not.toMatch(/^\d/);
   });
 
   it("nenhum 'amenities', 'gravida' ou prefixo do Drive sobreviveu", () => {
@@ -96,6 +100,31 @@ describe("IMG-0 — curadoria", () => {
     }
   });
 
+  it.each(CASAS)("%s: capa sem marca d'água nem tela com conteúdo", (g) => {
+    const capa = MANIFESTOS[g].find((i) => i.destaque)!;
+    expect(podeSerVitrine(capa)).toBe(true);
+  });
+
+  it("o validador recusa capa com marca d'água ou tela", () => {
+    const base = MANIFESTOS["solarium-1"].find((i) => i.destaque)!;
+    expect(validarManifesto("solarium-1", [{ ...base, marcaDagua: true }]).join()).toMatch(/destaque/);
+    expect(validarManifesto("solarium-1", [{ ...base, telaComConteudo: true }]).join()).toMatch(/destaque/);
+  });
+
+  it.each(GRUPOS)("%s: tela com conteúdo sempre no fim do próprio ambiente", (g) => {
+    const vis = itensVisiveis(MANIFESTOS[g]);
+    for (const amb of Array.from(new Set(vis.map((i) => i.ambiente)))) {
+      const doAmbiente = vis.filter((i) => i.ambiente === amb);
+      const primeira = doAmbiente.findIndex((i) => i.telaComConteudo);
+      if (primeira >= 0) expect(doAmbiente.slice(primeira).every((i) => i.telaComConteudo), `${g}/${amb}`).toBe(true);
+    }
+  });
+
+  it("marcações da curadoria: 28 com marca d'água, 8 com tela", () => {
+    expect(TODOS.filter((i) => i.marcaDagua)).toHaveLength(28);
+    expect(TODOS.filter((i) => i.telaComConteudo)).toHaveLength(8);
+  });
+
   it("experiências: todas com crédito pendente; casas, nenhuma", () => {
     expect(MANIFESTOS.experiencias.every((i) => i.creditoPendente)).toBe(true);
     for (const g of CASAS) expect(MANIFESTOS[g].some((i) => i.creditoPendente)).toBe(false);
@@ -146,6 +175,15 @@ describe.skipIf(!fs.existsSync(PROCESSADAS))("IMG-0 — arquivos processados", (
       });
     const noDisco = listar(PROCESSADAS).filter((r) => !/^(gmb|\.cache|_revisao)\/|^_origem\.json$/.test(r));
     expect(noDisco.sort()).toEqual(TODOS.map((i) => i.arquivo).sort());
+  });
+
+  it("gmb/ não tem foto com marca d'água, tela com conteúdo, baixa resolução ou excluída", () => {
+    const porNome = new Map(TODOS.map((i) => [`${i.arquivo.split("/")[0]}-${path.basename(i.arquivo)}`, i]));
+    for (const a of fs.readdirSync(path.join(PROCESSADAS, "gmb"))) {
+      const item = porNome.get(a.replace(/^\d{2}-/, ""));
+      expect(item, a).toBeDefined();
+      expect(podeSerVitrine(item!), a).toBe(true);
+    }
   });
 
   it("gmb/ tem 25 fotos 4:3 com lado maior 1600px e sem metadados", async () => {

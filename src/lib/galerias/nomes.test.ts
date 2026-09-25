@@ -45,9 +45,13 @@ describe("IMG-0 — regras de nome", () => {
     expect(descricaoDoNomeOriginal(original)).toBe(esperado);
   });
 
-  it("nome final: nn de 2 dígitos + descrição + extensão", () => {
-    expect(nomeFinal(3, "SPA vidro aberto", "jpg")).toBe("03-spa-vidro-aberto.jpg");
-    expect(nomeFinal(105, "x", "png")).toBe("105-x.png");
+  it("nome final: slug estável, sem prefixo de ordem; colisão ganha -2, -3", () => {
+    const usados = new Set<string>();
+    expect(nomeFinal("solarium-1/spa", "SPA vidro aberto", "jpg", usados)).toBe("spa-vidro-aberto.jpg");
+    expect(nomeFinal("solarium-1/spa", "spa vidro aberto", "jpg", usados)).toBe("spa-vidro-aberto-2.jpg");
+    expect(nomeFinal("solarium-1/spa", "SPA-vidro-aberto", "jpg", usados)).toBe("spa-vidro-aberto-3.jpg");
+    // Outra pasta não colide.
+    expect(nomeFinal("solarium-2/spa", "SPA vidro aberto", "jpg", usados)).toBe("spa-vidro-aberto.jpg");
   });
 
   it("detecta nome de pessoa em qualquer segmento", () => {
