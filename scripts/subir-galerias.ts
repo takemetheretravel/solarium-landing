@@ -8,7 +8,8 @@
  *
  * Credenciais em `.env.local`: NEXT_PUBLIC_SUPABASE_URL e
  * SUPABASE_SERVICE_ROLE_KEY. A service role só existe neste script — nada em
- * `src/` a importa (há teste para isso).
+ * `src/` a cita (há teste para isso). Fala com a API REST do Storage via
+ * fetch, sem biblioteca.
  */
 import fs from "fs";
 import path from "path";
@@ -74,9 +75,24 @@ async function main() {
     throw new Error("NEXT_PUBLIC_SUPABASE_URL fora do formato https://<projeto>.supabase.co");
   }
 
-  // Import tardio: o dry-run não precisa da biblioteca nem da chave.
-  const { createClient } = await import("@supabase/supabase-js");
-  const supabase = createClient(url, chave, { auth: { persistSession: false } });
+  // API REST do Storage direto, com fetch: o @supabase/supabase-js exige
+  // WebSocket nativo (Node 22+) só por causa do realtime, que o upload não usa.
+  const caminhoUrl = (rel: string) => rel.split("/").map(encodeURIComponent).join("/");
+  async function enviar(rel: string, corpo: Buffer, tipo: string): Promise<string | null> {
+    const r = await fetch(`${url}/storage/v1/object/${BUCKET}/${caminhoUrl(rel)}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${chave}`,
+        apikey: chave,
+        "Content-Type": tipo,
+        "Cache-Control": `max-age=${CACHE_CONTROL}`,
+        "x-upsert": "true",
+      },
+      body: new Uint8Array(corpo),
+    });
+    if (r.ok) return null;
+    return `HTTP ${r.status} ${(await r.text()).slice(0, 200)}`;
+  }
 
   let enviados = 0;
   let bytes = 0;
@@ -86,13 +102,9 @@ async function main() {
   async function trabalhador() {
     for (let a = fila.shift(); a; a = fila.shift()) {
       const corpo = fs.readFileSync(path.join(ORIGEM, a.rel));
-      const { error } = await supabase.storage.from(BUCKET).upload(a.rel, corpo, {
-        contentType: a.tipo,
-        cacheControl: CACHE_CONTROL,
-        upsert: true,
-      });
-      if (error) {
-        falhas.push(`${a.rel}: ${error.message}`);
+      const erro = await enviar(a.rel, corpo, a.tipo);
+      if (erro) {
+        falhas.push(`${a.rel}: ${erro}`);
         continue;
       }
       enviados++;
@@ -112,7 +124,7 @@ async function main() {
   const amostra = [...arquivos].sort(() => Math.random() - 0.5).slice(0, AMOSTRA_HEAD);
   let ok = 0;
   for (const a of amostra) {
-    const publica = `${url}/storage/v1/object/public/${BUCKET}/${a.rel.split("/").map(encodeURIComponent).join("/")}`;
+    const publica = `${url}/storage/v1/object/public/${BUCKET}/${caminhoUrl(a.rel)}`;
     const r = await fetch(publica, { method: "HEAD" });
     const tipo = r.headers.get("content-type");
     console.log(`[HEAD] ${r.status} ${tipo ?? "-"}  ${publica}`);

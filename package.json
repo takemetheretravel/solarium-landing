@@ -31,7 +31,6 @@
     "resend": "^6.12.4"
   },
   "devDependencies": {
-    "@supabase/supabase-js": "^2.117.2",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18",
