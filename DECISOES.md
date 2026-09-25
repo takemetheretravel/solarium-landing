@@ -8,6 +8,104 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 
 ---
 
+## Rodada IMG-0 — Fotos do Drive preparadas para o Supabase Storage (set/2026)
+
+Branch `feature/img-0-galerias`, a partir da `main`. Não toca em nenhuma
+página: só scripts, manifestos, curadoria e testes. Independe das SEO-1a/1b.
+
+### Estado dos pré-requisitos
+
+- `galerias-local/` presente (com um nível extra: `galerias-local/Solarium/`;
+  o script detecta sozinho). **Não estava no `.gitignore`** — adicionado
+  (`/galerias-local/`, `/galerias-processadas/`) antes de qualquer outra coisa.
+- **Supabase não configurado**: `NEXT_PUBLIC_SUPABASE_URL` e
+  `SUPABASE_SERVICE_ROLE_KEY` ausentes do `.env.local`. Partes 1 e 2 feitas; da
+  Parte 3 o script existe e o `--dry-run` rodou (165 arquivos, 65,4 MB), mas o
+  upload real e a conferência das 5 URLs **não foram feitos**.
+
+### Decisões
+
+- **Curadoria separada do manifesto.** O que é julgamento humano (descrição,
+  alt, estação, ordem, capa, exclusão e motivo, seleção do Google,
+  reclassificação de ambiente) mora em `content/galerias/curadoria.json`,
+  chaveado pelo **SHA-256 do arquivo original**. Os manifestos são gerados a
+  partir dela e nunca editados à mão (CLAUDE.md §6). Renomear ou mover um
+  arquivo no Drive não perde a curadoria; trocar a foto perde, de propósito.
+- **Nomes originais nunca entram no git.** Vários trazem nome de hóspede
+  ("Banheira Aline", "Quarto Elora"). Curadoria e relatório usam só SHA e
+  descrições saneadas; o mapa nome original → destino fica em
+  `galerias-processadas/_origem.json`, fora do repositório. Há teste que falha
+  se a curadoria contiver nome da lista `NOMES_DE_PESSOAS`.
+- **Duplicata = mesmo SHA-256 dentro do mesmo grupo** (casa, experiências,
+  marca). Entre casas diferentes não se deduplica: a foto pode servir às duas
+  páginas. 18 removidas. Versões retocadas (`Ret_`) e reexportações têm bytes
+  diferentes e não são duplicata para o SHA; as quase idênticas foram tratadas
+  na revisão visual (excluídas do site com motivo "quase idêntica a …").
+- **`conjunto` entrou na ordem de prioridade**, antes de `geral` (o prompt não
+  a listava; só existe no Completo).
+- **Reclassificação de ambiente pela curadoria** (campo `ambiente`): três
+  fotos da pasta de banheiro mostram o SPA ou o quarto e passaram para `spa`
+  ou `quarto`; a pasta original fica em `tambemEm`. Sem isso o limite de 3
+  banheiros descartaria fotos que são do SPA.
+- **Exclusões além da lista do prompt**: quase duplicatas (4) e fotos de
+  banheiro acima do limite de 3 por casa. Todas com motivo no relatório.
+- **Alt**: 8–16 palavras, único em todo o acervo, citação de
+  Itanhandu/Serra da Mantiqueira em no máximo 1/4 por grupo — tudo com teste.
+  Descrições de hóspede neutras ("hóspede descansando na poltrona"). A foto do
+  prompt "grávida na poltrona" virou `descanso-na-poltrona` (a cena não é de
+  leitura); a regra automática do nome provisório usa `leitura-na-poltrona`,
+  como no exemplo do prompt.
+- **Capas**: Solarium 1 `spa/01-spa-hidro-ligada-vista-serra-fina`,
+  Solarium 2 `vista/01-quarto-e-spa-ao-por-do-sol`, Completo
+  `01-casas-ao-por-do-sol`. Ordem conta a história pedida (vista/SPA → quarto
+  → diferencial → cozinha/gourmet → externa e fogo → detalhes → banheiros), e
+  as excluídas ficam depois de todas as visíveis.
+- **`creditoPendente: true` nas 10 fotos de experiências**, não só nas
+  quatro citadas: não há como saber a autoria das demais pelo arquivo.
+- **Destino do Completo e das experiências é plano** (`completo/`,
+  `experiencias/`), como na estrutura pedida; o ambiente fica no manifesto.
+- **Logos**: `comum/marca/01-logo-branco.png` e `02-logo-preto.png`, PNG com
+  transparência, lado maior 1200px. O `og` 1200x630 em `comum/og/` não faz
+  parte desta rodada.
+- **Conversão**: HEIC via `heic-convert` (o `sharp` pré-compilado não lê
+  HEVC), depois `sharp().rotate()` e saída sem `withMetadata` — sai sem EXIF,
+  GPS, XMP, IPTC e ICC, em sRGB. PNG de foto recebe fundo branco antes do JPG.
+  154 dos 165 originais tinham EXIF; nenhum processado tem (teste).
+- **Idempotência**: a saída é reconstruída a cada rodada a partir de um cache
+  por SHA (`galerias-processadas/.cache/`). Duas rodadas seguidas deram hash
+  idêntico em todos os arquivos, manifestos e relatório. A primeira rodada foi
+  do zero, sem cache, em ~7,5 min; com cache, ~2 min.
+- **Folhas de contato** (`--folhas`) em `galerias-processadas/_revisao/`, com
+  uma métrica de nitidez (variância do laplaciano) no rótulo, para a revisão
+  visual. Ficam fora do upload.
+- **Testes em `src/lib/galerias/`** (o Vitest só lê `src/**`). O teste dos
+  arquivos processados usa `skipIf`: a pasta não está no git, então só roda na
+  máquina que executou o preparo.
+- **`tsx`** entrou como devDependency para rodar os scripts em TypeScript;
+  `@supabase/supabase-js` também é devDependency, porque só o script de upload
+  usa. Há teste que falha se `src/` importar a biblioteca ou citar a service
+  role.
+- **Upload**: `upsert: true`, `cacheControl: 31536000`, 4 envios em paralelo,
+  `contentType` pela extensão; ao fim, HEAD em 5 URLs públicas sorteadas.
+  Como os nomes carregam `nn` da ordem, **mudar a ordem muda o caminho** e o
+  arquivo antigo fica órfão no bucket. Aceito nesta rodada (a SEO-1c lê o
+  manifesto, não o bucket); limpeza de órfãos, se precisar, é outra rodada.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **Marca d'água "T" (Take Me There)** no canto inferior esquerdo de várias
+   fotos retocadas (`Ret_`). Não foi removida nem motivo de exclusão; decidir
+   se o site deve exibir.
+2. **Telas de TV com conteúdo de terceiros** (capa de série, interface do
+   Netflix) em fotos do Solarium 2 e do cinema. Mantidas; evitadas na seleção
+   do Google.
+3. **`pacotes/` tinha um `.docx`** ("Documento sem título"), ignorado.
+4. **CLAUDE.md §6 descreve o Cloudinary como origem das fotos do site.** Vale
+   até a SEO-1c trocar as páginas para o Supabase; atualizar lá.
+5. **Parte das 10 fotos em baixa resolução é boa** (SPA ao pôr do sol,
+   rede com edredom, jantar no deck). Vale procurar os arquivos em resolução
+   cheia.
+
 ## Rodada AF3 — Limites de tamanho dos campos enviados ao antifraude (set/2026)
 
 Branch `fix/limites-campos-antifraude`, a partir da `main`.
