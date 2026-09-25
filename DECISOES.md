@@ -18,10 +18,11 @@ página: só scripts, manifestos, curadoria e testes. Independe das SEO-1a/1b.
 - `galerias-local/` presente (com um nível extra: `galerias-local/Solarium/`;
   o script detecta sozinho). **Não estava no `.gitignore`** — adicionado
   (`/galerias-local/`, `/galerias-processadas/`) antes de qualquer outra coisa.
-- **Supabase não configurado**: `NEXT_PUBLIC_SUPABASE_URL` e
-  `SUPABASE_SERVICE_ROLE_KEY` ausentes do `.env.local`. Partes 1 e 2 feitas; da
-  Parte 3 o script existe e o `--dry-run` rodou (165 arquivos, 65,4 MB), mas o
-  upload real e a conferência das 5 URLs **não foram feitos**.
+- **Supabase**: decidido que é o projeto existente da Fernanda, com o bucket
+  `galerias` já criado. Mas em 25/09 o `.env.local` **ainda não tinha
+  nenhuma variável do Supabase** (nem com outro nome; arquivo sem alteração
+  desde 01/09). O `--dry-run` rodou (165 arquivos, 65,4 MB); o upload real e a
+  conferência das 5 URLs **não foram feitos**.
 
 ### Decisões
 
@@ -55,16 +56,16 @@ página: só scripts, manifestos, curadoria e testes. Independe das SEO-1a/1b.
   prompt "grávida na poltrona" virou `descanso-na-poltrona` (a cena não é de
   leitura); a regra automática do nome provisório usa `leitura-na-poltrona`,
   como no exemplo do prompt.
-- **Capas**: Solarium 1 `spa/01-spa-hidro-ligada-vista-serra-fina`,
-  Solarium 2 `vista/01-quarto-e-spa-ao-por-do-sol`, Completo
-  `01-casas-ao-por-do-sol`. Ordem conta a história pedida (vista/SPA → quarto
+- **Capas**: Solarium 1 `spa/spa-hidro-ligada-vista-serra-fina`,
+  Solarium 2 `vista/quarto-e-spa-ao-por-do-sol`, Completo
+  `casas-ao-por-do-sol`. Ordem conta a história pedida (vista/SPA → quarto
   → diferencial → cozinha/gourmet → externa e fogo → detalhes → banheiros), e
   as excluídas ficam depois de todas as visíveis.
 - **`creditoPendente: true` nas 10 fotos de experiências**, não só nas
   quatro citadas: não há como saber a autoria das demais pelo arquivo.
 - **Destino do Completo e das experiências é plano** (`completo/`,
   `experiencias/`), como na estrutura pedida; o ambiente fica no manifesto.
-- **Logos**: `comum/marca/01-logo-branco.png` e `02-logo-preto.png`, PNG com
+- **Logos**: `comum/marca/logo-branco.png` e `logo-preto.png`, PNG com
   transparência, lado maior 1200px. O `og` 1200x630 em `comum/og/` não faz
   parte desta rodada.
 - **Conversão**: HEIC via `heic-convert` (o `sharp` pré-compilado não lê
@@ -87,22 +88,46 @@ página: só scripts, manifestos, curadoria e testes. Independe das SEO-1a/1b.
   role.
 - **Upload**: `upsert: true`, `cacheControl: 31536000`, 4 envios em paralelo,
   `contentType` pela extensão; ao fim, HEAD em 5 URLs públicas sorteadas.
-  Como os nomes carregam `nn` da ordem, **mudar a ordem muda o caminho** e o
-  arquivo antigo fica órfão no bucket. Aceito nesta rodada (a SEO-1c lê o
-  manifesto, não o bucket); limpeza de órfãos, se precisar, é outra rodada.
+- **Nome de arquivo estável, sem prefixo de ordem** (decisão do Lucas, 25/09).
+  O nome é só o slug da descrição; a ordem mora só no campo `ordem` do
+  manifesto. Mudar a ordem não muda mais o caminho no bucket. Colisão na mesma
+  pasta ganha `-2`, `-3`… (nenhuma aconteceu). Isso substitui a regra
+  `{nn}-{descricao}` do prompt original.
+- **`marcaDagua: true`** (decisão do Lucas, 25/09) nas 28 fotos com o "T" no
+  canto inferior esquerdo — 26 do Solarium 1 e 2 de experiências; nenhuma no
+  Solarium 2 nem no Completo. Apurado foto a foto numa folha só com o canto de
+  cada imagem. Ficam na galeria; **nunca capa, nunca mosaico, fora de `gmb/`**.
+- **`telaComConteudo: true`** nas 8 fotos com TV ou tela mostrando Netflix ou
+  outra interface (inclui a tela de bloqueio do notebook no home office, por
+  cautela). Mesmas restrições da marca d'água e, além disso, **no fim do
+  próprio ambiente** (no cinema: `cinema-aberto-com-neblina` e
+  `pufe-diante-do-telao` antes das duas com tela). TV desligada não conta.
+- **`podeSerVitrine()`** (`src/lib/galerias/manifesto.ts`) é a regra única
+  para capa, mosaico e Google: não excluída, não baixa resolução, sem marca
+  d'água, sem tela. O preparo **falha** se a curadoria pedir capa ou Google
+  para foto que não passa; o validador do manifesto recusa capa assim.
+- **Seleção do Google refeita**: saíram 4 fotos com marca d'água e 1 com tela;
+  entraram deck com vista da Serra Fina, vista aérea ao anoitecer, vista aérea
+  da Serra do Papagaio, mar de nuvens ao amanhecer e a casa vista do jardim
+  florido. As capas das três casas já estavam livres de marca e tela.
+- **`creditoPendente` nas 10 fotos de experiências**: aprovado pelo Lucas.
+
+### ⚠️ Exigência para a IMG-1 (e para a SEO-1c)
+
+A rodada que consumir estes manifestos **precisa respeitar `marcaDagua` e
+`telaComConteudo`**: nenhuma das duas pode ser capa, entrar no mosaico ou ir
+para qualquer vitrine (Google, og:image, JSON-LD). Use `podeSerVitrine()`,
+não uma checagem própria. Na galeria completa elas aparecem normalmente, e a
+ordem do manifesto já põe as telas no fim do ambiente.
 
 ### Achados fora de escopo (não corrigidos)
 
-1. **Marca d'água "T" (Take Me There)** no canto inferior esquerdo de várias
-   fotos retocadas (`Ret_`). Não foi removida nem motivo de exclusão; decidir
-   se o site deve exibir.
-2. **Telas de TV com conteúdo de terceiros** (capa de série, interface do
-   Netflix) em fotos do Solarium 2 e do cinema. Mantidas; evitadas na seleção
-   do Google.
-3. **`pacotes/` tinha um `.docx`** ("Documento sem título"), ignorado.
-4. **CLAUDE.md §6 descreve o Cloudinary como origem das fotos do site.** Vale
+1. ~~Marca d'água "T"~~ e ~~telas com conteúdo~~: resolvidos com
+   `marcaDagua` e `telaComConteudo` (ver acima).
+2. **`pacotes/` tinha um `.docx`** ("Documento sem título"), ignorado.
+3. **CLAUDE.md §6 descreve o Cloudinary como origem das fotos do site.** Vale
    até a SEO-1c trocar as páginas para o Supabase; atualizar lá.
-5. **Parte das 10 fotos em baixa resolução é boa** (SPA ao pôr do sol,
+4. **Parte das 10 fotos em baixa resolução é boa** (SPA ao pôr do sol,
    rede com edredom, jantar no deck). Vale procurar os arquivos em resolução
    cheia.
 
