@@ -429,7 +429,7 @@ async function main() {
   fs.writeFileSync(
     path.join(SAIDA, "_origem.json"),
     JSON.stringify(
-      finais.map((r) => ({ arquivo: r.arquivo, origem: r.fonte.origem, duplicatas: r.duplicatas.map((d) => d.origem) })),
+      finais.map((r) => ({ arquivo: r.arquivo, sha: r.sha, origem: r.fonte.origem, duplicatas: r.duplicatas.map((d) => d.origem) })),
       null,
       2,
     ),

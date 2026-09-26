@@ -11,7 +11,7 @@ Nomes originais não aparecem aqui: vários trazem nome de hóspede.
 - Fotos únicas processadas: **165**
 - Convertidos de HEIC/PNG para JPG: **6**
 - Baixa resolução (lado maior < 1600px no original): **10**
-- Excluídos do site: **24**
+- Excluídos do site: **19**
 - Com marca d'água "T": **28**
 - Com tela mostrando conteúdo: **8**
 
@@ -21,8 +21,8 @@ Nomes originais não aparecem aqui: vários trazem nome de hóspede.
 |---|---|---:|---:|
 | solarium-1 | amanhecer | 5 | 5 |
 | solarium-1 | area-gourmet | 7 | 7 |
-| solarium-1 | banheiro-social | 5 | 1 |
-| solarium-1 | banheiro-suite | 6 | 2 |
+| solarium-1 | banheiro-social | 5 | 3 |
+| solarium-1 | banheiro-suite | 6 | 3 |
 | solarium-1 | cozinha | 7 | 7 |
 | solarium-1 | externa | 11 | 9 |
 | solarium-1 | geral | 1 | 1 |
@@ -31,17 +31,17 @@ Nomes originais não aparecem aqui: vários trazem nome de hóspede.
 | solarium-1 | sala | 3 | 3 |
 | solarium-1 | spa | 11 | 10 |
 | solarium-1 | vista | 9 | 7 |
-| **solarium-1** | **todos** | **85** | **69** |
-| solarium-2 | amanhecer | 2 | 1 |
+| **solarium-1** | **todos** | **85** | **72** |
+| solarium-2 | amanhecer | 2 | 2 |
 | solarium-2 | area-gourmet | 7 | 7 |
-| solarium-2 | banheiro | 6 | 3 |
+| solarium-2 | banheiro | 6 | 4 |
 | solarium-2 | cinema | 4 | 4 |
 | solarium-2 | cozinha | 11 | 11 |
 | solarium-2 | externa | 11 | 9 |
 | solarium-2 | quarto | 7 | 7 |
 | solarium-2 | spa | 8 | 7 |
 | solarium-2 | vista | 4 | 3 |
-| **solarium-2** | **todos** | **60** | **52** |
+| **solarium-2** | **todos** | **60** | **54** |
 | completo | conjunto | 8 | 8 |
 | **completo** | **todos** | **8** | **8** |
 | experiencias | experiencias | 10 | 10 |
@@ -108,17 +108,12 @@ O arquivo segue no Storage; só não aparece no site.
 - `solarium-1/externa/amigos-no-deck-ao-por-do-sol.jpg` — foto de WhatsApp em baixa qualidade
 - `solarium-1/banheiro-suite/box-com-chuveiro-de-teto.jpg` — vaso sanitário em destaque
 - `solarium-1/banheiro-social/banheiro-social-com-chuveiro.jpg` — vaso sanitário em destaque
-- `solarium-1/banheiro-social/chuveiro-do-banheiro-social.jpg` — limite de 3 fotos de banheiro por casa
-- `solarium-1/banheiro-social/lavatorio-social-ao-por-do-sol.jpg` — limite de 3 fotos de banheiro por casa
-- `solarium-1/banheiro-suite/toalhas-bordadas.jpg` — limite de 3 fotos de banheiro por casa
-- `solarium-1/banheiro-suite/banheiro-da-suite-com-roupoes.jpg` — limite de 3 fotos de banheiro por casa
-- `solarium-1/banheiro-suite/bancada-com-espelho-amplo.jpg` — limite de 3 fotos de banheiro por casa
-- `solarium-1/banheiro-social/cuba-e-torneira-com-vista.jpg` — limite de 3 fotos de banheiro por casa
+- `solarium-1/banheiro-social/chuveiro-do-banheiro-social.jpg` — limite de 6 fotos de banheiro por casa
+- `solarium-1/banheiro-suite/toalhas-bordadas.jpg` — limite de 6 fotos de banheiro por casa
+- `solarium-1/banheiro-suite/bancada-com-espelho-amplo.jpg` — limite de 6 fotos de banheiro por casa
 - `solarium-2/spa/telao-cama-e-spa.jpg` — foto desfocada
 - `solarium-2/banheiro/lavabo-com-janela-estreita.jpg` — vaso sanitário em destaque
-- `solarium-2/banheiro/box-de-chuveiro.jpg` — limite de 3 fotos de banheiro por casa
 - `solarium-2/banheiro/cama-spa-e-box.jpg` — quase idêntica a cama-spa-e-banheiro-ao-fundo
-- `solarium-2/amanhecer/lavatorio-ao-nascer-do-sol.jpg` — limite de 3 fotos de banheiro por casa
 - `solarium-2/externa/ducha-e-pufe-no-deck.jpg` — baixa resolução; quase idêntica a deck-com-ducha
 - `solarium-2/externa/estacionamento-a-noite.jpg` — luz vermelha de carro domina o quadro; foto tremida
 - `solarium-2/vista/telao-abrindo-ao-por-do-sol.jpg` — quase idêntica a cinema-no-deck-ao-por-do-sol
@@ -149,10 +144,10 @@ Ficam na galeria; nunca capa, mosaico ou Google.
 - `solarium-1/vista/lateral-ao-por-do-sol.jpg`
 - `solarium-1/banheiro-suite/bancada-e-toalhas-da-suite.jpg`
 - `solarium-1/banheiro-social/lavatorio-social-e-cozinha.jpg`
+- `solarium-1/banheiro-suite/banheiro-da-suite-com-roupoes.jpg`
 - `solarium-1/externa/rede-e-spa-serra-fina.jpg`
 - `solarium-1/vista/amanhecer-parque-itatiaia.jpg`
 - `solarium-1/banheiro-social/chuveiro-do-banheiro-social.jpg`
-- `solarium-1/banheiro-suite/banheiro-da-suite-com-roupoes.jpg`
 - `experiencias/agulhas-negras-parque-itatiaia.jpg`
 - `experiencias/maturacao-de-queijos.jpg`
 

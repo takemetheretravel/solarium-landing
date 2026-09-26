@@ -21,7 +21,7 @@
     "descricao": "roupao-refletido-no-vidro",
     "alt": "Roupão pendurado refletido no vidro com a serra ao fundo no fim de tarde",
     "estacao": "neutra",
-    "ordem": 73,
+    "ordem": 76,
     "excluirDoSite": true,
     "motivoExclusao": "foto desfocada"
   },
@@ -35,7 +35,7 @@
     "descricao": "bancada-com-vista-parque-itatiaia",
     "alt": "Bancada do banheiro com secador, com o Parque Nacional do Itatiaia pela janela",
     "estacao": "neutra",
-    "ordem": 51
+    "ordem": 52
   },
   "09e76259f84d8fbeb77486aa687ba0f51000261f7124245368a313aa7ceacfe1": {
     "descricao": "casal-caminhando-no-deck",
@@ -130,7 +130,7 @@
     "descricao": "telao-cama-e-spa",
     "alt": "Telão ligado na parede diante da cama e do SPA de imersão",
     "estacao": "neutra",
-    "ordem": 53,
+    "ordem": 55,
     "excluirDoSite": true,
     "motivoExclusao": "foto desfocada",
     "telaComConteudo": true
@@ -145,7 +145,7 @@
     "descricao": "chuveiro-com-nascer-do-sol",
     "alt": "Chuveiro com janela de vidro emoldurando o nascer do sol sobre o gramado",
     "estacao": "neutra",
-    "ordem": 50
+    "ordem": 51
   },
   "283020472a45ebfa0415e928c6197ab116a694ef72d3349dffd2ef36bf6bcfc8": {
     "descricao": "cinema-aberto-com-neblina",
@@ -198,7 +198,7 @@
     "descricao": "amanhecer-parque-itatiaia",
     "alt": "Céu do amanhecer sobre o Parque Nacional do Itatiaia visto do gramado",
     "estacao": "verde",
-    "ordem": 75,
+    "ordem": 78,
     "excluirDoSite": true,
     "motivoExclusao": "foto desfocada e escura",
     "marcaDagua": true
@@ -207,9 +207,7 @@
     "descricao": "cuba-e-torneira-com-vista",
     "alt": "Cuba branca de apoio e torneira dourada com a mata vista pela porta",
     "estacao": "neutra",
-    "ordem": 85,
-    "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa"
+    "ordem": 72
   },
   "3384777729f003cab10e4788d8bff8b720aac687f7ebfdadfc4e162516e79066": {
     "descricao": "churrasqueira-a-gas",
@@ -267,7 +265,7 @@
     "descricao": "espuma-da-hidro-com-tacas",
     "alt": "Espuma da hidromassagem com duas taças de vinho na borda e o sol se pondo",
     "estacao": "seca",
-    "ordem": 72,
+    "ordem": 75,
     "excluirDoSite": true,
     "motivoExclusao": "HDR ou saturação pesada; baixa resolução"
   },
@@ -315,9 +313,7 @@
     "descricao": "box-de-chuveiro",
     "alt": "Box de chuveiro com revestimento de madeira clara e janela lateral",
     "estacao": "neutra",
-    "ordem": 55,
-    "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa"
+    "ordem": 54
   },
   "45c0df9b8616651b43829aace390c3a06180a9d87d183c48ed05ecdfe23eca6e": {
     "descricao": "cantinho-do-cafe-com-vista",
@@ -329,9 +325,9 @@
     "descricao": "chuveiro-do-banheiro-social",
     "alt": "Chuveiro do banheiro social com revestimento amadeirado e janela para as árvores",
     "estacao": "neutra",
-    "ordem": 80,
+    "ordem": 83,
     "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa",
+    "motivoExclusao": "limite de 6 fotos de banheiro por casa",
     "marcaDagua": true
   },
   "47e70b71bb8908e5b0099a3e36dc944eda2ef825d556122c9d7a6bcae05e5108": {
@@ -423,9 +419,7 @@
     "descricao": "lavatorio-social-ao-por-do-sol",
     "alt": "Lavatório social com espelho orgânico e céu de pôr do sol pela janela",
     "estacao": "neutra",
-    "ordem": 81,
-    "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa"
+    "ordem": 71
   },
   "5f1bad481d502ae5ce62a17fe51bfeef7deccc9a10e7e8f76e73f0dc127f1aed": {
     "descricao": "roupao-bordado",
@@ -437,9 +431,9 @@
     "descricao": "toalhas-bordadas",
     "alt": "Toalhas brancas bordadas com a logo da casa no toalheiro aquecido",
     "estacao": "neutra",
-    "ordem": 82,
+    "ordem": 84,
     "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa"
+    "motivoExclusao": "limite de 6 fotos de banheiro por casa"
   },
   "66e0d917090743f603d1b8eb270a8c86072c7b6973b092a43fa8808bce1f3528": {
     "descricao": "vista-aerea-da-casa-ao-anoitecer",
@@ -484,7 +478,7 @@
     "descricao": "cabeceira-e-janela",
     "alt": "Cabeceira iluminada por arandela com a janela aberta para o verde",
     "estacao": "neutra",
-    "ordem": 74,
+    "ordem": 77,
     "excluirDoSite": true,
     "motivoExclusao": "foto desfocada"
   },
@@ -589,7 +583,7 @@
     "descricao": "amigos-no-deck-ao-por-do-sol",
     "alt": "Três amigos comemorando no deck ao pôr do sol com a serra ao fundo",
     "estacao": "seca",
-    "ordem": 77,
+    "ordem": 80,
     "excluirDoSite": true,
     "motivoExclusao": "foto de WhatsApp em baixa qualidade"
   },
@@ -622,7 +616,7 @@
     "descricao": "rede-e-spa-serra-fina",
     "alt": "Rede suspensa e SPA com céu azul, eucaliptal e montanhas da serra",
     "estacao": "verde",
-    "ordem": 70,
+    "ordem": 73,
     "excluirDoSite": true,
     "motivoExclusao": "HDR ou saturação pesada; mangueira amarela em primeiro plano",
     "marcaDagua": true
@@ -650,9 +644,7 @@
     "descricao": "banheiro-da-suite-com-roupoes",
     "alt": "Banheiro da suíte com roupões, toalhas e bancada iluminada pela luz do fim da tarde",
     "estacao": "neutra",
-    "ordem": 83,
-    "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa",
+    "ordem": 70,
     "marcaDagua": true
   },
   "9d80b1fad335506d613f10d577ac294662a2d0b5c897c589f3cf6e1471e92d06": {
@@ -671,7 +663,7 @@
     "descricao": "toalhas-bordadas-e-samambaia",
     "alt": "Toalhas bordadas no toalheiro e samambaia pendente ao lado da bancada do banheiro",
     "estacao": "neutra",
-    "ordem": 52
+    "ordem": 53
   },
   "a1bbb62be129cb788e75d2f0e56a32fa1b1602a8c12ea80a4ad95095ec264578": {
     "descricao": "geladeira-e-adega",
@@ -698,7 +690,7 @@
     "descricao": "lavabo-com-janela-estreita",
     "alt": "Lavabo com vaso sanitário, janela estreita e porta de madeira",
     "estacao": "neutra",
-    "ordem": 54,
+    "ordem": 56,
     "excluirDoSite": true,
     "motivoExclusao": "vaso sanitário em destaque"
   },
@@ -718,7 +710,7 @@
     "descricao": "cama-spa-e-box",
     "alt": "Cama com travesseiros e SPA iluminado ao lado do box do banheiro",
     "estacao": "neutra",
-    "ordem": 56,
+    "ordem": 57,
     "excluirDoSite": true,
     "motivoExclusao": "quase idêntica a cama-spa-e-banheiro-ao-fundo"
   },
@@ -804,7 +796,7 @@
     "descricao": "box-com-chuveiro-de-teto",
     "alt": "Box com chuveiro de teto, nicho iluminado e vaso sanitário no banheiro da suíte",
     "estacao": "neutra",
-    "ordem": 78,
+    "ordem": 81,
     "excluirDoSite": true,
     "motivoExclusao": "vaso sanitário em destaque"
   },
@@ -846,7 +838,7 @@
     "descricao": "musica-na-rede",
     "alt": "Mãos tocando ukulele na rede com manta, diante do pasto seco e da serra",
     "estacao": "seca",
-    "ordem": 76,
+    "ordem": 79,
     "excluirDoSite": true,
     "motivoExclusao": "manta vermelha domina o quadro; baixa resolução"
   },
@@ -996,9 +988,9 @@
     "descricao": "bancada-com-espelho-amplo",
     "alt": "Bancada com cuba esculpida, espelho amplo e toalheiro no banheiro da suíte",
     "estacao": "neutra",
-    "ordem": 84,
+    "ordem": 85,
     "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa"
+    "motivoExclusao": "limite de 6 fotos de banheiro por casa"
   },
   "ee6bad9c320fc3d8deaefcf39ebd8a22c23f7cba7b26fbb62253e0b488b75d91": {
     "descricao": "fachada-iluminada-ao-anoitecer",
@@ -1018,7 +1010,7 @@
     "descricao": "banheiro-social-com-chuveiro",
     "alt": "Banheiro social com chuveiro, janela alta e vaso em primeiro plano",
     "estacao": "neutra",
-    "ordem": 79,
+    "ordem": 82,
     "excluirDoSite": true,
     "motivoExclusao": "vaso sanitário em destaque"
   },
@@ -1062,7 +1054,7 @@
     "descricao": "rede-com-almofadas-fim-de-tarde",
     "alt": "Rede com almofadas e vista para o vale dourado ao fim da tarde",
     "estacao": "seca",
-    "ordem": 71,
+    "ordem": 74,
     "excluirDoSite": true,
     "motivoExclusao": "quase idêntica a rede-suspensa-com-almofadas (mesma cena)"
   },
@@ -1089,9 +1081,7 @@
     "descricao": "lavatorio-ao-nascer-do-sol",
     "alt": "Lavatório duplo iluminado pelo nascer do sol, com toalhas e samambaia",
     "estacao": "neutra",
-    "ordem": 57,
-    "excluirDoSite": true,
-    "motivoExclusao": "limite de 3 fotos de banheiro por casa"
+    "ordem": 50
   },
   "ff48e84624509618f465fd7c0cd00fe362ebb8d81c8f26b91bcde96820f5f2be": {
     "descricao": "pufe-no-deck-com-cachorro",
