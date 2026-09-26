@@ -68,7 +68,7 @@ export default async function PropertyPage({
         propertyName={property.name}
         fromPriceNightly={property.fromPriceNightly}
       />
-      <JsonLd dados={jsonLdCasa(property, listing?.bedroomsNumber)} />
+      <JsonLd dados={jsonLdCasa(property)} />
       <JsonLd
         dados={jsonLdBreadcrumb([MIGALHA_INICIO, { nome: property.name, caminho: `/${property.slug}` }])}
       />
