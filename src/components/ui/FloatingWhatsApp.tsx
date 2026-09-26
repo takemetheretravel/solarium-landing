@@ -13,6 +13,7 @@ export default function FloatingWhatsApp() {
       rel="noopener noreferrer"
       aria-label="Falar com o anfitrião no WhatsApp"
       title="Fale com o anfitrião"
+      data-esconder-no-lightbox
       className="group fixed bottom-24 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-xl shadow-charcoal/20 transition-transform hover:scale-105 sm:h-16 sm:w-16 lg:bottom-6 lg:right-6"
       style={{ backgroundColor: WHATSAPP_GREEN }}
     >

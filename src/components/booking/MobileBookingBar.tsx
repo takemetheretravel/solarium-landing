@@ -18,7 +18,7 @@ export default function MobileBookingBar({
   const showTotal = hasDates && finalTotal != null;
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden border-t border-charcoal/10 bg-cream shadow-[0_-4px_24px_rgba(0,0,0,0.10)]">
+    <div data-esconder-no-lightbox className="fixed bottom-0 inset-x-0 z-40 lg:hidden border-t border-charcoal/10 bg-cream shadow-[0_-4px_24px_rgba(0,0,0,0.10)]">
       <div className="flex items-center justify-between gap-4 px-5 py-4">
         <div>
           {showTotal ? (

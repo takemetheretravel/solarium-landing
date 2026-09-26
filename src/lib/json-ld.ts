@@ -1,7 +1,8 @@
 import type { PropertyConfig } from "@/config/properties";
-import { PROPERTIES, SOLARIUM_COMPLETO_GALLERY_GROUPS } from "@/config/properties";
+import { PROPERTIES } from "@/config/properties";
+import { montarGaleriaDaCasa, podeSerVitrine, urlGaleria } from "@/lib/galerias";
 import { AIRBNB_LINKS, HERO_IMAGE, SITE } from "@/config/site";
-import { SITE_URL, NOME_SITE } from "@/lib/seo";
+import { SITE_URL, NOME_SITE, SEO_PAGINAS } from "@/lib/seo";
 
 /**
  * Dados estruturados (schema.org) do site. Funções puras: a página só chama e
@@ -75,21 +76,56 @@ export function jsonLdNegocio(): JsonLdObjeto {
       AIRBNB_LINKS["solarium-2"],
       AIRBNB_LINKS["solarium-completo"],
     ],
-    containsPlace: PROPERTIES.map((p) => ({
-      "@type": "VacationRental",
-      "@id": idCasa(p.slug),
-      name: p.name,
-      url: `${SITE_URL}/${p.slug}`,
-    })),
+    // Só referências: com @type/name o Google lê "VacationRental incompleto"
+    // na home. Os dados completos estão em cada página de casa.
+    containsPlace: PROPERTIES.map((p) => ({ "@id": idCasa(p.slug) })),
   };
 }
 
-/** Fotos da casa, sem repetir. O Completo soma a própria galeria às das duas casas. */
+/** Fotos por casa no JSON-LD: o Google pede no mínimo 8. */
+export const MIN_IMAGENS_CASA = 8;
+const MAX_IMAGENS_CASA = 20;
+
+/**
+ * Fotos da casa vindas do manifesto: a capa, depois as que podem ser vitrine
+ * (sem marca d'água, tela ou baixa resolução — IMG-0), depois as demais que
+ * aparecem no site. Nunca foto excluída. O Completo soma o conjunto às casas.
+ */
 function imagensDaCasa(casa: PropertyConfig): string[] {
-  const extras =
-    casa.slug === "solarium-completo" ? SOLARIUM_COMPLETO_GALLERY_GROUPS.flatMap((g) => g.images) : [];
-  return semRepetir([casa.heroImage, ...casa.galleryImages, ...extras]).map(absoluta);
+  const { hero, todas } = montarGaleriaDaCasa(casa.slug);
+  const ordem = [hero, ...todas.filter(podeSerVitrine), ...todas].map((i) => i.arquivo);
+  return semRepetir(ordem).slice(0, MAX_IMAGENS_CASA).map(urlGaleria);
 }
+
+/**
+ * Estrutura de cada casa. **O site não mostra esses números**: são os valores
+ * mais prováveis pelas fotos e pastas do Drive (Solarium 1 tem banheiro da
+ * suíte e social; o Solarium 2, um banheiro) e pela capacidade (até 4 = cama de
+ * casal + sofá-cama). Aguardam confirmação do Lucas (DECISOES, IMG-1a-ajustes).
+ * O Completo é a soma das duas casas.
+ */
+type Estrutura = { quartos: number; banheiros: number; camas: { numero: number; tipo: string }[] };
+
+const S1: Estrutura = {
+  quartos: 1,
+  banheiros: 2,
+  camas: [{ numero: 1, tipo: "Cama de casal" }, { numero: 1, tipo: "Sofá-cama" }],
+};
+const S2: Estrutura = {
+  quartos: 1,
+  banheiros: 1,
+  camas: [{ numero: 1, tipo: "Cama de casal" }, { numero: 1, tipo: "Sofá-cama" }],
+};
+
+export const ESTRUTURA: Record<string, Estrutura> = {
+  "solarium-1": S1,
+  "solarium-2": S2,
+  "solarium-completo": {
+    quartos: S1.quartos + S2.quartos,
+    banheiros: S1.banheiros + S2.banheiros,
+    camas: [{ numero: 2, tipo: "Cama de casal" }, { numero: 2, tipo: "Sofá-cama" }],
+  },
+};
 
 /** Comodidades do config (curadas), não da API do Hostaway. O Completo herda as duas casas. */
 function comodidadesDaCasa(casa: PropertyConfig): string[] {
@@ -101,24 +137,26 @@ function comodidadesDaCasa(casa: PropertyConfig): string[] {
 
 /**
  * Página de casa. `VacationRental` com a acomodação em `containsPlace`, como
- * pede o guia do Google para aluguel por temporada: ocupação, quartos e
- * comodidades são propriedades de `Accommodation`, não do negócio.
- *
- * `quartos` vem do Hostaway (`bedroomsNumber`); sem ele o campo é omitido,
- * nunca inventado.
+ * pede o guia do Google para aluguel por temporada. `identifier` é o id do
+ * listing no Hostaway. `geo` e também `latitude`/`longitude` no topo: o guia
+ * de VacationRental exige os dois últimos.
  */
-export function jsonLdCasa(casa: PropertyConfig, quartos?: number | null): JsonLdObjeto {
+export function jsonLdCasa(casa: PropertyConfig): JsonLdObjeto {
   const url = `${SITE_URL}/${casa.slug}`;
+  const est = ESTRUTURA[casa.slug];
+  const descricao = SEO_PAGINAS[`/${casa.slug}` as keyof typeof SEO_PAGINAS]?.description ?? casa.tagline;
   return {
     "@context": "https://schema.org",
     "@type": "VacationRental",
     "@id": idCasa(casa.slug),
+    additionalType: "House",
     identifier: String(casa.id),
     name: casa.name,
     url,
-    description: casa.description,
+    description: descricao,
     image: imagensDaCasa(casa),
     address: ENDERECO,
+    geo: { "@type": "GeoCoordinates", ...COORDENADAS },
     ...COORDENADAS,
     checkinTime: CHECKIN,
     checkoutTime: CHECKOUT,
@@ -126,8 +164,10 @@ export function jsonLdCasa(casa: PropertyConfig, quartos?: number | null): JsonL
     containsPlace: {
       "@type": "Accommodation",
       additionalType: "EntirePlace",
-      occupancy: { "@type": "QuantitativeValue", maxValue: casa.capacity.max },
-      ...(typeof quartos === "number" && quartos > 0 ? { numberOfBedrooms: quartos } : {}),
+      occupancy: { "@type": "QuantitativeValue", value: casa.capacity.max },
+      numberOfBedrooms: est.quartos,
+      numberOfBathroomsTotal: est.banheiros,
+      bed: est.camas.map((c) => ({ "@type": "BedDetails", numberOfBeds: c.numero, typeOfBed: c.tipo })),
       petsAllowed: true,
       amenityFeature: comodidadesDaCasa(casa).map(comodidade),
     },

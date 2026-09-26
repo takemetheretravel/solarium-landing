@@ -16,7 +16,6 @@ const CASAS: Grupo[] = ["solarium-1", "solarium-2", "completo"];
 
 const palavras = (s: string) => s.trim().split(/\s+/).length;
 const citaLugar = (s: string) => /Itanhandu|Serra da Mantiqueira/.test(s);
-const ehBanheiro = (i: ItemGaleria) => i.ambiente.startsWith("banheiro");
 
 describe("IMG-0 — schema dos manifestos", () => {
   it.each(GRUPOS)("%s é válido", (g) => {
@@ -80,12 +79,10 @@ describe("IMG-0 — curadoria", () => {
     expect(d[0].excluirDoSite).toBe(false);
   });
 
-  it.each(CASAS)("%s: no máximo 3 banheiros visíveis, sempre no fim", (g) => {
-    const vis = itensVisiveis(MANIFESTOS[g]);
-    const banheiros = vis.filter(ehBanheiro);
-    expect(banheiros.length).toBeLessThanOrEqual(3);
-    const primeiroBanheiro = vis.findIndex(ehBanheiro);
-    if (primeiroBanheiro >= 0) expect(vis.slice(primeiroBanheiro).every(ehBanheiro)).toBe(true);
+  // Sem limite de banheiros e sem exclusão automática desde a
+  // IMG-1a-ajustes-2: as pastas do Lucas decidem o que aparece.
+  it.each(CASAS)("%s: nada excluído automaticamente", (g) => {
+    expect(MANIFESTOS[g].every((i) => !i.excluirDoSite)).toBe(true);
   });
 
   it.each(CASAS)("%s: capa é a primeira da ordem", (g) => {
@@ -111,18 +108,19 @@ describe("IMG-0 — curadoria", () => {
     expect(validarManifesto("solarium-1", [{ ...base, telaComConteudo: true }]).join()).toMatch(/destaque/);
   });
 
-  it.each(GRUPOS)("%s: tela com conteúdo sempre no fim do próprio ambiente", (g) => {
-    const vis = itensVisiveis(MANIFESTOS[g]);
-    for (const amb of Array.from(new Set(vis.map((i) => i.ambiente)))) {
-      const doAmbiente = vis.filter((i) => i.ambiente === amb);
-      const primeira = doAmbiente.findIndex((i) => i.telaComConteudo);
-      if (primeira >= 0) expect(doAmbiente.slice(primeira).every((i) => i.telaComConteudo), `${g}/${amb}`).toBe(true);
-    }
+  // A ordem das telas agora é a das pastas (IMG-1a-ajustes-2); as marcações
+  // só restringem capa, mosaico e Google. Uma foto com tela saiu por
+  // quase-duplicata (telão ao pôr do sol), por isso 7.
+  it("marcações da curadoria: 28 com marca d'água, 7 com tela", () => {
+    expect(TODOS.filter((i) => i.marcaDagua)).toHaveLength(28);
+    expect(TODOS.filter((i) => i.telaComConteudo)).toHaveLength(7);
   });
 
-  it("marcações da curadoria: 28 com marca d'água, 8 com tela", () => {
-    expect(TODOS.filter((i) => i.marcaDagua)).toHaveLength(28);
-    expect(TODOS.filter((i) => i.telaComConteudo)).toHaveLength(8);
+  it.each(GRUPOS)("%s: ambiente é a primeira pasta; tambemEm, as demais", (g) => {
+    for (const i of MANIFESTOS[g]) {
+      expect(i.ambiente, i.arquivo).toBe(i.pastas[0]);
+      expect(i.tambemEm, i.arquivo).toEqual(i.pastas.slice(1));
+    }
   });
 
   it("experiências: todas com crédito pendente; casas, nenhuma", () => {
@@ -146,7 +144,7 @@ describe.skipIf(!fs.existsSync(PROCESSADAS))("IMG-0 — arquivos processados", (
       const meta = await sharp(path.join(PROCESSADAS, it.arquivo)).metadata();
       expect([meta.width, meta.height], it.arquivo).toEqual([it.largura, it.altura]);
     }
-  });
+  }, 120_000);
 
   it("nenhum arquivo tem EXIF, GPS, XMP, IPTC ou orientação; tudo em sRGB", async () => {
     for (const it of TODOS) {
@@ -173,7 +171,7 @@ describe.skipIf(!fs.existsSync(PROCESSADAS))("IMG-0 — arquivos processados", (
         const p = path.join(d, e.name);
         return e.isDirectory() ? listar(p) : [path.relative(PROCESSADAS, p).replace(/\\/g, "/")];
       });
-    const noDisco = listar(PROCESSADAS).filter((r) => !/^(gmb|\.cache|_revisao)\/|^_origem\.json$/.test(r));
+    const noDisco = listar(PROCESSADAS).filter((r) => !/^(gmb|\.cache|_revisao)\/|^(_origem\.json|folha-contato\.html)$/.test(r));
     expect(noDisco.sort()).toEqual(TODOS.map((i) => i.arquivo).sort());
   });
 

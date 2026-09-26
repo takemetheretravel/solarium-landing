@@ -17,7 +17,10 @@ export type ItemGaleria = {
   largura: number;
   altura: number;
   alt: string;
+  /** Primeira pasta da foto, na ordem dos chips (= `pastas[0]`). */
   ambiente: string;
+  /** Todas as pastas do Drive em que a foto está: um chip por pasta (IMG-1a-ajustes-2). */
+  pastas: string[];
   estacao: Estacao;
   destaque: boolean;
   ordem: number;
@@ -30,6 +33,14 @@ export type ItemGaleria = {
   marcaDagua: boolean;
   /** TV/tela mostrando Netflix ou outra interface: mesmas restrições, e no fim do ambiente. */
   telaComConteudo: boolean;
+  /** Opcional. Número no começo do nome do arquivo, por pasta: ordem dentro do chip. */
+  ordemNaPasta?: Record<string, number>;
+  /** Opcional. Crédito da foto ("Foto: …"); obrigatório para exibir item com `creditoPendente`. */
+  credito?: string;
+  /** Opcional. Versão retrato para o hero no celular (IMG-1b). */
+  destaqueMobile?: boolean;
+  /** Opcional. Ponto de recorte do hero quando não há versão retrato (IMG-1b). */
+  foco?: "centro" | "esquerda" | "direita";
 };
 
 /** Pode ser capa, entrar no mosaico e ir para o Perfil da Empresa no Google. */
@@ -43,6 +54,7 @@ const CAMPOS: (keyof ItemGaleria)[] = [
   "altura",
   "alt",
   "ambiente",
+  "pastas",
   "estacao",
   "destaque",
   "ordem",
@@ -53,6 +65,8 @@ const CAMPOS: (keyof ItemGaleria)[] = [
   "marcaDagua",
   "telaComConteudo",
 ];
+
+const OPCIONAIS: string[] = ["credito", "destaqueMobile", "foco", "ordemNaPasta"];
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -72,11 +86,15 @@ export function validarManifesto(grupo: Grupo, itens: unknown): string[] {
     }
     const it = bruto as Record<string, unknown>;
 
-    const chaves = Object.keys(it).sort();
-    const esperadas = [...CAMPOS].sort();
-    if (chaves.join() !== esperadas.join()) {
-      erros.push(`${onde}: campos ${chaves.join(",")} ≠ ${esperadas.join(",")}`);
+    const chaves = Object.keys(it);
+    const faltando = CAMPOS.filter((c) => !chaves.includes(c));
+    const sobrando = chaves.filter((c) => !CAMPOS.includes(c as keyof ItemGaleria) && !OPCIONAIS.includes(c));
+    if (faltando.length || sobrando.length) {
+      erros.push(`${onde}: faltando [${faltando.join(",")}] sobrando [${sobrando.join(",")}]`);
     }
+    if ("credito" in it && (typeof it.credito !== "string" || !it.credito.trim())) erros.push(`${onde}: credito vazio`);
+    if ("destaqueMobile" in it && typeof it.destaqueMobile !== "boolean") erros.push(`${onde}: destaqueMobile`);
+    if ("foco" in it && !["centro", "esquerda", "direita"].includes(it.foco as string)) erros.push(`${onde}: foco`);
 
     const arq = it.arquivo;
     if (typeof arq !== "string") erros.push(`${onde}: arquivo`);
@@ -106,6 +124,15 @@ export function validarManifesto(grupo: Grupo, itens: unknown): string[] {
     }
     if (!Array.isArray(it.tambemEm) || !it.tambemEm.every((t) => typeof t === "string" && SLUG.test(t))) {
       erros.push(`${onde}: tambemEm`);
+    }
+    if (!Array.isArray(it.pastas) || !it.pastas.length || !it.pastas.every((t) => typeof t === "string" && SLUG.test(t))) {
+      erros.push(`${onde}: pastas`);
+    } else if (it.pastas[0] !== it.ambiente) {
+      erros.push(`${onde}: ambiente deve ser pastas[0]`);
+    }
+    if ("ordemNaPasta" in it) {
+      const o = it.ordemNaPasta as Record<string, unknown>;
+      if (!o || typeof o !== "object" || !Object.values(o).every((v) => Number.isInteger(v))) erros.push(`${onde}: ordemNaPasta`);
     }
     if (it.destaque === true && !podeSerVitrine(it as ItemGaleria)) {
       erros.push(`${onde}: destaque não pode ser baixa resolução, excluída, com marca d'água ou tela com conteúdo`);

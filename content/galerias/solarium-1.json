@@ -5,6 +5,9 @@
     "altura": 1800,
     "alt": "SPA do Solarium 1 com hidromassagem ligada e vista para as montanhas da Serra Fina",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "verde",
     "destaque": true,
     "ordem": 1,
@@ -20,13 +23,18 @@
     "largura": 2400,
     "altura": 1800,
     "alt": "SPA e rede suspensa do Solarium 1 com vista aberta para a Serra da Mantiqueira",
-    "ambiente": "rede",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "rede",
+      "amanhecer"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 2,
     "tambemEm": [
-      "amanhecer",
-      "vista"
+      "rede",
+      "amanhecer"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -40,6 +48,9 @@
     "altura": 1537,
     "alt": "SPA de borda infinita diante do vale e do eucaliptal, com a Serra Fina ao fundo",
     "ambiente": "vista",
+    "pastas": [
+      "vista"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 3,
@@ -55,12 +66,16 @@
     "largura": 1800,
     "altura": 2400,
     "alt": "Reflexo das montanhas e do céu azul na água do SPA do Solarium 1",
-    "ambiente": "spa",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "spa"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 4,
     "tambemEm": [
-      "vista"
+      "spa"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -74,6 +89,9 @@
     "altura": 2400,
     "alt": "SPA do Solarium 1 com o vidro meio aberto e o campo verde ao redor",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 5,
@@ -89,13 +107,14 @@
     "largura": 2400,
     "altura": 1800,
     "alt": "SPA interno do Solarium 1 com água azul-turquesa, integrado ao quarto e ao closet",
-    "ambiente": "spa",
+    "ambiente": "banheiro-suite",
+    "pastas": [
+      "banheiro-suite"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 6,
-    "tambemEm": [
-      "banheiro-suite"
-    ],
+    "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
     "creditoPendente": false,
@@ -108,6 +127,9 @@
     "altura": 2400,
     "alt": "SPA fechado por vidro refletindo as luzes internas e as nuvens do pôr do sol",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 7,
@@ -124,6 +146,9 @@
     "altura": 1350,
     "alt": "Vista externa do SPA, da rede suspensa e do quarto do Solarium 1 ao entardecer",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 8,
@@ -140,6 +165,9 @@
     "altura": 2400,
     "alt": "Borda do SPA em primeiro plano e colinas douradas da serra em foco ao fundo",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 9,
@@ -156,6 +184,9 @@
     "altura": 1652,
     "alt": "Hóspede se divertindo no SPA aquecido do Solarium 1 com o pôr do sol na serra",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 10,
@@ -172,6 +203,9 @@
     "altura": 900,
     "alt": "Hidromassagem borbulhando no SPA ao pôr do sol, com rede e colinas ao lado",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 11,
@@ -188,6 +222,9 @@
     "altura": 1124,
     "alt": "SPA iluminado de azul à noite, com hóspede brindando diante do último clarão do dia",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 12,
@@ -204,6 +241,9 @@
     "altura": 1600,
     "alt": "Quarto do Solarium 1 com cama de casal, roupões no closet e janela para a serra",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 13,
@@ -220,6 +260,9 @@
     "altura": 2400,
     "alt": "Cama de casal com roupa branca e parede azul no quarto do Solarium 1",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 14,
@@ -236,6 +279,9 @@
     "altura": 2400,
     "alt": "Quarto iluminado por luz quente no anoitecer, com paredes de vidro voltadas para o campo",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 15,
@@ -252,6 +298,9 @@
     "altura": 2400,
     "alt": "Lareira acesa ao pé da cama no quarto do Solarium 1, com TV na parede",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 16,
@@ -268,6 +317,9 @@
     "altura": 1800,
     "alt": "Lareira de pedras vulcânicas diante da cama, com janela lateral aberta para o verde",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 17,
@@ -284,6 +336,9 @@
     "altura": 1800,
     "alt": "Sol nascendo sobre as montanhas visto da cama do quarto pela porta de vidro",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 18,
@@ -300,6 +355,9 @@
     "altura": 2400,
     "alt": "Piso aquecido e luminária ao lado do SPA interno, com assistente de voz na mesinha",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 19,
@@ -316,6 +374,9 @@
     "altura": 1800,
     "alt": "Cama decorada com coração de pétalas, buquê e balões, com roupão bordado em primeiro plano",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 20,
@@ -332,6 +393,9 @@
     "altura": 2400,
     "alt": "Quarto do Solarium 1 com berço portátil ao lado da cama, preparado para famílias",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 21,
@@ -347,11 +411,17 @@
     "largura": 2400,
     "altura": 1800,
     "alt": "Rede suspensa com almofadas sobre o gramado e o vale ensolarado da Serra da Mantiqueira",
-    "ambiente": "rede",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "rede"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 22,
-    "tambemEm": [],
+    "tambemEm": [
+      "rede"
+    ],
     "baixaResolucao": false,
     "excluirDoSite": false,
     "creditoPendente": false,
@@ -364,6 +434,9 @@
     "altura": 1536,
     "alt": "Hóspede tomando café coberta por edredom na rede suspensa, com o vale ao fundo",
     "ambiente": "rede",
+    "pastas": [
+      "rede"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 23,
@@ -380,6 +453,9 @@
     "altura": 2400,
     "alt": "Casal abraçado na rede suspensa do Solarium 1 com as colinas verdes ao fundo",
     "ambiente": "rede",
+    "pastas": [
+      "rede"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 24,
@@ -396,6 +472,9 @@
     "altura": 1600,
     "alt": "Hóspede deitada na rede suspensa sobre o gramado, iluminada pelo sol do fim de tarde",
     "ambiente": "rede",
+    "pastas": [
+      "rede"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 25,
@@ -412,6 +491,9 @@
     "altura": 2400,
     "alt": "Redário com duas redes coloridas no gramado, sob céu azul e montanhas no horizonte",
     "ambiente": "rede",
+    "pastas": [
+      "rede"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 26,
@@ -428,6 +510,9 @@
     "altura": 900,
     "alt": "Rede com edredom branco e o SPA do Solarium 1 sob o sol se pondo",
     "ambiente": "rede",
+    "pastas": [
+      "rede"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 27,
@@ -444,6 +529,9 @@
     "altura": 900,
     "alt": "Edredom na rede e hóspede relaxando no SPA durante o pôr do sol laranja",
     "ambiente": "geral",
+    "pastas": [
+      "geral"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 28,
@@ -460,6 +548,9 @@
     "altura": 2400,
     "alt": "Reflexo no vidro de hóspede sentada na rede suspensa, com luz dourada da manhã",
     "ambiente": "rede",
+    "pastas": [
+      "rede"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 29,
@@ -476,6 +567,9 @@
     "altura": 2400,
     "alt": "Sala do Solarium 1 com sofá, poltrona, lareira e teto de madeira aparente",
     "ambiente": "sala",
+    "pastas": [
+      "sala"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 30,
@@ -492,6 +586,9 @@
     "altura": 2400,
     "alt": "Hóspede descansando na poltrona da sala, junto à porta de vidro iluminada pelo sol",
     "ambiente": "sala",
+    "pastas": [
+      "sala"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 31,
@@ -508,6 +605,9 @@
     "altura": 1800,
     "alt": "Cozinha completa do Solarium 1 com cooktop, forno e janelas para o campo",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 32,
@@ -524,6 +624,10 @@
     "altura": 1800,
     "alt": "Cozinha e sala integradas com vista para o Parque Nacional do Itatiaia ao entardecer",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha",
+      "sala"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 33,
@@ -542,6 +646,10 @@
     "altura": 2400,
     "alt": "Mesa posta na cozinha com o sol nascendo atrás das montanhas pela janela",
     "ambiente": "sala",
+    "pastas": [
+      "sala",
+      "amanhecer"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 34,
@@ -560,6 +668,9 @@
     "altura": 2400,
     "alt": "Mesa posta para dois com fondue, vinho e taças na cozinha do Solarium 1",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 35,
@@ -576,6 +687,9 @@
     "altura": 2400,
     "alt": "Garrafa de vinho, taças e pratos na mesa com a serra atrás do vidro",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 36,
@@ -592,6 +706,9 @@
     "altura": 2400,
     "alt": "Adega climatizada, taças penduradas e cafeteira de cápsulas no móvel da cozinha",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 37,
@@ -608,6 +725,9 @@
     "altura": 2400,
     "alt": "Bancada da cozinha refletida no vidro com o nascer do sol sobre a serra",
     "ambiente": "vista",
+    "pastas": [
+      "vista"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 38,
@@ -624,6 +744,9 @@
     "altura": 1800,
     "alt": "Mesa redonda posta para o café no deck, com eucaliptal e montanhas ao fundo",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 39,
@@ -640,6 +763,9 @@
     "altura": 2400,
     "alt": "Área gourmet coberta do Solarium 1 com churrasqueira, pia e mesa sob ombrelone",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 40,
@@ -656,6 +782,9 @@
     "altura": 1800,
     "alt": "Churrasco na grelha e fondue de queijo servidos na bancada de madeira da área gourmet",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 41,
@@ -672,6 +801,9 @@
     "altura": 2400,
     "alt": "Churrasqueira a gás de inox diante da parede de azulejos geométricos azuis",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 42,
@@ -688,6 +820,9 @@
     "altura": 1200,
     "alt": "Jantar no deck com medalhões de carne, risoto e taças de vinho tinto",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 43,
@@ -704,6 +839,9 @@
     "altura": 1600,
     "alt": "Casal caminhando pelo deck de vidro do Solarium 1, refletido na fachada com a serra",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 44,
@@ -720,6 +858,9 @@
     "altura": 1711,
     "alt": "Fogueira acesa no fire pit de pedra com o vale e as montanhas no entardecer",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 45,
@@ -736,6 +877,9 @@
     "altura": 1600,
     "alt": "Fachada do Solarium 1 iluminada ao anoitecer, com deck suspenso e céu lilás",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 46,
@@ -752,6 +896,9 @@
     "altura": 1350,
     "alt": "Vista aérea do Solarium 1 iluminado ao anoitecer entre colinas de Itanhandu",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 47,
@@ -768,6 +915,10 @@
     "altura": 1350,
     "alt": "Vista aérea da casa entre colinas e névoa, com o Parque do Itatiaia ao fundo",
     "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "amanhecer"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 48,
@@ -786,6 +937,9 @@
     "altura": 1350,
     "alt": "Casa vista do alto pela manhã, com pasto dourado e a Serra do Papagaio",
     "ambiente": "amanhecer",
+    "pastas": [
+      "amanhecer"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 49,
@@ -802,6 +956,9 @@
     "altura": 1800,
     "alt": "Fachada de vidro do Solarium 1 sob céu azul, com cachorro no gramado seco",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 50,
@@ -818,6 +975,9 @@
     "altura": 2400,
     "alt": "Fachada lateral com palmeira e deck da área gourmet sob nuvens de fim de tarde",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 51,
@@ -834,6 +994,9 @@
     "altura": 2400,
     "alt": "Escada externa e deck com ombrelones sob a fachada envidraçada do Solarium 1",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 52,
@@ -850,6 +1013,9 @@
     "altura": 2400,
     "alt": "Mesa redonda sob ombrelone no deck, com vale verde e montanhas azuladas",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 53,
@@ -866,6 +1032,9 @@
     "altura": 2400,
     "alt": "Mesa com xícaras sob ombrelone e sala envidraçada do Solarium 1 ao fundo",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 54,
@@ -882,6 +1051,9 @@
     "altura": 1496,
     "alt": "Corredor de vidro refletindo a serra e o deck como um espelho ao entardecer",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 55,
@@ -898,6 +1070,9 @@
     "altura": 1537,
     "alt": "Palmeiras e lavandas no jardim diante do mar de nuvens no vale",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 56,
@@ -914,6 +1089,9 @@
     "altura": 1800,
     "alt": "Névoa cobrindo o vale ao amanhecer, vista da rede suspensa ao lado do vidro",
     "ambiente": "vista",
+    "pastas": [
+      "vista"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 57,
@@ -930,6 +1108,9 @@
     "altura": 1800,
     "alt": "Mar de nuvens sobre o vale ao amanhecer, visto do caminho de pedras da casa",
     "ambiente": "amanhecer",
+    "pastas": [
+      "amanhecer"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 58,
@@ -946,6 +1127,9 @@
     "altura": 1800,
     "alt": "Deck de madeira com vista para a mata e as montanhas da Serra Fina",
     "ambiente": "vista",
+    "pastas": [
+      "vista"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 59,
@@ -962,6 +1146,9 @@
     "altura": 1800,
     "alt": "Pôr do sol sobre o vale verde visto da lateral iluminada da casa",
     "ambiente": "vista",
+    "pastas": [
+      "vista"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 60,
@@ -978,6 +1165,9 @@
     "altura": 2400,
     "alt": "Primeiros raios de sol sobre as montanhas vistos do gramado ao lado da cerca",
     "ambiente": "amanhecer",
+    "pastas": [
+      "amanhecer"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 61,
@@ -994,6 +1184,9 @@
     "altura": 1536,
     "alt": "Sol nascendo atrás da serra refletido na parede de vidro do quarto",
     "ambiente": "amanhecer",
+    "pastas": [
+      "amanhecer"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 62,
@@ -1010,6 +1203,10 @@
     "altura": 1200,
     "alt": "Silhueta das montanhas e céu alaranjado no nascer do sol em Itanhandu",
     "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "amanhecer"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 63,
@@ -1028,6 +1225,9 @@
     "altura": 1537,
     "alt": "Sol surgindo entre as montanhas ao lado da parede branca da casa",
     "ambiente": "amanhecer",
+    "pastas": [
+      "amanhecer"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 64,
@@ -1044,6 +1244,9 @@
     "altura": 1600,
     "alt": "Liquidificador, fritadeira elétrica e potes de sal, café e açúcar na prateleira",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 65,
@@ -1060,6 +1263,9 @@
     "altura": 2048,
     "alt": "Geladeira inox, adega e cafeteira na cozinha com porta aberta para o campo",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 66,
@@ -1076,6 +1282,9 @@
     "altura": 1800,
     "alt": "Bancada de granito com toalhas enroladas e box de vidro no banheiro da suíte",
     "ambiente": "banheiro-suite",
+    "pastas": [
+      "banheiro-suite"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 67,
@@ -1092,6 +1301,9 @@
     "altura": 2400,
     "alt": "Nicho iluminado com frascos de xampu, condicionador e sabonete no banheiro da suíte",
     "ambiente": "banheiro-suite",
+    "pastas": [
+      "banheiro-suite"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 68,
@@ -1108,6 +1320,9 @@
     "altura": 2400,
     "alt": "Lavatório com cuba branca e espelho orgânico, com a cozinha integrada ao fundo",
     "ambiente": "banheiro-social",
+    "pastas": [
+      "banheiro-social"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 69,
@@ -1119,177 +1334,20 @@
     "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-1/externa/rede-e-spa-serra-fina.jpg",
-    "largura": 2400,
-    "altura": 1800,
-    "alt": "Rede suspensa e SPA com céu azul, eucaliptal e montanhas da serra",
-    "ambiente": "externa",
-    "estacao": "verde",
+    "arquivo": "solarium-1/banheiro-suite/banheiro-da-suite-com-roupoes.jpg",
+    "largura": 1800,
+    "altura": 2400,
+    "alt": "Banheiro da suíte com roupões, toalhas e bancada iluminada pela luz do fim da tarde",
+    "ambiente": "banheiro-suite",
+    "pastas": [
+      "banheiro-suite"
+    ],
+    "estacao": "neutra",
     "destaque": false,
     "ordem": 70,
     "tambemEm": [],
     "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": true,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/vista/rede-com-almofadas-fim-de-tarde.jpg",
-    "largura": 2400,
-    "altura": 1800,
-    "alt": "Rede com almofadas e vista para o vale dourado ao fim da tarde",
-    "ambiente": "vista",
-    "estacao": "seca",
-    "destaque": false,
-    "ordem": 71,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/spa/espuma-da-hidro-com-tacas.jpg",
-    "largura": 1199,
-    "altura": 900,
-    "alt": "Espuma da hidromassagem com duas taças de vinho na borda e o sol se pondo",
-    "ambiente": "spa",
-    "estacao": "seca",
-    "destaque": false,
-    "ordem": 72,
-    "tambemEm": [],
-    "baixaResolucao": true,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/quarto/roupao-refletido-no-vidro.jpg",
-    "largura": 1600,
-    "altura": 2400,
-    "alt": "Roupão pendurado refletido no vidro com a serra ao fundo no fim de tarde",
-    "ambiente": "quarto",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 73,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/quarto/cabeceira-e-janela.jpg",
-    "largura": 1600,
-    "altura": 2400,
-    "alt": "Cabeceira iluminada por arandela com a janela aberta para o verde",
-    "ambiente": "quarto",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 74,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/vista/amanhecer-parque-itatiaia.jpg",
-    "largura": 1800,
-    "altura": 2400,
-    "alt": "Céu do amanhecer sobre o Parque Nacional do Itatiaia visto do gramado",
-    "ambiente": "vista",
-    "estacao": "verde",
-    "destaque": false,
-    "ordem": 75,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": true,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/rede/musica-na-rede.jpg",
-    "largura": 1199,
-    "altura": 900,
-    "alt": "Mãos tocando ukulele na rede com manta, diante do pasto seco e da serra",
-    "ambiente": "rede",
-    "estacao": "seca",
-    "destaque": false,
-    "ordem": 76,
-    "tambemEm": [],
-    "baixaResolucao": true,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/externa/amigos-no-deck-ao-por-do-sol.jpg",
-    "largura": 768,
-    "altura": 1024,
-    "alt": "Três amigos comemorando no deck ao pôr do sol com a serra ao fundo",
-    "ambiente": "externa",
-    "estacao": "seca",
-    "destaque": false,
-    "ordem": 77,
-    "tambemEm": [],
-    "baixaResolucao": true,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/banheiro-suite/box-com-chuveiro-de-teto.jpg",
-    "largura": 1600,
-    "altura": 2400,
-    "alt": "Box com chuveiro de teto, nicho iluminado e vaso sanitário no banheiro da suíte",
-    "ambiente": "banheiro-suite",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 78,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/banheiro-social/banheiro-social-com-chuveiro.jpg",
-    "largura": 1800,
-    "altura": 2400,
-    "alt": "Banheiro social com chuveiro, janela alta e vaso em primeiro plano",
-    "ambiente": "banheiro-social",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 79,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/banheiro-social/chuveiro-do-banheiro-social.jpg",
-    "largura": 1800,
-    "altura": 2400,
-    "alt": "Chuveiro do banheiro social com revestimento amadeirado e janela para as árvores",
-    "ambiente": "banheiro-social",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 80,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": true,
     "telaComConteudo": false
@@ -1300,60 +1358,15 @@
     "altura": 2400,
     "alt": "Lavatório social com espelho orgânico e céu de pôr do sol pela janela",
     "ambiente": "banheiro-social",
+    "pastas": [
+      "banheiro-social"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 81,
+    "ordem": 71,
     "tambemEm": [],
     "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/banheiro-suite/toalhas-bordadas.jpg",
-    "largura": 1600,
-    "altura": 2400,
-    "alt": "Toalhas brancas bordadas com a logo da casa no toalheiro aquecido",
-    "ambiente": "banheiro-suite",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 82,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/banheiro-suite/banheiro-da-suite-com-roupoes.jpg",
-    "largura": 1800,
-    "altura": 2400,
-    "alt": "Banheiro da suíte com roupões, toalhas e bancada iluminada pela luz do fim da tarde",
-    "ambiente": "banheiro-suite",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 83,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
-    "creditoPendente": false,
-    "marcaDagua": true,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-1/banheiro-suite/bancada-com-espelho-amplo.jpg",
-    "largura": 1600,
-    "altura": 2400,
-    "alt": "Bancada com cuba esculpida, espelho amplo e toalheiro no banheiro da suíte",
-    "ambiente": "banheiro-suite",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 84,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": false,
     "telaComConteudo": false
@@ -1364,12 +1377,243 @@
     "altura": 1800,
     "alt": "Cuba branca de apoio e torneira dourada com a mata vista pela porta",
     "ambiente": "banheiro-social",
+    "pastas": [
+      "banheiro-social"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 85,
+    "ordem": 72,
     "tambemEm": [],
     "baixaResolucao": false,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/externa/rede-e-spa-serra-fina.jpg",
+    "largura": 2400,
+    "altura": 1800,
+    "alt": "Rede suspensa e SPA com céu azul, eucaliptal e montanhas da serra",
+    "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
+    "estacao": "verde",
+    "destaque": false,
+    "ordem": 73,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/spa/espuma-da-hidro-com-tacas.jpg",
+    "largura": 1199,
+    "altura": 900,
+    "alt": "Espuma da hidromassagem com duas taças de vinho na borda e o sol se pondo",
+    "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
+    "estacao": "seca",
+    "destaque": false,
+    "ordem": 74,
+    "tambemEm": [],
+    "baixaResolucao": true,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/quarto/roupao-refletido-no-vidro.jpg",
+    "largura": 1600,
+    "altura": 2400,
+    "alt": "Roupão pendurado refletido no vidro com a serra ao fundo no fim de tarde",
+    "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 75,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/quarto/cabeceira-e-janela.jpg",
+    "largura": 1600,
+    "altura": 2400,
+    "alt": "Cabeceira iluminada por arandela com a janela aberta para o verde",
+    "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 76,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/vista/amanhecer-parque-itatiaia.jpg",
+    "largura": 1800,
+    "altura": 2400,
+    "alt": "Céu do amanhecer sobre o Parque Nacional do Itatiaia visto do gramado",
+    "ambiente": "vista",
+    "pastas": [
+      "vista"
+    ],
+    "estacao": "verde",
+    "destaque": false,
+    "ordem": 77,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/rede/musica-na-rede.jpg",
+    "largura": 1199,
+    "altura": 900,
+    "alt": "Mãos tocando ukulele na rede com manta, diante do pasto seco e da serra",
+    "ambiente": "rede",
+    "pastas": [
+      "rede"
+    ],
+    "estacao": "seca",
+    "destaque": false,
+    "ordem": 78,
+    "tambemEm": [],
+    "baixaResolucao": true,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/externa/amigos-no-deck-ao-por-do-sol.jpg",
+    "largura": 768,
+    "altura": 1024,
+    "alt": "Três amigos comemorando no deck ao pôr do sol com a serra ao fundo",
+    "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
+    "estacao": "seca",
+    "destaque": false,
+    "ordem": 79,
+    "tambemEm": [],
+    "baixaResolucao": true,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/banheiro-suite/box-com-chuveiro-de-teto.jpg",
+    "largura": 1600,
+    "altura": 2400,
+    "alt": "Box com chuveiro de teto, nicho iluminado e vaso sanitário no banheiro da suíte",
+    "ambiente": "banheiro-suite",
+    "pastas": [
+      "banheiro-suite"
+    ],
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 80,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/banheiro-social/banheiro-social-com-chuveiro.jpg",
+    "largura": 1800,
+    "altura": 2400,
+    "alt": "Banheiro social com chuveiro, janela alta e vaso em primeiro plano",
+    "ambiente": "banheiro-social",
+    "pastas": [
+      "banheiro-social"
+    ],
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 81,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/banheiro-social/chuveiro-do-banheiro-social.jpg",
+    "largura": 1800,
+    "altura": 2400,
+    "alt": "Chuveiro do banheiro social com revestimento amadeirado e janela para as árvores",
+    "ambiente": "banheiro-social",
+    "pastas": [
+      "banheiro-social"
+    ],
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 82,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": true,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/banheiro-suite/toalhas-bordadas.jpg",
+    "largura": 1600,
+    "altura": 2400,
+    "alt": "Toalhas brancas bordadas com a logo da casa no toalheiro aquecido",
+    "ambiente": "banheiro-suite",
+    "pastas": [
+      "banheiro-suite"
+    ],
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 83,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
+    "creditoPendente": false,
+    "marcaDagua": false,
+    "telaComConteudo": false
+  },
+  {
+    "arquivo": "solarium-1/banheiro-suite/bancada-com-espelho-amplo.jpg",
+    "largura": 1600,
+    "altura": 2400,
+    "alt": "Bancada com cuba esculpida, espelho amplo e toalheiro no banheiro da suíte",
+    "ambiente": "banheiro-suite",
+    "pastas": [
+      "banheiro-suite"
+    ],
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 84,
+    "tambemEm": [],
+    "baixaResolucao": false,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": false,
     "telaComConteudo": false

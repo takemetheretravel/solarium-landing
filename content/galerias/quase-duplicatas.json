@@ -1,0 +1,30 @@
+[
+  {
+    "descricao": "Solarium 2: quarto e SPA ao pôr do sol, mesmo enquadramento em outro recorte",
+    "shas": [
+      "0f2f3abf702ec727c950e630ad22038e62dd3d91caa61a32a5a0eb51fe6298ad",
+      "3e14e27a4206abf3efb34a70d038a641a7810781f4865e7c2fe9db0037a5b111"
+    ]
+  },
+  {
+    "descricao": "Solarium 2: cama e SPA de imersão com o box, recorte e edição diferentes",
+    "shas": [
+      "4f2918e256ff76e9baac6e20d118f2af9a8de0f91187afcd3c5ea4cd5b73559c",
+      "aecb2588086b0ef476aad0237344ff711059e86f3a73bf3cd695957778c51516"
+    ]
+  },
+  {
+    "descricao": "Solarium 2: telão aberto para o deck ao pôr do sol",
+    "shas": [
+      "13059e8c7ee1e0cdeee06c413943373b50ddb490d2b0afa89cbff6d5d31ed4ee",
+      "b8e7fb685e875f3c7abb4d9780acde12c259c5aba7785e2c65b3ce4954fd7ccd"
+    ]
+  },
+  {
+    "descricao": "Solarium 1: rede suspensa com almofadas, mesma cena",
+    "shas": [
+      "2a5e4c0f294f167f51ca63b6812e4cff7519e0e099376a8c17f833ab8690b192",
+      "f9b3ca0b029a0ed758f27d9f32ab2cbe760e144860998f3f6581d2e040757428"
+    ]
+  }
+]

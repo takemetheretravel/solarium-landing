@@ -5,6 +5,9 @@
     "altura": 1109,
     "alt": "Logotipo do Solarium Mantiqueira em branco, com montanhas desenhadas sobre o nome",
     "ambiente": "marca",
+    "pastas": [
+      "marca"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 1,
@@ -21,6 +24,9 @@
     "altura": 1109,
     "alt": "Logotipo do Solarium Mantiqueira em preto, com montanhas desenhadas sobre o nome",
     "ambiente": "marca",
+    "pastas": [
+      "marca"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 2,

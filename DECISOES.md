@@ -6,6 +6,302 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 > `DECISOES.md` próprio, ainda não mergeado. Quando elas entrarem, os dois
 > arquivos precisam ser unidos à mão.
 
+> ## Como mexer nas fotos do site (guia do Lucas)
+>
+> As fotos do site vêm das pastas em `galerias-local/` (a cópia da pasta
+> "site" do Drive). **A pasta onde a foto está é o ambiente onde ela aparece.**
+> Uma foto em duas pastas aparece nos dois ambientes.
+>
+> - **Mudar de ambiente:** mova o arquivo para outra pasta no Explorador de
+>   Arquivos (por exemplo, de `vista` para `spa`).
+> - **Tirar do site:** mova o arquivo para uma pasta chamada `_fora` na raiz de
+>   `galerias-local` (crie se não existir). O que está em `_fora` é ignorado.
+>   Não precisa apagar nada.
+> - **Mudar a ordem:** coloque um número no começo do nome do arquivo:
+>   `01 `, `02 `, `03 `… As numeradas vêm primeiro, nessa ordem; as outras
+>   vêm depois.
+> - **Foto nova:** coloque o arquivo na pasta certa.
+> - **Depois de qualquer mudança:** peça ao Claude Code **"atualize as
+>   galerias"** (ele roda `npm run galerias:atualizar`) e confira o preview.
+>
+> Pastas e ambientes: `vista` Vista · `spa` SPA · `quarto` Quarto · `cinema`
+> Cinema · `banheiro_suíte` Banheiro da suíte · `banheiro_social` Banheiro
+> social · `Banheiro` Banheiro · `cozinha` Cozinha · `area gourmet` Área
+> gourmet · `sala` Sala · `rede` Rede · `amanhecer` Amanhecer · `externa` Área
+> externa · `conjunto` As duas casas · arquivo solto na pasta da casa: Mais
+> fotos. Pasta nova vira ambiente novo automaticamente.
+>
+> O que continua automático: a capa, o texto alternativo (alt) e a estação de
+> cada foto. Foto com a marca d'água "T" ou com tela de TV ligada aparece na
+> galeria, mas nunca como capa, no mosaico do topo ou no Google. Versões quase
+> iguais da mesma foto (outro recorte da mesma cena) viram uma só — a lista
+> está no `RELATORIO_IMAGENS.md` e as miniaturas lado a lado na folha de
+> contato (`npm run galerias:folha`).
+
+---
+
+## Rodada IMG-1a-ajustes-2 — Galeria pelas pastas originais (set/2026)
+
+Mesma branch da IMG-1a, atualizada com a `main` (sem mudanças nela).
+
+### Decisão do Lucas
+
+As pastas de `galerias-local/` passam a ser a **fonte da verdade** dos
+ambientes e do que aparece. A curadoria da IMG-0 continua para alt, estação,
+descrição, ordem geral, capa, Google, `marcaDagua` e `telaComConteudo`.
+
+### Decisões
+
+- **Um chip por pasta** (tabela em `src/lib/galerias/pastas.ts`, compartilhada
+  pelo script e pelo site), com **"Todas"** antes, sem repetição. Pasta fora
+  da tabela vira chip com o próprio nome, antes de "Mais fotos".
+- **Manifesto ganha `pastas`** (todas as pastas da foto, na ordem dos chips) e
+  `ordemNaPasta` (número no começo do nome, por pasta). `ambiente` = primeira
+  pasta; `tambemEm` = as demais. Validador e testes atualizados.
+- **Sem exclusão automática, sem limite de banheiros, sem reclassificação.**
+  Da curadoria saíram 19 `excluirDoSite`, 19 motivos e 3 `ambiente` (41
+  campos). Voltaram ao site, entre outras, o chuveiro do banheiro social do
+  Solarium 1 e o vaso do Solarium 2.
+- **Caminho do bucket congelado** em `content/galerias/caminhos.json` (SHA do
+  original → caminho). Mover a foto de pasta não muda o caminho; só foto nova
+  ganha caminho novo (na primeira pasta dela).
+- **Upload só do que é novo**: `content/galerias/enviados.json` guarda o
+  SHA-256 de cada arquivo que está no bucket (semeado com os 165 enviados na
+  IMG-0). Nesta rodada: **0 arquivos a enviar** — as 161 fotos do site já
+  estavam lá. `--todos` força o reenvio.
+- **Quase-duplicatas: hash perceptual não resolve sozinho.** Testei pHash e
+  uma correlação tolerante a recorte (em cinza e em bordas). Nenhum separou
+  "mesma cena em outro recorte" de "paisagens parecidas": o par que o Lucas
+  viu (quarto e SPA ao pôr do sol) teve nota *menor* que vários pares de fotos
+  diferentes. Solução: grupos **confirmados visualmente** em
+  `content/galerias/quase-duplicatas.json` (por SHA do original) + **pHash
+  automático** (distância ≤ 6) para reexportação/reedição da mesma imagem.
+  Grupos confirmados (4): Solarium 2 quarto e SPA ao pôr do sol; Solarium 2
+  cama e SPA com o box; Solarium 2 telão aberto ao pôr do sol; Solarium 1 rede
+  com almofadas. O pHash não achou outros. Para acrescentar um grupo, basta
+  pôr os SHAs no arquivo (a folha de contato mostra os pares).
+- **Qual fica**: a de maior resolução; entre as que estão a até 10% dela, a
+  retocada ("Ret_"); empate pela ordem da curadoria. Ela herda as pastas de
+  todas. Ex.: fica `solarium-2/vista/quarto-e-spa-ao-por-do-sol.jpg`
+  (4000×3000, capa), que aparece em Vista, SPA e Mais fotos.
+- **Mosaico**: as primeiras de `vista`/`spa` que podem ser vitrine, sem a capa
+  (completa com outras vitrines se faltar). **Capa**: a `destaque` da
+  curadoria se ainda está numa pasta e pode ser vitrine; senão a primeira
+  vitrine de `vista`/`spa`.
+- **Completo**: "Todas", os chips das pastas do conjunto ("As duas casas",
+  "Mais fotos") e um chip por casa, como na IMG-1a.
+- **`npm run galerias:atualizar`** = preparar → subir (só o novo) → folha →
+  testes. Idempotente.
+- **`ajustes-manuais.json` apagado**; o guia no topo deste arquivo substitui o
+  formato que estava lá.
+- **Folha de contato**: seção de quase-duplicatas no topo (a que fica × as que
+  saem, lado a lado); fotos por casa e pasta.
+
+### Verificado
+
+- Relatório: em **todos** os chips, fotos no chip = arquivos na pasta
+  (Solarium 1: 84 fotos de 92 arquivos; Solarium 2: 57 de 70; a diferença é
+  cópia idêntica em mais de uma pasta e as 4 quase-duplicatas).
+- Testes com as pastas locais (rodam só onde `galerias-local/` existe): toda
+  foto fora de `_fora` aparece no chip da sua pasta; nº por chip = nº de fotos
+  distintas na pasta.
+- `next start`: chips na ordem da tabela, uma `priority` por página, hero e
+  mosaico sem repetição.
+
+### Testes alterados (com justificativa)
+
+- `manifestos.test.ts`: saem "no máximo 6 banheiros" e "tela no fim do
+  ambiente" (decisão do Lucas: pastas decidem); marcações 28/**7** (a foto do
+  telão com tela saiu por quase-duplicata); entram "nada excluído" e
+  "ambiente = pastas[0]".
+- `galerias.test.ts`: reescrito para chips por pasta (sai o modelo de
+  categorias e ajustes manuais).
+
+---
+
+## Rodada IMG-1a-ajustes — Revisão do Lucas no preview (set/2026)
+
+Mesma branch da IMG-1a (`feature/img-1a-galerias-casas`, atualizada com a
+`main`, que não tinha mudado).
+
+### Parte A — Lightbox
+
+- **Causa do corte**: `cn()` só concatena classes; o lightbox passava
+  `object-contain`, mas `ImagemGaleria` já tinha `object-cover`, e o `cover`
+  vencia pela ordem do CSS do Tailwind. Agora o recorte vai em `style`
+  (`objectFit`), sem disputa de classe.
+- **`<ImagemInteira>`** (só o lightbox): `width`/`height` do manifesto,
+  `sizes="100vw"`, ocupa a área inteira (largura 100%, altura
+  `calc(100dvh - 11rem)` = tela menos contador e legenda) com `contain`. A
+  foto aparece inteira; a sobra fica escura. A primeira versão usava
+  `width/height: auto` e a foto ficava no tamanho intrínseco (768×576 numa
+  tela de 1440) — corrigido antes da entrega.
+- **Por cima de tudo**: portal no `<body>` (sai de qualquer contexto de
+  empilhamento da página), `z-index` 2147483000, fundo opaco `#111111`
+  (Preto Serra). Com ele aberto, a classe `lightbox-aberto` no `<body>`
+  esconde o WhatsApp e a barra "A partir de / Reservar"
+  (`data-esconder-no-lightbox` + `globals.css`). Não há botão de
+  acessibilidade flutuante no site hoje; qualquer novo elemento fixo só precisa
+  do mesmo atributo.
+- **Pré-carrega a próxima e a anterior.**
+- **Miniaturas** seguem recortadas (`cover`) e respeitam `foco` em
+  `object-position` (nenhuma foto tem `foco` ainda).
+- Verificado no `next start`: celular com proporção exibida 1,332 × foto
+  1,335; desktop com área 1280×724; WhatsApp e barra com `display: none`.
+
+### Parte B — Chips e inclusão manual
+
+- **Uma foto pode estar em mais de um chip** (ambiente + `tambemEm`, ou o
+  ajuste manual). A regra "nenhuma foto repetida" vale só entre hero e
+  mosaico. **A grade passou a mostrar cada ambiente completo**, inclusive as
+  fotos do mosaico — era isso que esvaziava "Vista e SPA" do Solarium 2 (o
+  mosaico levava as fotos do SPA).
+- **`ajustes-manuais.json`** aplicado na biblioteca do site (formato no topo
+  deste arquivo). O id do chip de banheiros virou `banheiro` (singular), como
+  no exemplo do Lucas.
+- **Limite de banheiros 3 → 6.** Voltaram pela curadoria (não por inclusão
+  manual, para contarem no limite) as fotos excluídas **só pelo limite**:
+  Solarium 1 `banheiro-da-suite-com-roupoes`, `lavatorio-social-ao-por-do-sol`,
+  `cuba-e-torneira-com-vista` (6 no total); Solarium 2 `box-de-chuveiro` e
+  `lavatorio-ao-nascer-do-sol` (6 no chip, contando a banheira com chuveiro,
+  que também está em Vista e SPA). As três do Solarium 1 que ainda ficam de
+  fora pelo limite: chuveiro social, toalhas bordadas, bancada com espelho
+  amplo. Nenhuma excluída por desfoque, HDR ou vaso voltou. Os caminhos não
+  mudaram (nome estável da IMG-0): **nenhum upload necessário**.
+- **Solarium 2, Vista e SPA**: SPA de imersão ao lado da cama, teto retrátil
+  aberto, quarto e SPA ao pôr do sol, cama diante do SPA, cama e SPA, cama com
+  SPA e banheiro ao fundo. O notebook foi para o fim de Quarto; a fachada ao
+  nascer do sol para Área externa.
+- **Revisão chip a chip** (20 ajustes no total):
+  - Solarium 1: mesa posta ao nascer do sol e cozinha no reflexo → Cozinha;
+    fachada com palmeira e escada/deck com ombrelones → Área externa; SPA
+    integrado ao quarto → Vista e SPA + Quarto (não Banheiros); rede e SPA ao
+    pôr do sol (pasta "geral") → Vista e SPA + Sala e rede (não Área externa);
+    as duas vistas aéreas da casa → Área externa.
+  - Solarium 2: bancada com vista do parque e chuveiro ao nascer do sol → só
+    Banheiros (não Vista e SPA); cantinho do café e preparando pão → só
+    Cozinha; SPA de imersão ao pôr do sol (estava também em "geral") → Vista e
+    SPA + Quarto.
+  - Completo: chips são as casas; nada a corrigir.
+- **Folha de contato** `npm run galerias:folha` →
+  `galerias-processadas/folha-contato.html` (fora do git): 165 fotos por
+  casa e ambiente, com caminho, chips, exclusão e motivo, marca d'água, tela,
+  crédito. O script de upload e o teste de "arquivo solto" ignoram a folha —
+  **ela nunca vai para o bucket**. O preparo passou a gravar o SHA no mapa
+  local `_origem.json` para a folha achar o motivo de exclusão.
+
+### Parte C — Search Console e dados estruturados
+
+- **`public/google017462615c616c47.html`** com o texto exato, sem quebra de
+  linha. O middleware só casa com a rota de pagamento e o único redirect é de
+  pacote; teste garante. `next start`: 200, `text/html`.
+- **Home**: `containsPlace` só com `{ "@id": …#casa }`.
+- **`VacationRental`**: `additionalType: "House"`, `identifier` (316007,
+  316005, 316006), `description` = a description da página (SEO-1a), `geo`
+  **e** `latitude`/`longitude` no topo (o guia do Google para VacationRental
+  exige os dois últimos), `image` com 20 fotos (capa, depois vitrines, depois
+  as demais visíveis; nunca excluída), `containsPlace` Accommodation com
+  `occupancy.value`, quartos, banheiros, camas (`BedDetails`) e comodidades.
+- **Quartos, banheiros e camas NÃO aparecem no site.** Valores mais
+  prováveis, **a confirmar pelo Lucas**:
+  | Casa | Quartos | Banheiros | Camas |
+  |---|---|---|---|
+  | Solarium 1 | 1 | 2 (suíte + social, pelas pastas do Drive) | 1 cama de casal + 1 sofá-cama |
+  | Solarium 2 | 1 | 1 | 1 cama de casal + 1 sofá-cama |
+  | Solarium Completo | 2 | 3 | 2 camas de casal + 2 sofás-cama (soma) |
+  As camas saem de "acomoda até 4" com um quarto. Ficam em `ESTRUTURA`
+  (`src/lib/json-ld.ts`). O número de quartos **deixou de vir do Hostaway**
+  (`bedroomsNumber`): as credenciais locais dão 401, então não havia como
+  conferir o que a API devolve; valor fixo e revisado é previsível.
+- Teste: cada `VacationRental` tem `image` (≥ 8), `geo`, `identifier`,
+  `containsPlace` e `address`, e o Completo soma as duas casas.
+
+### Testes alterados (com justificativa)
+
+- `manifestos.test.ts`: limite de banheiros 3 → 6 (decisão do Lucas); a folha
+  de contato fora da checagem de arquivo solto; o teste de dimensões ganhou o
+  mesmo timeout de 120 s do teste de EXIF (lê os mesmos 165 arquivos e estourou
+  5 s por 23 ms sob carga).
+- `galerias.test.ts`: "sem foto repetida" passa a valer só para hero +
+  mosaico (decisão do Lucas); toda foto visível precisa estar em algum chip.
+- `json-ld.test.ts`: `jsonLdCasa` não recebe mais os quartos do Hostaway;
+  home só com `@id`; `occupancy.value`.
+
+---
+
+## Rodada IMG-1a — Galerias das casas pelo manifesto (set/2026)
+
+Branch `feature/img-1a-galerias-casas`, a partir da `main` (`f40c003`).
+Substitui a SEO-1c. Não toca na página de pagamento.
+
+### Pré-condições
+
+- IMG-0 na `main`, fotos no bucket, manifestos em `content/galerias/`: ok.
+- `NEXT_PUBLIC_SUPABASE_URL` no `.env.local`: ok. **Na Vercel não foi possível
+  conferir** (CLI negada). O `next.config` agora **falha o build** sem ela, com
+  mensagem clara — o próprio build do preview é a prova.
+- SEO-1a e SEO-1b na `main`: ok.
+
+### Decisões
+
+- **`@/lib/galerias` é `src/lib/galerias/index.ts`**, não `lib/galerias.ts`:
+  a pasta já existia (IMG-0) e arquivo e pasta com o mesmo nome confundem a
+  resolução. O import pedido (`@/lib/galerias`) funciona igual.
+- **`urlGaleria()` e `NEBLINA` num módulo leve** (`src/lib/galerias/url.ts`),
+  reexportados pelo índice. Componentes cliente importam dele: importar o
+  índice levaria os cinco manifestos (~100 KB) para o bundle do navegador.
+- **`<ImagemGaleria>`** é o único ponto que renderiza foto do manifesto:
+  `next/image` otimizado (não o `unoptimized` do `SmartImage` para URL
+  externa), `quality` 75, `sizes` obrigatório, fundo Neblina `#E9E5E0`, sem
+  blur.
+- **Nenhuma foto repete no DOM**: hero = capa (`destaque`); mosaico = as 5
+  fotos seguintes que podem ser vitrine; a grade por ambiente mostra **o que
+  sobra**. O lightbox percorre a casa inteira ("3 de 52"), inclusive hero e
+  mosaico — é o único lugar onde tudo aparece junto. Testado para os 12 meses.
+- **Grade por ambiente em abas**: só a categoria ativa vai para o DOM. No
+  Completo seriam 120+ miniaturas de uma vez.
+- **Categorias**: `externa` e `geral` → "Área externa"; ambiente fora do mapa
+  cai em "Área externa" em vez de sumir.
+- **Mosaico do Completo**: a foto grande é a próxima do conjunto depois da
+  capa; as menores são as capas do Solarium 1 e do Solarium 2 e mais duas do
+  conjunto. Grade com os chips "Conjunto", "Solarium 1", "Solarium 2"; o
+  lightbox percorre as três galerias (conjunto, casa 1, casa 2).
+- **Botões fora da foto**: "Ver todas as fotos" / "Ver as N fotos" ficam
+  abaixo do mosaico, não sobre a imagem (manual: nada de texto sobreposto).
+  O hero continua com o nome da casa sobre a foto — não é galeria.
+- **Estação** (`ordenarPorEstacao`): a estação do mês vem antes dentro de cada
+  ambiente; `neutra` fica exatamente na mesma posição. Mês do build.
+- **Crédito**: campo opcional `credito` no manifesto (junto com `destaqueMobile`
+  e `foco`, que servem à IMG-1b). O validador aceita os opcionais sem
+  exigi-los. Item com `creditoPendente` sem `credito` não aparece — **hoje
+  isso esconde as 10 fotos de experiências**; a IMG-1b precisa dos créditos.
+- **Vídeo** segue no Cloudinary, agora sozinho no bloco "Conheça em
+  movimento" (as 6 fotos de prévia ao lado dele saíram: eram a duplicata).
+- **JSON-LD das casas** passa a usar as fotos do manifesto que podem ser
+  vitrine (até 20), pela exigência da IMG-0.
+- **`src/components/property/Gallery.tsx` removido** (sem uso).
+- **`heroImage`/`galleryImages` continuam em `properties.ts`**: a página de
+  pagamento (intocável), a reserva e a home ainda leem. Saem na IMG-1b/1c.
+- **`vitest.config.ts`** ganha `NEXT_PUBLIC_SUPABASE_URL` de exemplo: teste
+  nunca depende do projeto real.
+- **CLAUDE.md**: §6 reescrita (fotos no Supabase, vídeos no Cloudinary), §7,
+  §8 e estado da galeria atualizados.
+
+### Verificado localmente (`next start`)
+
+- /solarium-1, /solarium-2, /solarium-completo: 23, 11 e 10 `<img>` no HTML,
+  todas únicas, todas com alt, todas do Supabase, nenhuma de `/images/`, uma
+  só `priority`.
+- Celular (375px): maior largura pedida `w=828`; só a foto grande do mosaico
+  visível; lightbox com contador, legenda, foco no fechar, Esc devolvendo o
+  foco.
+
+### Achados fora de escopo (não corrigidos)
+
+1. **O logo do Header também é `priority`** — a página tem duas imagens
+   prioritárias (logo + hero). O teste "uma `priority` por página" é da
+   IMG-1c; corrigir lá.
+
 ---
 
 ## Rodada IMG-0 — Fotos do Drive preparadas para o Supabase Storage (set/2026)

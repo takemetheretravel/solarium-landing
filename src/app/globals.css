@@ -118,3 +118,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   color: var(--color-charcoal);
   font-weight: 600;
 }
+
+/* Lightbox da galeria aberto (IMG-1a): WhatsApp e barra de reserva somem. */
+body.lightbox-aberto [data-esconder-no-lightbox] {
+  display: none !important;
+}

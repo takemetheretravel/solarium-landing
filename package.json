@@ -16,7 +16,9 @@
     "test:watch": "vitest",
     "lint:copy": "node scripts/lint-copy.mjs .",
     "galerias:preparar": "tsx scripts/preparar-galerias.ts",
-    "galerias:subir": "tsx scripts/subir-galerias.ts"
+    "galerias:subir": "tsx scripts/subir-galerias.ts",
+    "galerias:folha": "tsx scripts/folha-contato.ts",
+    "galerias:atualizar": "npm run galerias:preparar && npm run galerias:subir && npm run galerias:folha && npx vitest run"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",

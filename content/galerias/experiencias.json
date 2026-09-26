@@ -5,6 +5,9 @@
     "altura": 2400,
     "alt": "Cachoeira da Gomeira caindo entre pedras e mata, em dia de céu azul",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 1,
@@ -21,6 +24,9 @@
     "altura": 1350,
     "alt": "Escalada nas Agulhas Negras, no Parque Nacional do Itatiaia, com vista das montanhas",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 2,
@@ -37,6 +43,9 @@
     "altura": 1801,
     "alt": "Locomotiva a vapor da Maria Fumaça soltando fumaça sobre os trilhos, sob céu azul",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 3,
@@ -53,6 +62,9 @@
     "altura": 1617,
     "alt": "Ciclista atravessando um riacho de pedras em trilha de bike no meio da mata",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 4,
@@ -69,6 +81,9 @@
     "altura": 2400,
     "alt": "Queijos maturando em prateleiras de madeira na queijaria Pérola da Serra",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 5,
@@ -85,6 +100,9 @@
     "altura": 2400,
     "alt": "Cesta de café da manhã montada na bancada, com frutas, pães e bolos",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 6,
@@ -101,6 +119,9 @@
     "altura": 1350,
     "alt": "Cesta de café com pães, geleias e suco na mesa diante da janela",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 7,
@@ -117,6 +138,9 @@
     "altura": 2400,
     "alt": "Tábua de frios e espumante na mesa da cozinha integrada à sala",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 8,
@@ -133,6 +157,9 @@
     "altura": 1800,
     "alt": "Cama decorada com coração de pétalas vermelhas, buquê de rosas, velas e balões",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 9,
@@ -149,6 +176,9 @@
     "altura": 2400,
     "alt": "Sessão de massagem no deck do Solarium 2 com vista para as colinas",
     "ambiente": "experiencias",
+    "pastas": [
+      "experiencias"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 10,

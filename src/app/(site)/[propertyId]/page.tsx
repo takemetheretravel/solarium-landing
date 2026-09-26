@@ -6,16 +6,15 @@ import Container from "@/components/ui/Container";
 import Section from "@/components/ui/Section";
 import Heading from "@/components/ui/Heading";
 import Kicker from "@/components/ui/Kicker";
-import SmartImage from "@/components/ui/SmartImage";
-import Gallery from "@/components/property/Gallery";
+import GaleriaProvider from "@/components/galeria/GaleriaProvider";
+import Mosaico from "@/components/galeria/Mosaico";
+import GaleriaPorAmbiente from "@/components/galeria/GaleriaPorAmbiente";
+import ImagemGaleria from "@/components/galeria/ImagemGaleria";
 import AmenitiesGrouped from "@/components/property/AmenitiesGrouped";
 import PropertyBookingLayout from "@/components/booking/PropertyBookingLayout";
 import VideoBlock from "@/components/ui/VideoBlock";
-import {
-  PROPERTIES,
-  getPropertyBySlug,
-  SOLARIUM_COMPLETO_GALLERY_GROUPS,
-} from "@/config/properties";
+import { PROPERTIES, getPropertyBySlug } from "@/config/properties";
+import { montarGaleriaDaCasa } from "@/lib/galerias";
 import { REVIEWS, SITE, AIRBNB_LINKS, whatsappLink } from "@/config/site";
 import { getListing } from "@/lib/hostaway";
 import TrackViewContent from "@/components/tracking/TrackViewContent";
@@ -56,25 +55,27 @@ export default async function PropertyPage({
   const fullAmenities = apiAmenities.length > 0 ? apiAmenities : property.amenitiesFallback;
   const propertyReviews = REVIEWS.filter((r) => r.property === property.slug);
   const initialGuests = searchParams?.guests ? Number(searchParams.guests) : property.capacity.ideal;
-  const isCompleto = property.slug === "solarium-completo";
+  // Hero (capa) → mosaico → grade por ambiente, sem nenhuma foto repetida.
+  const galeria = montarGaleriaDaCasa(property.slug);
 
   const airbnbUrl = AIRBNB_LINKS[property.slug] || "";
 
   return (
     <main>
+      <GaleriaProvider todas={galeria.todas}>
       <TrackViewContent
         propertySlug={property.slug}
         propertyName={property.name}
         fromPriceNightly={property.fromPriceNightly}
       />
-      <JsonLd dados={jsonLdCasa(property, listing?.bedroomsNumber)} />
+      <JsonLd dados={jsonLdCasa(property)} />
       <JsonLd
         dados={jsonLdBreadcrumb([MIGALHA_INICIO, { nome: property.name, caminho: `/${property.slug}` }])}
       />
 
       {/* HERO — full width, fora do grid de 2 colunas */}
       <section className="relative h-[80vh] min-h-[560px] w-full overflow-hidden">
-        <SmartImage src={property.heroImage} alt={property.name} priority sizes="100vw" />
+        <ImagemGaleria item={galeria.hero} priority sizes="100vw" />
         <div className="absolute inset-0 bg-gradient-to-b from-charcoal/30 via-transparent to-charcoal/70" />
         <div className="relative z-10 flex h-full flex-col items-start justify-end px-6 pb-20 text-cream sm:px-16 sm:pb-24">
           <Kicker tone="cream" className="mb-4 opacity-90">
@@ -89,6 +90,11 @@ export default async function PropertyPage({
         </div>
       </section>
 
+      {/* MOSAICO — logo depois do hero, largura total */}
+      <Container size="wide" className="py-8 md:py-10">
+        <Mosaico itens={galeria.mosaico} />
+      </Container>
+
       {/* PROPERTY BOOKING LAYOUT — wrapper client que renderiza grid 2 cols + barra mobile */}
       <PropertyBookingLayout
         propertySlug={property.slug}
@@ -100,7 +106,7 @@ export default async function PropertyPage({
         initialCheckout={searchParams?.checkout}
         initialGuests={initialGuests}
       >
-        {/* VÍDEO + GALERIA PRÉVIA (6 fotos) */}
+        {/* VÍDEO (Cloudinary) */}
         {property.videoPublicId && (
           <div className="border-t border-charcoal/10 py-12 md:py-16">
             <div className="mb-8 text-center">
@@ -109,41 +115,11 @@ export default async function PropertyPage({
                 Um vislumbre do {property.name}
               </Heading>
             </div>
-            <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[300px_1fr]">
-              <div className="mx-auto w-full max-w-xs xl:max-w-none">
-                <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {property.galleryImages.slice(0, 6).map((src, i) => (
-                  <div key={src} className="relative aspect-square overflow-hidden bg-charcoal/5">
-                    <SmartImage
-                      src={src}
-                      alt={`${property.name} — prévia ${i + 1}`}
-                      fill
-                      sizes="(max-width: 1280px) 50vw, 20vw"
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="mx-auto w-full max-w-xs">
+              <VideoBlock publicId={property.videoPublicId} orientation="portrait" />
             </div>
           </div>
         )}
-
-        {/* GALERIA COMPLETA */}
-        <div className="border-t border-charcoal/10 py-10 md:py-12">
-          {isCompleto ? (
-            <div className="space-y-12">
-              {SOLARIUM_COMPLETO_GALLERY_GROUPS.map((group) => (
-                <div key={group.title}>
-                  <h3 className="mb-5 font-serif text-xl text-charcoal/70">{group.title}</h3>
-                  <Gallery images={group.images} altPrefix={`${property.name} — ${group.title}`} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Gallery images={property.galleryImages} altPrefix={property.name} />
-          )}
-        </div>
 
         {/* DESCRIÇÃO + DIFERENCIAIS */}
         <div className="border-t border-charcoal/10 py-16 md:py-24">
@@ -169,6 +145,10 @@ export default async function PropertyPage({
                 </li>
               ))}
             </ul>
+          </div>
+          <div className="mt-14">
+            <Kicker className="mb-4">Fotos por ambiente</Kicker>
+            <GaleriaPorAmbiente categorias={galeria.categorias} />
           </div>
         </div>
 
@@ -269,6 +249,7 @@ export default async function PropertyPage({
           </div>
         </Container>
       </Section>
+      </GaleriaProvider>
     </main>
   );
 }

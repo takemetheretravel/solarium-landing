@@ -198,37 +198,55 @@ Assinatura verbal: *"Não é só ficar. É pertencer."*
 Logo: mínimo 120px de largura no digital. Nunca alterar cor, girar,
 deformar ou aplicar sombra.
 
-## 6. Cloudinary
+## 6. Imagens: fotos no Supabase, vídeos no Cloudinary
 
-Cloud name `dmfoddfz3`. Serve o site — **não é o arquivo morto**. Os
-originais em alta vivem no Drive.
+**Fotos** vêm do **Supabase Storage**, bucket público `galerias` (projeto da
+Fernanda). A origem é a pasta "site" do Drive; os originais em alta ficam lá.
 
 ```
-solarium/casas/{casa}/{ambiente}/{NN}-{slug}
-solarium/casas/{casa}/hero
+galerias/solarium-1/{ambiente}/{slug}.jpg
+galerias/solarium-2/{ambiente}/{slug}.jpg
+galerias/completo/{slug}.jpg
+galerias/experiencias/{slug}.jpg
+galerias/comum/marca/logo-{branco,preto}.png
 ```
 
-`casa` ∈ `solarium-1 | solarium-2 | solarium-completo`
-`ambiente` ∈ `vista | spa | cinema | quarto | cozinha | sala | externa |
-amanhecer | conjunto`
+- **Fonte única: os manifestos** `content/galerias/*.json`, gerados por
+  `npm run galerias:preparar` (IMG-0) — **nunca editados à mão**. O que é
+  julgamento humano (alt, estação, ordem, capa, exclusões) mora em
+  `content/galerias/curadoria.json`, chaveado pelo SHA-256 do original.
+- Nenhum componente monta URL de foto na mão: `urlGaleria()` em
+  `src/lib/galerias/url.ts`. Páginas usam `carregarGaleria`,
+  `montarGaleriaDaCasa`, `destaque` etc. de `@/lib/galerias`.
+- **`podeSerVitrine()`** decide capa, hero, mosaico, Google, og e JSON-LD:
+  nunca foto com `marcaDagua`, `telaComConteudo`, `baixaResolucao` ou
+  `excluirDoSite`. `excluirDoSite` nunca aparece; `creditoPendente` só com
+  `credito` preenchido.
+- Nome de arquivo é slug estável; a ordem fica só no campo `ordem`.
+- **As pastas de `galerias-local/` decidem ambiente e presença** (um chip por
+  pasta, "Todas" antes; foto em várias pastas aparece em cada chip). Guia do
+  Lucas no topo do `DECISOES.md`: mover de pasta, `_fora` para tirar, "01 "
+  no nome para ordenar, e pedir **"atualize as galerias"** =
+  `npm run galerias:atualizar` (preparo, upload só do novo, folha, testes).
+- Caminho no bucket congelado em `content/galerias/caminhos.json`; o que já
+  subiu fica em `enviados.json` (SHA-256). Quase-duplicatas confirmadas em
+  `quase-duplicatas.json`. Hero e mosaico nunca repetem.
+- Subir: `npm run galerias:subir` (API REST do Storage; precisa de
+  `SUPABASE_SERVICE_ROLE_KEY`, que só existe em `scripts/`).
+- `NEXT_PUBLIC_SUPABASE_URL` é obrigatória no build (o `next.config` falha
+  sem ela) — `.env.local` e Vercel (Production e Preview).
 
-Alt text mora em `context.alt` do asset. Estação (`verde`/`seca`),
-`pessoas` e `destaque` são tags. O manifesto em `content/galerias/*.json`
-é **gerado**, nunca editado à mão.
+**Vídeos** continuam no **Cloudinary** (cloud name `dmfoddfz3`), via
+`src/lib/cloudinary.ts` (`videoUrl`, `videoPosterUrl`).
 
-Presets nomeados em `lib/cloudinary.ts`, nunca transformação inline:
-`HERO` (`c_fill,ar_4:3`), `MOSAICO`/`MINIATURA` (`c_fill`), `LIGHTBOX`
-(`c_limit`, nunca corta).
-
-`CLOUDINARY_API_KEY` e `CLOUDINARY_API_SECRET` precisam ser preenchidos à
-mão em `.env.local` — `vercel env pull` grava `[SENSITIVE]` e os scripts
-falham em silêncio.
+`public/images/` ainda tem fotos antigas em uso fora das casas (home,
+pacotes, experiências, reserva); saem na IMG-1b/1c. Logos continuam locais.
 
 ## 7. Arquivos-chave
 
 - `src/config/` — coupons, properties, packages, service-extras,
   operational-extras, payment-provider, **flags**
-- `src/lib/` — braspag, cielo, cloudinary, hostaway
+- `src/lib/` — braspag, cielo, cloudinary (vídeos), **galerias** (fotos), hostaway
   (`createHostawayReservation`, `blockCalendarNight`,
   `unblockCalendarNight`, `calculatePriceDetailed`), kv-store, email,
   **comunicacao-analise**, **reconciliacao-analise**, cn
@@ -241,8 +259,7 @@ falham em silêncio.
 - `src/middleware.ts` + `src/lib/csp.ts` — CSP report-only da página de
   pagamento, com nonce
 - `content/galerias/` — manifestos de galeria (gerados)
-- `scripts/` — gerar-manifesto, upload-casas-cloudinary, curadoria-casas,
-  lint-copy
+- `scripts/` — preparar-galerias, subir-galerias, gerar-og, lint-copy
 
 ## 8. Comandos
 
@@ -251,8 +268,10 @@ npm run dev
 npm test                 # suíte completa — antes de qualquer PR
 npm run build            # precisa passar limpo
 npx tsc --noEmit         # precisa passar limpo
-npm run galeria:sync     # regenera manifesto a partir do Cloudinary
-npm run upload:casas     # sobe fotos locais para o Cloudinary
+npm run galerias:preparar  # fotos de galerias-local/ → galerias-processadas/ + manifestos
+npm run galerias:subir     # sobe galerias-processadas/ para o Supabase (--dry-run antes)
+npm run galerias:folha     # folha de contato local (pastas, chips, quase-duplicatas)
+npm run galerias:atualizar # "atualize as galerias": preparo + upload do novo + folha + testes
 ```
 
 Durante `next build`, `[Hostaway] Falha ao gerar token: 401` é **esperado**
@@ -325,5 +344,9 @@ Durante `next build`, `[Hostaway] Falha ao gerar token: 401` é **esperado**
   `Aborted`, `Unfinished`) de decisão (`Reject`, `Review`).
 
 **Galeria**
-- Rodada 1b pendente: lightbox sem portal, deep-link resolvendo foto errada,
-  recorte 4:3 vazando para o lightbox.
+- IMG-1a: páginas das casas com hero pela capa do manifesto, mosaico e grade
+  por ambiente com lightbox; nenhuma foto repetida no DOM. IMG-1b (home,
+  pacotes, experiências) e IMG-1c (og, sitemap de imagens, limpeza de
+  `public/images/`) pendentes.
+- `feat/galeria-cloudinary` (Rodada 1, Cloudinary) foi substituída pela
+  IMG-0/IMG-1 e não deve ser mergeada.
