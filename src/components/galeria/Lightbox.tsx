@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
-import ImagemGaleria from "./ImagemGaleria";
+import { ImagemInteira } from "./ImagemGaleria";
 import type { ItemGaleria } from "@/lib/galerias/manifesto";
 
 type Props = {
@@ -14,32 +15,53 @@ type Props = {
 
 const SWIPE_MIN = 50;
 
+/** Preto Serra do manual. Opaco: nada da página aparece por trás. */
+const PRETO_SERRA = "#111111";
+
 /**
- * Tela cheia, foco preso, Esc fecha, setas e swipe navegam, contador "3 de 28",
- * alt como legenda abaixo da foto. Pré-carrega a próxima.
+ * Espaço vertical da foto: a tela inteira menos a barra do contador (4rem) e
+ * a legenda (até 7rem). A legenda fica abaixo, nunca sobre a foto.
+ */
+const ALTURA_FOTO = "calc(100dvh - 11rem)";
+
+/** Classe no <body> enquanto aberto: esconde WhatsApp e barra de reserva (globals.css). */
+export const CLASSE_BODY = "lightbox-aberto";
+
+/**
+ * Tela cheia por cima de tudo (portal no <body>, z-index acima de header,
+ * barra de reserva e WhatsApp), foto inteira sem corte, foco preso, Esc
+ * fecha, setas e swipe navegam, contador "3 de 28", alt como legenda.
+ * Pré-carrega a próxima e a anterior.
  */
 export default function Lightbox({ itens, indice, onMudar, onFechar }: Props) {
   const dialogo = useRef<HTMLDivElement>(null);
   const fechar = useRef<HTMLButtonElement>(null);
   const toqueX = useRef<number | null>(null);
+  const [montado, setMontado] = useState(false);
   const total = itens.length;
   const atual = itens[indice];
-  const proxima = itens[(indice + 1) % total];
+  const vizinhas = total > 1 ? [itens[(indice + 1) % total], itens[(indice - 1 + total) % total]] : [];
 
   const anterior = useCallback(() => onMudar((indice - 1 + total) % total), [indice, total, onMudar]);
   const seguinte = useCallback(() => onMudar((indice + 1) % total), [indice, total, onMudar]);
 
-  // Foco entra no diálogo e volta para quem abriu; rolagem da página travada.
+  useEffect(() => setMontado(true), []);
+
+  // Foco entra no diálogo e volta para quem abriu; rolagem da página travada;
+  // elementos flutuantes escondidos.
   useEffect(() => {
+    if (!montado) return;
     const quemAbriu = document.activeElement as HTMLElement | null;
     fechar.current?.focus();
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    document.body.classList.add(CLASSE_BODY);
     return () => {
       document.body.style.overflow = overflow;
+      document.body.classList.remove(CLASSE_BODY);
       quemAbriu?.focus?.();
     };
-  }, []);
+  }, [montado]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -64,15 +86,16 @@ export default function Lightbox({ itens, indice, onMudar, onFechar }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [anterior, seguinte, onFechar]);
 
-  if (!atual) return null;
+  if (!atual || !montado) return null;
 
-  return (
+  return createPortal(
     <div
       ref={dialogo}
       role="dialog"
       aria-modal="true"
       aria-label="Fotos da casa"
-      className="fixed inset-0 z-[60] flex flex-col bg-charcoal/95 text-cream"
+      className="fixed inset-0 z-[2147483000] flex h-[100dvh] flex-col text-cream"
+      style={{ backgroundColor: PRETO_SERRA }}
       onTouchStart={(e) => (toqueX.current = e.touches[0].clientX)}
       onTouchEnd={(e) => {
         if (toqueX.current === null) return;
@@ -82,7 +105,7 @@ export default function Lightbox({ itens, indice, onMudar, onFechar }: Props) {
         else if (dx < -SWIPE_MIN) seguinte();
       }}
     >
-      <div className="flex items-center justify-between px-4 py-4 sm:px-8">
+      <div className="flex h-16 flex-shrink-0 items-center justify-between px-4 sm:px-8">
         <span className="font-sans text-xs uppercase tracking-[0.3em] text-cream/70" aria-live="polite">
           {indice + 1} de {total}
         </span>
@@ -97,20 +120,20 @@ export default function Lightbox({ itens, indice, onMudar, onFechar }: Props) {
         </button>
       </div>
 
-      <div className="relative flex flex-1 items-center justify-center px-2 sm:px-16">
+      <div className="relative flex min-h-0 flex-1 flex-col items-center">
         <button
           type="button"
           onClick={anterior}
           aria-label="Foto anterior"
-          className="absolute left-1 z-10 hidden p-2 hover:text-copper sm:left-4 sm:block"
+          className="absolute left-1 top-1/2 z-10 hidden -translate-y-1/2 p-2 hover:text-copper sm:left-4 sm:block"
         >
           <ChevronLeft className="h-10 w-10" />
         </button>
-        <figure className="flex h-full w-full max-w-6xl flex-col">
-          <div className="relative min-h-0 flex-1">
-            <ImagemGaleria key={atual.arquivo} item={atual} sizes="100vw" className="object-contain" loading="eager" />
+        <figure className="flex w-full flex-col items-center px-0 sm:px-20">
+          <div className="flex w-full items-center justify-center" style={{ height: ALTURA_FOTO }}>
+            <ImagemInteira key={atual.arquivo} item={atual} alturaMaxima={ALTURA_FOTO} />
           </div>
-          <figcaption className="mx-auto max-w-3xl px-4 pb-6 pt-4 text-center font-sans text-sm leading-relaxed text-cream/80">
+          <figcaption className="max-w-3xl px-4 pt-3 text-center font-sans text-sm leading-relaxed text-cream/80">
             {atual.alt}
             {atual.credito && <span className="mt-1 block text-xs text-cream/50">Foto: {atual.credito}</span>}
           </figcaption>
@@ -119,20 +142,21 @@ export default function Lightbox({ itens, indice, onMudar, onFechar }: Props) {
           type="button"
           onClick={seguinte}
           aria-label="Próxima foto"
-          className="absolute right-1 z-10 hidden p-2 hover:text-copper sm:right-4 sm:block"
+          className="absolute right-1 top-1/2 z-10 hidden -translate-y-1/2 p-2 hover:text-copper sm:right-4 sm:block"
         >
           <ChevronRight className="h-10 w-10" />
         </button>
       </div>
 
-      {/* Pré-carrega a próxima: fora da tela, sem ocupar espaço. */}
-      {proxima && proxima !== atual && (
-        <div aria-hidden="true" className="pointer-events-none absolute h-px w-px overflow-hidden opacity-0">
-          <div className="relative h-screen w-screen">
-            <ImagemGaleria item={proxima} sizes="100vw" loading="eager" />
-          </div>
-        </div>
-      )}
-    </div>
+      {/* Pré-carrega a próxima e a anterior: fora da tela, sem ocupar espaço. */}
+      <div aria-hidden="true" className="pointer-events-none absolute h-px w-px overflow-hidden opacity-0">
+        {vizinhas
+          .filter((v, i, arr) => v && v.arquivo !== atual.arquivo && arr.findIndex((x) => x.arquivo === v.arquivo) === i)
+          .map((v) => (
+            <ImagemInteira key={v.arquivo} item={v} alturaMaxima={ALTURA_FOTO} />
+          ))}
+      </div>
+    </div>,
+    document.body,
   );
 }
