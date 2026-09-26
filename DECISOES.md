@@ -6,6 +6,142 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 > `DECISOES.md` próprio, ainda não mergeado. Quando elas entrarem, os dois
 > arquivos precisam ser unidos à mão.
 
+> **Ajustes manuais de galeria — `content/galerias/ajustes-manuais.json`**
+> (IMG-1a-ajustes). Lido pelo site por cima da curadoria da IMG-0; não precisa
+> regerar manifesto nem subir arquivo. Chave = caminho da foto no bucket (o
+> campo `arquivo` do manifesto; a folha `npm run galerias:folha` mostra todos).
+>
+> ```json
+> {
+>   "solarium-2/spa/cama-diante-do-spa.jpg": { "ambientes": ["vista-spa", "quarto"] },
+>   "solarium-1/banheiro-suite/toalhas-bordadas.jpg": { "incluir": true, "ambientes": ["banheiro"] },
+>   "solarium-2/vista/home-office-com-vista.jpg": { "ambientes": ["quarto"], "ordem": 9999 },
+>   "solarium-1/externa/alguma-foto.jpg": { "excluir": true }
+> }
+> ```
+>
+> - `incluir: true` — traz de volta uma foto `excluirDoSite` (ela já está no
+>   bucket). Não conta no limite de 6 banheiros.
+> - `excluir: true` — tira a foto do site. Nunca junto com `incluir`.
+> - `ambientes` — **substitui** os chips em que a foto aparece. Ids válidos:
+>   `vista-spa`, `quarto`, `cinema`, `cozinha` (cozinha e área gourmet),
+>   `externa`, `sala-rede`, `banheiro`.
+> - `ordem` — opcional; substitui a ordem (dentro do chip, vale a ordem geral).
+> - Sem ajuste, a foto aparece no chip do seu ambiente **e** nos das pastas em
+>   `tambemEm`.
+> - Há teste que falha se uma chave não existir num manifesto ou se um chip
+>   for inválido.
+
+---
+
+## Rodada IMG-1a-ajustes — Revisão do Lucas no preview (set/2026)
+
+Mesma branch da IMG-1a (`feature/img-1a-galerias-casas`, atualizada com a
+`main`, que não tinha mudado).
+
+### Parte A — Lightbox
+
+- **Causa do corte**: `cn()` só concatena classes; o lightbox passava
+  `object-contain`, mas `ImagemGaleria` já tinha `object-cover`, e o `cover`
+  vencia pela ordem do CSS do Tailwind. Agora o recorte vai em `style`
+  (`objectFit`), sem disputa de classe.
+- **`<ImagemInteira>`** (só o lightbox): `width`/`height` do manifesto,
+  `sizes="100vw"`, ocupa a área inteira (largura 100%, altura
+  `calc(100dvh - 11rem)` = tela menos contador e legenda) com `contain`. A
+  foto aparece inteira; a sobra fica escura. A primeira versão usava
+  `width/height: auto` e a foto ficava no tamanho intrínseco (768×576 numa
+  tela de 1440) — corrigido antes da entrega.
+- **Por cima de tudo**: portal no `<body>` (sai de qualquer contexto de
+  empilhamento da página), `z-index` 2147483000, fundo opaco `#111111`
+  (Preto Serra). Com ele aberto, a classe `lightbox-aberto` no `<body>`
+  esconde o WhatsApp e a barra "A partir de / Reservar"
+  (`data-esconder-no-lightbox` + `globals.css`). Não há botão de
+  acessibilidade flutuante no site hoje; qualquer novo elemento fixo só precisa
+  do mesmo atributo.
+- **Pré-carrega a próxima e a anterior.**
+- **Miniaturas** seguem recortadas (`cover`) e respeitam `foco` em
+  `object-position` (nenhuma foto tem `foco` ainda).
+- Verificado no `next start`: celular com proporção exibida 1,332 × foto
+  1,335; desktop com área 1280×724; WhatsApp e barra com `display: none`.
+
+### Parte B — Chips e inclusão manual
+
+- **Uma foto pode estar em mais de um chip** (ambiente + `tambemEm`, ou o
+  ajuste manual). A regra "nenhuma foto repetida" vale só entre hero e
+  mosaico. **A grade passou a mostrar cada ambiente completo**, inclusive as
+  fotos do mosaico — era isso que esvaziava "Vista e SPA" do Solarium 2 (o
+  mosaico levava as fotos do SPA).
+- **`ajustes-manuais.json`** aplicado na biblioteca do site (formato no topo
+  deste arquivo). O id do chip de banheiros virou `banheiro` (singular), como
+  no exemplo do Lucas.
+- **Limite de banheiros 3 → 6.** Voltaram pela curadoria (não por inclusão
+  manual, para contarem no limite) as fotos excluídas **só pelo limite**:
+  Solarium 1 `banheiro-da-suite-com-roupoes`, `lavatorio-social-ao-por-do-sol`,
+  `cuba-e-torneira-com-vista` (6 no total); Solarium 2 `box-de-chuveiro` e
+  `lavatorio-ao-nascer-do-sol` (6 no chip, contando a banheira com chuveiro,
+  que também está em Vista e SPA). As três do Solarium 1 que ainda ficam de
+  fora pelo limite: chuveiro social, toalhas bordadas, bancada com espelho
+  amplo. Nenhuma excluída por desfoque, HDR ou vaso voltou. Os caminhos não
+  mudaram (nome estável da IMG-0): **nenhum upload necessário**.
+- **Solarium 2, Vista e SPA**: SPA de imersão ao lado da cama, teto retrátil
+  aberto, quarto e SPA ao pôr do sol, cama diante do SPA, cama e SPA, cama com
+  SPA e banheiro ao fundo. O notebook foi para o fim de Quarto; a fachada ao
+  nascer do sol para Área externa.
+- **Revisão chip a chip** (20 ajustes no total):
+  - Solarium 1: mesa posta ao nascer do sol e cozinha no reflexo → Cozinha;
+    fachada com palmeira e escada/deck com ombrelones → Área externa; SPA
+    integrado ao quarto → Vista e SPA + Quarto (não Banheiros); rede e SPA ao
+    pôr do sol (pasta "geral") → Vista e SPA + Sala e rede (não Área externa);
+    as duas vistas aéreas da casa → Área externa.
+  - Solarium 2: bancada com vista do parque e chuveiro ao nascer do sol → só
+    Banheiros (não Vista e SPA); cantinho do café e preparando pão → só
+    Cozinha; SPA de imersão ao pôr do sol (estava também em "geral") → Vista e
+    SPA + Quarto.
+  - Completo: chips são as casas; nada a corrigir.
+- **Folha de contato** `npm run galerias:folha` →
+  `galerias-processadas/folha-contato.html` (fora do git): 165 fotos por
+  casa e ambiente, com caminho, chips, exclusão e motivo, marca d'água, tela,
+  crédito. O script de upload e o teste de "arquivo solto" ignoram a folha —
+  **ela nunca vai para o bucket**. O preparo passou a gravar o SHA no mapa
+  local `_origem.json` para a folha achar o motivo de exclusão.
+
+### Parte C — Search Console e dados estruturados
+
+- **`public/google017462615c616c47.html`** com o texto exato, sem quebra de
+  linha. O middleware só casa com a rota de pagamento e o único redirect é de
+  pacote; teste garante. `next start`: 200, `text/html`.
+- **Home**: `containsPlace` só com `{ "@id": …#casa }`.
+- **`VacationRental`**: `additionalType: "House"`, `identifier` (316007,
+  316005, 316006), `description` = a description da página (SEO-1a), `geo`
+  **e** `latitude`/`longitude` no topo (o guia do Google para VacationRental
+  exige os dois últimos), `image` com 20 fotos (capa, depois vitrines, depois
+  as demais visíveis; nunca excluída), `containsPlace` Accommodation com
+  `occupancy.value`, quartos, banheiros, camas (`BedDetails`) e comodidades.
+- **Quartos, banheiros e camas NÃO aparecem no site.** Valores mais
+  prováveis, **a confirmar pelo Lucas**:
+  | Casa | Quartos | Banheiros | Camas |
+  |---|---|---|---|
+  | Solarium 1 | 1 | 2 (suíte + social, pelas pastas do Drive) | 1 cama de casal + 1 sofá-cama |
+  | Solarium 2 | 1 | 1 | 1 cama de casal + 1 sofá-cama |
+  | Solarium Completo | 2 | 3 | 2 camas de casal + 2 sofás-cama (soma) |
+  As camas saem de "acomoda até 4" com um quarto. Ficam em `ESTRUTURA`
+  (`src/lib/json-ld.ts`). O número de quartos **deixou de vir do Hostaway**
+  (`bedroomsNumber`): as credenciais locais dão 401, então não havia como
+  conferir o que a API devolve; valor fixo e revisado é previsível.
+- Teste: cada `VacationRental` tem `image` (≥ 8), `geo`, `identifier`,
+  `containsPlace` e `address`, e o Completo soma as duas casas.
+
+### Testes alterados (com justificativa)
+
+- `manifestos.test.ts`: limite de banheiros 3 → 6 (decisão do Lucas); a folha
+  de contato fora da checagem de arquivo solto; o teste de dimensões ganhou o
+  mesmo timeout de 120 s do teste de EXIF (lê os mesmos 165 arquivos e estourou
+  5 s por 23 ms sob carga).
+- `galerias.test.ts`: "sem foto repetida" passa a valer só para hero +
+  mosaico (decisão do Lucas); toda foto visível precisa estar em algum chip.
+- `json-ld.test.ts`: `jsonLdCasa` não recebe mais os quartos do Hostaway;
+  home só com `@id`; `occupancy.value`.
+
 ---
 
 ## Rodada IMG-1a — Galerias das casas pelo manifesto (set/2026)

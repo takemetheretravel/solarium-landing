@@ -223,6 +223,11 @@ galerias/comum/marca/logo-{branco,preto}.png
   `excluirDoSite`. `excluirDoSite` nunca aparece; `creditoPendente` só com
   `credito` preenchido.
 - Nome de arquivo é slug estável; a ordem fica só no campo `ordem`.
+- **Ajuste fino sem regerar nada**: `content/galerias/ajustes-manuais.json`
+  (incluir/excluir foto, trocar chips, ordem) — formato no topo do
+  `DECISOES.md`. Para escolher, `npm run galerias:folha` gera
+  `galerias-processadas/folha-contato.html` (local, fora do git e do bucket).
+- Uma foto pode estar em mais de um chip; só hero e mosaico nunca repetem.
 - Subir: `npm run galerias:subir` (API REST do Storage; precisa de
   `SUPABASE_SERVICE_ROLE_KEY`, que só existe em `scripts/`).
 - `NEXT_PUBLIC_SUPABASE_URL` é obrigatória no build (o `next.config` falha
@@ -262,6 +267,7 @@ npm run build            # precisa passar limpo
 npx tsc --noEmit         # precisa passar limpo
 npm run galerias:preparar  # fotos de galerias-local/ → galerias-processadas/ + manifestos
 npm run galerias:subir     # sobe galerias-processadas/ para o Supabase (--dry-run antes)
+npm run galerias:folha     # folha de contato local para escolher ajustes manuais
 ```
 
 Durante `next build`, `[Hostaway] Falha ao gerar token: 401` é **esperado**
