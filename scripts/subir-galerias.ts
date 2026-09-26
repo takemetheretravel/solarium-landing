@@ -22,8 +22,8 @@ const CACHE_CONTROL = "31536000";
 const PARALELO = 4;
 const AMOSTRA_HEAD = 5;
 
-/** Fora do upload: cópias para o Google, cache de conversão e material de revisão. */
-const FORA = /^(gmb|\.cache|_revisao)\/|^_origem\.json$/;
+/** Fora do upload: cópias para o Google, cache de conversão, material de revisão e a folha de contato. */
+const FORA = /^(gmb|\.cache|_revisao)\/|^(_origem\.json|folha-contato\.html)$/;
 
 const TIPOS: Record<string, string> = {
   ".jpg": "image/jpeg",
