@@ -1,14 +1,14 @@
 #!/usr/bin/env tsx
 /**
- * Folha de contato local para escolher inclusões manuais
- * (`content/galerias/ajustes-manuais.json`).
+ * Folha de contato local para o Lucas conferir as galerias.
  *
  *   npm run galerias:folha  →  galerias-processadas/folha-contato.html
  *
- * Mostra as 165 fotos agrupadas por casa e ambiente, com caminho, chips em
- * que aparecem no site, exclusão (e motivo), marca d'água e tela. As
+ * Mostra todas as fotos do site agrupadas por casa e pasta (= chip), com o
+ * caminho no bucket, os chips em que aparecem e as marcações; e, no topo, os
+ * grupos de quase-duplicatas lado a lado (a que ficou e as que saíram). As
  * miniaturas são os arquivos locais de `galerias-processadas/` — a folha fica
- * fora do git e funciona offline.
+ * fora do git e do bucket e funciona offline.
  */
 import fs from "fs";
 import path from "path";
@@ -16,65 +16,66 @@ import path from "path";
 // A biblioteca do site exige a URL; a folha não a usa (miniaturas locais).
 process.env.NEXT_PUBLIC_SUPABASE_URL ||= "https://local.invalid";
 
-import { AJUSTES, CATEGORIAS, chipsDoItem, podeAparecer, podeSerVitrine } from "../src/lib/galerias";
+import { chipsDoItem, podeAparecer, podeSerVitrine, pastasDoItem } from "../src/lib/galerias";
 import { GRUPOS, type Grupo, type ItemGaleria } from "../src/lib/galerias/manifesto";
+import { ordenarPastas, rotuloDaPasta } from "../src/lib/galerias/pastas";
 
 const RAIZ = path.resolve(__dirname, "..");
 const PROCESSADAS = path.join(RAIZ, "galerias-processadas");
 const DIR = path.join(RAIZ, "content", "galerias");
 const SAIDA = path.join(PROCESSADAS, "folha-contato.html");
 
-type Curadoria = Record<string, { motivoExclusao?: string }>;
+type Origem = { arquivo: string; sha: string; pastas: string[]; origens: { origem: string; pasta: string; sha: string }[] };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const ler = <T>(p: string): T => JSON.parse(fs.readFileSync(p, "utf8"));
 
+function card(i: ItemGaleria, g: Grupo): string {
+  const aparece = podeAparecer(i);
+  const selos = [
+    !aparece && `<b class="x">fora do site${i.creditoPendente && !i.credito ? ": falta o crédito" : ""}</b>`,
+    i.destaque && `<b class="ok">capa</b>`,
+    i.marcaDagua && `<b class="m">marca d'água</b>`,
+    i.telaComConteudo && `<b class="m">tela com conteúdo</b>`,
+    i.baixaResolucao && `<b class="m">baixa resolução</b>`,
+    i.creditoPendente && `<b class="m">crédito pendente${i.credito ? `: ${esc(i.credito)}` : ""}</b>`,
+    aparece && !podeSerVitrine(i) && `<b class="m">fora de capa/mosaico/Google</b>`,
+  ].filter(Boolean);
+  const chips = ["solarium-1", "solarium-2", "completo"].includes(g) ? chipsDoItem(i).map(rotuloDaPasta) : [];
+  const numeros = Object.entries(i.ordemNaPasta ?? {}).map(([p, n]) => `${rotuloDaPasta(p)} nº ${n}`);
+  return `<figure class="${aparece ? "" : "fora"}">
+  <a href="${esc(i.arquivo)}" target="_blank"><img loading="lazy" src="${esc(i.arquivo)}" alt="${esc(i.alt)}"></a>
+  <figcaption><code>${esc(i.arquivo)}</code>
+  <span class="chips">${chips.map((c) => `<i>${esc(c)}</i>`).join(" ")}</span>
+  ${selos.join(" ")}<small>ordem ${i.ordem}${numeros.length ? ` · ${numeros.join(", ")}` : ""} · ${i.estacao} · ${i.largura}×${i.altura}</small><em>${esc(i.alt)}</em></figcaption>
+</figure>`;
+}
+
 function main() {
   if (!fs.existsSync(PROCESSADAS)) throw new Error("galerias-processadas/ não existe. Rode `npm run galerias:preparar`.");
+  const origens = fs.existsSync(path.join(PROCESSADAS, "_origem.json")) ? ler<Origem[]>(path.join(PROCESSADAS, "_origem.json")) : [];
 
-  // Motivo de exclusão: o manifesto não tem o SHA; o mapa local do preparo tem.
-  const curadoria = ler<Curadoria>(path.join(DIR, "curadoria.json"));
-  const origem = fs.existsSync(path.join(PROCESSADAS, "_origem.json"))
-    ? ler<{ arquivo: string; sha?: string }[]>(path.join(PROCESSADAS, "_origem.json"))
-    : [];
-  const shaDe = new Map(origem.map((o) => [o.arquivo, o.sha]));
-  const rotulo = new Map(CATEGORIAS.map((c) => [c.id, c.rotulo]));
+  // Quase-duplicatas: a que ficou (no bucket) e as que saíram (cache local por SHA).
+  const grupos = origens.filter((o) => new Set(o.origens.map((x) => x.sha)).size > 1);
+  const blocosQuase = grupos.map((o) => {
+    const fora = Array.from(new Set(o.origens.map((x) => x.sha))).filter((s) => s !== o.sha);
+    const miniatura = (src: string, rotulo: string) =>
+      `<figure><img loading="lazy" src="${esc(src)}"><figcaption><b class="${rotulo === "fica" ? "ok" : "x"}">${rotulo}</b></figcaption></figure>`;
+    return `<div class="par"><p><code>${esc(o.arquivo)}</code> — chips: ${o.pastas.map(rotuloDaPasta).join(", ")}</p><div class="grade">${[
+      miniatura(o.arquivo, "fica"),
+      ...fora.map((s) => miniatura(`.cache/${s}.jpg`, "sai do site")),
+    ].join("")}</div></div>`;
+  });
 
   let total = 0;
   const secoes: string[] = [];
   for (const g of GRUPOS as readonly Grupo[]) {
     const itens = ler<ItemGaleria[]>(path.join(DIR, `${g}.json`)).sort((a, b) => a.ordem - b.ordem);
-    const porAmbiente = new Map<string, ItemGaleria[]>();
-    for (const i of itens) porAmbiente.set(i.ambiente, [...(porAmbiente.get(i.ambiente) ?? []), i]);
-
-    const blocos = Array.from(porAmbiente).map(([amb, lista]) => {
-      const cards = lista.map((i) => {
-        total++;
-        const ajuste = AJUSTES[i.arquivo];
-        const efetivo = { ...i, excluirDoSite: ajuste?.excluir ? true : ajuste?.incluir ? false : i.excluirDoSite };
-        const aparece = podeAparecer(efetivo);
-        const chips = aparece && ["solarium-1", "solarium-2"].includes(g) ? chipsDoItem(efetivo).map((c) => rotulo.get(c) ?? c) : [];
-        const motivo = i.excluirDoSite ? curadoria[shaDe.get(i.arquivo) ?? ""]?.motivoExclusao ?? "sem motivo registrado" : "";
-        const selos = [
-          !aparece && `<b class="x">fora do site${motivo ? `: ${esc(motivo)}` : ""}</b>`,
-          ajuste?.incluir && `<b class="ok">incluída manualmente</b>`,
-          ajuste?.excluir && `<b class="x">excluída manualmente</b>`,
-          ajuste?.ambientes && `<b class="aj">chips manuais</b>`,
-          i.destaque && `<b class="ok">capa</b>`,
-          i.marcaDagua && `<b class="m">marca d'água</b>`,
-          i.telaComConteudo && `<b class="m">tela com conteúdo</b>`,
-          i.baixaResolucao && `<b class="m">baixa resolução</b>`,
-          i.creditoPendente && `<b class="m">crédito pendente${i.credito ? `: ${esc(i.credito)}` : ""}</b>`,
-          aparece && !podeSerVitrine(efetivo) && `<b class="m">não pode ser vitrine</b>`,
-        ].filter(Boolean);
-        return `<figure class="${aparece ? "" : "fora"}">
-  <a href="${esc(i.arquivo)}" target="_blank"><img loading="lazy" src="${esc(i.arquivo)}" alt="${esc(i.alt)}"></a>
-  <figcaption><code>${esc(i.arquivo)}</code>
-  <span class="chips">${chips.length ? chips.map((c) => `<i>${esc(c)}</i>`).join(" ") : g === "solarium-1" || g === "solarium-2" ? "<i class='nenhum'>nenhum chip</i>" : ""}</span>
-  ${selos.join(" ")}<small>ordem ${i.ordem} · ${i.estacao} · ${i.largura}×${i.altura}</small><em>${esc(i.alt)}</em></figcaption>
-</figure>`;
-      });
-      return `<h3>${esc(amb)} <span>${lista.length}</span></h3><div class="grade">${cards.join("\n")}</div>`;
+    total += itens.length;
+    const pastas = ordenarPastas(itens.flatMap(pastasDoItem));
+    const blocos = pastas.map((p) => {
+      const lista = itens.filter((i) => pastasDoItem(i).includes(p));
+      return `<h3>${esc(rotuloDaPasta(p))} <span>${lista.length} · pasta <code>${esc(p)}</code></span></h3><div class="grade">${lista.map((i) => card(i, g)).join("\n")}</div>`;
     });
     secoes.push(`<section><h2>${esc(g)} <span>${itens.length} fotos</span></h2>${blocos.join("\n")}</section>`);
   }
@@ -87,21 +88,23 @@ function main() {
   h1{margin:0 0 4px}h2{margin:40px 0 8px;border-bottom:2px solid #1a1a1a}h3{margin:24px 0 8px;color:#555}
   h2 span,h3 span{font-weight:normal;color:#888;font-size:.8em}
   .grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .par{background:#fff;border:1px solid #ddd;padding:8px;margin-bottom:12px}.par .grade{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
   figure{margin:0;background:#fff;border:1px solid #ddd}figure.fora{opacity:.55;border-color:#c33}
   img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#E9E5E0}
+  .par img{object-fit:contain;background:#222}
   figcaption{padding:8px;display:flex;flex-direction:column;gap:4px}code{font-size:11px;word-break:break-all}
   .chips i{display:inline-block;font-style:normal;background:#1a1a1a;color:#fff;padding:1px 6px;font-size:11px;margin:1px}
-  .chips i.nenhum{background:#c33}
   b{font-weight:600;font-size:11px;padding:1px 6px;display:inline-block}b.x{background:#fde2e2;color:#a00}
-  b.ok{background:#e0f2e6;color:#185}b.m{background:#fff3cd;color:#855}b.aj{background:#e3ecff;color:#236}
+  b.ok{background:#e0f2e6;color:#185}b.m{background:#fff3cd;color:#855}
   small{color:#888}em{font-size:12px;color:#444}
 </style></head><body>
 <h1>Folha de contato — galerias</h1>
-<p>${total} fotos. Chips = onde a foto aparece em /solarium-1 e /solarium-2. Para mudar: <code>content/galerias/ajustes-manuais.json</code> (formato no topo do DECISOES.md).</p>
+<p>${total} fotos no site. <b>As pastas de <code>galerias-local/</code> decidem o chip.</b> Para mudar: mova o arquivo de pasta, tire para <code>_fora</code> ou numere o nome ("01 ") e peça ao Claude Code "atualize as galerias". Como fazer: topo do <code>DECISOES.md</code>.</p>
+<section><h2>Quase-duplicatas <span>${grupos.length} grupos — fica uma, que herda as pastas de todas</span></h2>${blocosQuase.join("\n")}</section>
 ${secoes.join("\n")}
 </body></html>`;
   fs.writeFileSync(SAIDA, html);
-  console.log(`[folha] ${total} fotos → ${path.relative(RAIZ, SAIDA)}`);
+  console.log(`[folha] ${total} fotos, ${grupos.length} grupos de quase-duplicatas → ${path.relative(RAIZ, SAIDA)}`);
 }
 
 main();

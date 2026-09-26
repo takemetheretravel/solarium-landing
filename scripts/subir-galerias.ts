@@ -5,6 +5,11 @@
  *
  *   npm run galerias:subir -- --dry-run   só lista o que subiria (não precisa de credencial)
  *   npm run galerias:subir                sobe de verdade e confere 5 URLs públicas
+ *   npm run galerias:subir -- --todos     reenvia tudo, ignorando o registro
+ *
+ * Sobe **só o que é novo ou mudou**: compara o SHA-256 de cada arquivo com
+ * `content/galerias/enviados.json` (o que já está no bucket) e atualiza esse
+ * registro depois de cada envio bem-sucedido.
  *
  * Credenciais em `.env.local`: NEXT_PUBLIC_SUPABASE_URL e
  * SUPABASE_SERVICE_ROLE_KEY. A service role só existe neste script — nada em
@@ -13,6 +18,7 @@
  */
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import dotenv from "dotenv";
 
 const RAIZ = path.resolve(__dirname, "..");
@@ -21,6 +27,7 @@ const BUCKET = "galerias";
 const CACHE_CONTROL = "31536000";
 const PARALELO = 4;
 const AMOSTRA_HEAD = 5;
+const ARQ_ENVIADOS = path.join(RAIZ, "content", "galerias", "enviados.json");
 
 /** Fora do upload: cópias para o Google, cache de conversão, material de revisão e a folha de contato. */
 const FORA = /^(gmb|\.cache|_revisao)\/|^(_origem\.json|folha-contato\.html)$/;
@@ -53,13 +60,23 @@ async function main() {
     .map((rel) => {
       const tipo = TIPOS[path.extname(rel).toLowerCase()];
       if (!tipo) throw new Error(`Tipo não suportado: ${rel}`);
-      return { rel, tipo, bytes: fs.statSync(path.join(ORIGEM, rel)).size };
+      const corpo = fs.readFileSync(path.join(ORIGEM, rel));
+      return { rel, tipo, bytes: corpo.length, sha: crypto.createHash("sha256").update(corpo).digest("hex") };
     });
-  const total = arquivos.reduce((s, a) => s + a.bytes, 0);
+
+  const registro: Record<string, string> = fs.existsSync(ARQ_ENVIADOS) ? JSON.parse(fs.readFileSync(ARQ_ENVIADOS, "utf8")) : {};
+  const todos = process.argv.includes("--todos");
+  const pendentes = arquivos.filter((a) => todos || registro[a.rel] !== a.sha);
+  const total = pendentes.reduce((s, a) => s + a.bytes, 0);
+  console.log(`[subir] ${arquivos.length} arquivos locais; ${arquivos.length - pendentes.length} já no bucket (mesmo SHA-256); ${pendentes.length} a enviar`);
 
   if (seco) {
-    for (const a of arquivos) console.log(`[dry-run] ${a.rel}  (${a.tipo}, ${(a.bytes / 1024).toFixed(0)} KB)`);
-    console.log(`[dry-run] ${arquivos.length} arquivos, ${mb(total)} → bucket "${BUCKET}" (nada foi enviado)`);
+    for (const a of pendentes) console.log(`[dry-run] ${a.rel}  (${a.tipo}, ${(a.bytes / 1024).toFixed(0)} KB)`);
+    console.log(`[dry-run] ${pendentes.length} arquivos, ${mb(total)} → bucket "${BUCKET}" (nada foi enviado)`);
+    return;
+  }
+  if (!pendentes.length) {
+    console.log("[subir] nada novo para enviar");
     return;
   }
 
@@ -97,7 +114,7 @@ async function main() {
   let enviados = 0;
   let bytes = 0;
   const falhas: string[] = [];
-  const fila = [...arquivos];
+  const fila = [...pendentes];
 
   async function trabalhador() {
     for (let a = fila.shift(); a; a = fila.shift()) {
@@ -109,19 +126,22 @@ async function main() {
       }
       enviados++;
       bytes += a.bytes;
-      if (enviados % 20 === 0) console.log(`[subir] ${enviados}/${arquivos.length}`);
+      registro[a.rel] = a.sha;
+      if (enviados % 20 === 0) console.log(`[subir] ${enviados}/${pendentes.length}`);
     }
   }
   await Promise.all(Array.from({ length: PARALELO }, trabalhador));
 
-  console.log(`[subir] enviados ${enviados}/${arquivos.length}, ${mb(bytes)} (${bytes} bytes)`);
+  const ordenado = Object.fromEntries(Object.entries(registro).sort(([a], [b]) => a.localeCompare(b)));
+  fs.writeFileSync(ARQ_ENVIADOS, JSON.stringify(ordenado, null, 2) + "\n");
+  console.log(`[subir] enviados ${enviados}/${pendentes.length}, ${mb(bytes)} (${bytes} bytes)`);
   if (falhas.length) {
     console.error(`[subir] ${falhas.length} falha(s):\n  ${falhas.join("\n  ")}`);
     process.exitCode = 1;
   }
 
   // Conferência: 5 URLs públicas sorteadas precisam responder 200.
-  const amostra = [...arquivos].sort(() => Math.random() - 0.5).slice(0, AMOSTRA_HEAD);
+  const amostra = [...pendentes].sort(() => Math.random() - 0.5).slice(0, AMOSTRA_HEAD);
   let ok = 0;
   for (const a of amostra) {
     const publica = `${url}/storage/v1/object/public/${BUCKET}/${caminhoUrl(a.rel)}`;
