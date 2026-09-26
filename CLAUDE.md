@@ -223,11 +223,14 @@ galerias/comum/marca/logo-{branco,preto}.png
   `excluirDoSite`. `excluirDoSite` nunca aparece; `creditoPendente` só com
   `credito` preenchido.
 - Nome de arquivo é slug estável; a ordem fica só no campo `ordem`.
-- **Ajuste fino sem regerar nada**: `content/galerias/ajustes-manuais.json`
-  (incluir/excluir foto, trocar chips, ordem) — formato no topo do
-  `DECISOES.md`. Para escolher, `npm run galerias:folha` gera
-  `galerias-processadas/folha-contato.html` (local, fora do git e do bucket).
-- Uma foto pode estar em mais de um chip; só hero e mosaico nunca repetem.
+- **As pastas de `galerias-local/` decidem ambiente e presença** (um chip por
+  pasta, "Todas" antes; foto em várias pastas aparece em cada chip). Guia do
+  Lucas no topo do `DECISOES.md`: mover de pasta, `_fora` para tirar, "01 "
+  no nome para ordenar, e pedir **"atualize as galerias"** =
+  `npm run galerias:atualizar` (preparo, upload só do novo, folha, testes).
+- Caminho no bucket congelado em `content/galerias/caminhos.json`; o que já
+  subiu fica em `enviados.json` (SHA-256). Quase-duplicatas confirmadas em
+  `quase-duplicatas.json`. Hero e mosaico nunca repetem.
 - Subir: `npm run galerias:subir` (API REST do Storage; precisa de
   `SUPABASE_SERVICE_ROLE_KEY`, que só existe em `scripts/`).
 - `NEXT_PUBLIC_SUPABASE_URL` é obrigatória no build (o `next.config` falha
@@ -267,7 +270,8 @@ npm run build            # precisa passar limpo
 npx tsc --noEmit         # precisa passar limpo
 npm run galerias:preparar  # fotos de galerias-local/ → galerias-processadas/ + manifestos
 npm run galerias:subir     # sobe galerias-processadas/ para o Supabase (--dry-run antes)
-npm run galerias:folha     # folha de contato local para escolher ajustes manuais
+npm run galerias:folha     # folha de contato local (pastas, chips, quase-duplicatas)
+npm run galerias:atualizar # "atualize as galerias": preparo + upload do novo + folha + testes
 ```
 
 Durante `next build`, `[Hostaway] Falha ao gerar token: 401` é **esperado**

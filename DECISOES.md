@@ -6,31 +6,116 @@ Registro de decisões e fatos apurados. Criado na rodada A1, sobre a `main`.
 > `DECISOES.md` próprio, ainda não mergeado. Quando elas entrarem, os dois
 > arquivos precisam ser unidos à mão.
 
-> **Ajustes manuais de galeria — `content/galerias/ajustes-manuais.json`**
-> (IMG-1a-ajustes). Lido pelo site por cima da curadoria da IMG-0; não precisa
-> regerar manifesto nem subir arquivo. Chave = caminho da foto no bucket (o
-> campo `arquivo` do manifesto; a folha `npm run galerias:folha` mostra todos).
+> ## Como mexer nas fotos do site (guia do Lucas)
 >
-> ```json
-> {
->   "solarium-2/spa/cama-diante-do-spa.jpg": { "ambientes": ["vista-spa", "quarto"] },
->   "solarium-1/banheiro-suite/toalhas-bordadas.jpg": { "incluir": true, "ambientes": ["banheiro"] },
->   "solarium-2/vista/home-office-com-vista.jpg": { "ambientes": ["quarto"], "ordem": 9999 },
->   "solarium-1/externa/alguma-foto.jpg": { "excluir": true }
-> }
-> ```
+> As fotos do site vêm das pastas em `galerias-local/` (a cópia da pasta
+> "site" do Drive). **A pasta onde a foto está é o ambiente onde ela aparece.**
+> Uma foto em duas pastas aparece nos dois ambientes.
 >
-> - `incluir: true` — traz de volta uma foto `excluirDoSite` (ela já está no
->   bucket). Não conta no limite de 6 banheiros.
-> - `excluir: true` — tira a foto do site. Nunca junto com `incluir`.
-> - `ambientes` — **substitui** os chips em que a foto aparece. Ids válidos:
->   `vista-spa`, `quarto`, `cinema`, `cozinha` (cozinha e área gourmet),
->   `externa`, `sala-rede`, `banheiro`.
-> - `ordem` — opcional; substitui a ordem (dentro do chip, vale a ordem geral).
-> - Sem ajuste, a foto aparece no chip do seu ambiente **e** nos das pastas em
->   `tambemEm`.
-> - Há teste que falha se uma chave não existir num manifesto ou se um chip
->   for inválido.
+> - **Mudar de ambiente:** mova o arquivo para outra pasta no Explorador de
+>   Arquivos (por exemplo, de `vista` para `spa`).
+> - **Tirar do site:** mova o arquivo para uma pasta chamada `_fora` na raiz de
+>   `galerias-local` (crie se não existir). O que está em `_fora` é ignorado.
+>   Não precisa apagar nada.
+> - **Mudar a ordem:** coloque um número no começo do nome do arquivo:
+>   `01 `, `02 `, `03 `… As numeradas vêm primeiro, nessa ordem; as outras
+>   vêm depois.
+> - **Foto nova:** coloque o arquivo na pasta certa.
+> - **Depois de qualquer mudança:** peça ao Claude Code **"atualize as
+>   galerias"** (ele roda `npm run galerias:atualizar`) e confira o preview.
+>
+> Pastas e ambientes: `vista` Vista · `spa` SPA · `quarto` Quarto · `cinema`
+> Cinema · `banheiro_suíte` Banheiro da suíte · `banheiro_social` Banheiro
+> social · `Banheiro` Banheiro · `cozinha` Cozinha · `area gourmet` Área
+> gourmet · `sala` Sala · `rede` Rede · `amanhecer` Amanhecer · `externa` Área
+> externa · `conjunto` As duas casas · arquivo solto na pasta da casa: Mais
+> fotos. Pasta nova vira ambiente novo automaticamente.
+>
+> O que continua automático: a capa, o texto alternativo (alt) e a estação de
+> cada foto. Foto com a marca d'água "T" ou com tela de TV ligada aparece na
+> galeria, mas nunca como capa, no mosaico do topo ou no Google. Versões quase
+> iguais da mesma foto (outro recorte da mesma cena) viram uma só — a lista
+> está no `RELATORIO_IMAGENS.md` e as miniaturas lado a lado na folha de
+> contato (`npm run galerias:folha`).
+
+---
+
+## Rodada IMG-1a-ajustes-2 — Galeria pelas pastas originais (set/2026)
+
+Mesma branch da IMG-1a, atualizada com a `main` (sem mudanças nela).
+
+### Decisão do Lucas
+
+As pastas de `galerias-local/` passam a ser a **fonte da verdade** dos
+ambientes e do que aparece. A curadoria da IMG-0 continua para alt, estação,
+descrição, ordem geral, capa, Google, `marcaDagua` e `telaComConteudo`.
+
+### Decisões
+
+- **Um chip por pasta** (tabela em `src/lib/galerias/pastas.ts`, compartilhada
+  pelo script e pelo site), com **"Todas"** antes, sem repetição. Pasta fora
+  da tabela vira chip com o próprio nome, antes de "Mais fotos".
+- **Manifesto ganha `pastas`** (todas as pastas da foto, na ordem dos chips) e
+  `ordemNaPasta` (número no começo do nome, por pasta). `ambiente` = primeira
+  pasta; `tambemEm` = as demais. Validador e testes atualizados.
+- **Sem exclusão automática, sem limite de banheiros, sem reclassificação.**
+  Da curadoria saíram 19 `excluirDoSite`, 19 motivos e 3 `ambiente` (41
+  campos). Voltaram ao site, entre outras, o chuveiro do banheiro social do
+  Solarium 1 e o vaso do Solarium 2.
+- **Caminho do bucket congelado** em `content/galerias/caminhos.json` (SHA do
+  original → caminho). Mover a foto de pasta não muda o caminho; só foto nova
+  ganha caminho novo (na primeira pasta dela).
+- **Upload só do que é novo**: `content/galerias/enviados.json` guarda o
+  SHA-256 de cada arquivo que está no bucket (semeado com os 165 enviados na
+  IMG-0). Nesta rodada: **0 arquivos a enviar** — as 161 fotos do site já
+  estavam lá. `--todos` força o reenvio.
+- **Quase-duplicatas: hash perceptual não resolve sozinho.** Testei pHash e
+  uma correlação tolerante a recorte (em cinza e em bordas). Nenhum separou
+  "mesma cena em outro recorte" de "paisagens parecidas": o par que o Lucas
+  viu (quarto e SPA ao pôr do sol) teve nota *menor* que vários pares de fotos
+  diferentes. Solução: grupos **confirmados visualmente** em
+  `content/galerias/quase-duplicatas.json` (por SHA do original) + **pHash
+  automático** (distância ≤ 6) para reexportação/reedição da mesma imagem.
+  Grupos confirmados (4): Solarium 2 quarto e SPA ao pôr do sol; Solarium 2
+  cama e SPA com o box; Solarium 2 telão aberto ao pôr do sol; Solarium 1 rede
+  com almofadas. O pHash não achou outros. Para acrescentar um grupo, basta
+  pôr os SHAs no arquivo (a folha de contato mostra os pares).
+- **Qual fica**: a de maior resolução; entre as que estão a até 10% dela, a
+  retocada ("Ret_"); empate pela ordem da curadoria. Ela herda as pastas de
+  todas. Ex.: fica `solarium-2/vista/quarto-e-spa-ao-por-do-sol.jpg`
+  (4000×3000, capa), que aparece em Vista, SPA e Mais fotos.
+- **Mosaico**: as primeiras de `vista`/`spa` que podem ser vitrine, sem a capa
+  (completa com outras vitrines se faltar). **Capa**: a `destaque` da
+  curadoria se ainda está numa pasta e pode ser vitrine; senão a primeira
+  vitrine de `vista`/`spa`.
+- **Completo**: "Todas", os chips das pastas do conjunto ("As duas casas",
+  "Mais fotos") e um chip por casa, como na IMG-1a.
+- **`npm run galerias:atualizar`** = preparar → subir (só o novo) → folha →
+  testes. Idempotente.
+- **`ajustes-manuais.json` apagado**; o guia no topo deste arquivo substitui o
+  formato que estava lá.
+- **Folha de contato**: seção de quase-duplicatas no topo (a que fica × as que
+  saem, lado a lado); fotos por casa e pasta.
+
+### Verificado
+
+- Relatório: em **todos** os chips, fotos no chip = arquivos na pasta
+  (Solarium 1: 84 fotos de 92 arquivos; Solarium 2: 57 de 70; a diferença é
+  cópia idêntica em mais de uma pasta e as 4 quase-duplicatas).
+- Testes com as pastas locais (rodam só onde `galerias-local/` existe): toda
+  foto fora de `_fora` aparece no chip da sua pasta; nº por chip = nº de fotos
+  distintas na pasta.
+- `next start`: chips na ordem da tabela, uma `priority` por página, hero e
+  mosaico sem repetição.
+
+### Testes alterados (com justificativa)
+
+- `manifestos.test.ts`: saem "no máximo 6 banheiros" e "tela no fim do
+  ambiente" (decisão do Lucas: pastas decidem); marcações 28/**7** (a foto do
+  telão com tela saiu por quase-duplicata); entram "nada excluído" e
+  "ambiente = pastas[0]".
+- `galerias.test.ts`: reescrito para chips por pasta (sai o modelo de
+  categorias e ajustes manuais).
 
 ---
 
