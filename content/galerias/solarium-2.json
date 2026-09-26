@@ -5,26 +5,16 @@
     "altura": 1800,
     "alt": "Quarto do Solarium 2 com cama, SPA interno e janelas abertas para o pôr do sol",
     "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "spa",
+      "geral"
+    ],
     "estacao": "seca",
     "destaque": true,
     "ordem": 1,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": false,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-2/spa/spa-de-imersao-ao-por-do-sol.jpg",
-    "largura": 2048,
-    "altura": 1536,
-    "alt": "SPA de imersão ao lado da cama, com o sol se pondo nas janelas da casa",
-    "ambiente": "spa",
-    "estacao": "seca",
-    "destaque": false,
-    "ordem": 2,
     "tambemEm": [
+      "spa",
       "geral"
     ],
     "baixaResolucao": false,
@@ -38,13 +28,16 @@
     "largura": 2400,
     "altura": 1801,
     "alt": "Banheira de imersão e chuveiro atrás do vidro, com o nascer do sol dourado",
-    "ambiente": "spa",
+    "ambiente": "banheiro",
+    "pastas": [
+      "banheiro",
+      "amanhecer"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 3,
+    "ordem": 2,
     "tambemEm": [
-      "amanhecer",
-      "banheiro"
+      "amanhecer"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -58,9 +51,12 @@
     "altura": 2400,
     "alt": "Teto retrátil de vidro aberto sobre o SPA do Solarium 2, com parede de madeira clara",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 4,
+    "ordem": 3,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -74,9 +70,12 @@
     "altura": 2400,
     "alt": "Claraboia de vidro e janela lateral iluminando a banheira com vista para o campo",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 5,
+    "ordem": 4,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -90,9 +89,12 @@
     "altura": 1536,
     "alt": "Hóspede de roupão sentado na borda do SPA com vista para a serra pela janela",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 6,
+    "ordem": 5,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -106,25 +108,12 @@
     "altura": 1536,
     "alt": "Cama de casal diante do SPA, com hóspede de roupão brindando junto à janela",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 7,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": false,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": false
-  },
-  {
-    "arquivo": "solarium-2/spa/cama-e-spa-de-imersao.jpg",
-    "largura": 2048,
-    "altura": 1536,
-    "alt": "Travesseiros da cama em primeiro plano e o SPA de imersão logo atrás",
-    "ambiente": "spa",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 8,
+    "ordem": 6,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -137,13 +126,14 @@
     "largura": 2048,
     "altura": 1537,
     "alt": "Cama com vista para o SPA e para o banheiro com bancada dupla ao fundo",
-    "ambiente": "quarto",
-    "estacao": "neutra",
-    "destaque": false,
-    "ordem": 9,
-    "tambemEm": [
+    "ambiente": "banheiro",
+    "pastas": [
       "banheiro"
     ],
+    "estacao": "neutra",
+    "destaque": false,
+    "ordem": 7,
+    "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
     "creditoPendente": false,
@@ -156,9 +146,12 @@
     "altura": 1536,
     "alt": "Hóspede de roupão tomando café na cama, com a serra vista pela janela",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 10,
+    "ordem": 8,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -172,9 +165,12 @@
     "altura": 1537,
     "alt": "Roupão bordado com a logo do Solarium ao lado da cama arrumada",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 11,
+    "ordem": 9,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -188,9 +184,12 @@
     "altura": 2400,
     "alt": "Cama com coração de pétalas e caminho de velas no quarto à noite",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 12,
+    "ordem": 10,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -204,9 +203,13 @@
     "altura": 1537,
     "alt": "Quarto com telão de cinema na parede e SPA de imersão ao pé da cama",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto",
+      "cinema"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 13,
+    "ordem": 11,
     "tambemEm": [
       "cinema"
     ],
@@ -222,9 +225,12 @@
     "altura": 1800,
     "alt": "Cama de casal de frente para o telão, com roupões no closet e portas de vidro",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 14,
+    "ordem": 12,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -238,9 +244,12 @@
     "altura": 1800,
     "alt": "Quarto amplo com cama, closet aberto e janelas de vidro para o vale enevoado",
     "ambiente": "quarto",
+    "pastas": [
+      "quarto"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 15,
+    "ordem": 13,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -254,9 +263,12 @@
     "altura": 1800,
     "alt": "Telão visto da cama com o deck e a neblina envolvendo a serra lá fora",
     "ambiente": "cinema",
+    "pastas": [
+      "cinema"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 16,
+    "ordem": 14,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -270,9 +282,12 @@
     "altura": 1537,
     "alt": "Hóspede sentado no pufe diante do telão e da churrasqueira no deck coberto",
     "ambiente": "cinema",
+    "pastas": [
+      "cinema"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 17,
+    "ordem": 15,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -281,30 +296,17 @@
     "telaComConteudo": false
   },
   {
-    "arquivo": "solarium-2/cinema/cinema-no-deck-ao-por-do-sol.jpg",
-    "largura": 2048,
-    "altura": 1536,
-    "alt": "Telão do cinema externo aberto para o deck, com o vale ao pôr do sol",
-    "ambiente": "cinema",
-    "estacao": "seca",
-    "destaque": false,
-    "ordem": 18,
-    "tambemEm": [],
-    "baixaResolucao": false,
-    "excluirDoSite": false,
-    "creditoPendente": false,
-    "marcaDagua": false,
-    "telaComConteudo": true
-  },
-  {
     "arquivo": "solarium-2/cinema/sessao-de-cinema-a-noite.jpg",
     "largura": 1800,
     "altura": 2400,
     "alt": "Sessão de cinema à noite com pipoca, telão aceso e manta sobre as pernas",
     "ambiente": "cinema",
+    "pastas": [
+      "cinema"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 19,
+    "ordem": 16,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -318,9 +320,12 @@
     "altura": 1800,
     "alt": "Cozinha completa do Solarium 2 com geladeira inox, fondue e taças sobre a bancada",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 20,
+    "ordem": 17,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -334,9 +339,12 @@
     "altura": 1800,
     "alt": "Cozinha com mesa de quatro lugares e janela ampla para o eucaliptal e a serra",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 21,
+    "ordem": 18,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -349,12 +357,16 @@
     "largura": 1961,
     "altura": 1471,
     "alt": "Cantinho do café com purificador e cafeteira diante da janela para o vale",
-    "ambiente": "cozinha",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "cozinha"
+    ],
     "estacao": "seca",
     "destaque": false,
-    "ordem": 22,
+    "ordem": 19,
     "tambemEm": [
-      "vista"
+      "cozinha"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -368,9 +380,12 @@
     "altura": 1537,
     "alt": "Bancada branca com pratos e taças postos para o jantar no fim do dia",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 23,
+    "ordem": 20,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -384,9 +399,12 @@
     "altura": 1800,
     "alt": "Fondue, espumante no balde e taças na bancada, com a Serra da Mantiqueira ao fundo",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 24,
+    "ordem": 21,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -399,12 +417,16 @@
     "largura": 1800,
     "altura": 2400,
     "alt": "Pão sendo tostado no fogão diante da janela com vista para as montanhas",
-    "ambiente": "cozinha",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "cozinha"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 25,
+    "ordem": 22,
     "tambemEm": [
-      "vista"
+      "cozinha"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -418,9 +440,12 @@
     "altura": 1280,
     "alt": "Hóspede de roupão abrindo uma garrafa de vinho na cozinha iluminada pelo sol",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 26,
+    "ordem": 23,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -434,9 +459,12 @@
     "altura": 2400,
     "alt": "Cafeteira, potes de café e açúcar e xícaras na bancada com vista para a serra",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "seca",
     "destaque": false,
-    "ordem": 27,
+    "ordem": 24,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -450,9 +478,12 @@
     "altura": 2400,
     "alt": "Corredor de entrada com home office, claraboia e a cozinha ao fundo",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 28,
+    "ordem": 25,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -466,9 +497,12 @@
     "altura": 2400,
     "alt": "Fogão e forno embutidos sob a janela com vista para o vale e as nuvens",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 29,
+    "ordem": 26,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -482,9 +516,12 @@
     "altura": 1536,
     "alt": "Prato de cerâmica e taça em primeiro plano, com a cozinha e a mata ao fundo",
     "ambiente": "cozinha",
+    "pastas": [
+      "cozinha"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 30,
+    "ordem": 27,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -498,9 +535,12 @@
     "altura": 2400,
     "alt": "Deck com pufes e churrasqueira iluminados à noite, sob o céu estrelado da serra",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 31,
+    "ordem": 28,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -514,9 +554,12 @@
     "altura": 1537,
     "alt": "Pufe no deck com pratos na mesa lateral e cachorro ao lado, vale ao fundo",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 32,
+    "ordem": 29,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -530,9 +573,12 @@
     "altura": 1800,
     "alt": "Churrasqueira a gás e carvão no deck, com pufes e vista para as colinas",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 33,
+    "ordem": 30,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -545,12 +591,16 @@
     "largura": 1800,
     "altura": 2400,
     "alt": "Duas hóspedes de roupão brindando com vinho no pufe do deck, serra ao fundo",
-    "ambiente": "area-gourmet",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "area-gourmet"
+    ],
     "estacao": "seca",
     "destaque": false,
-    "ordem": 34,
+    "ordem": 31,
     "tambemEm": [
-      "vista"
+      "area-gourmet"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -564,9 +614,12 @@
     "altura": 1537,
     "alt": "Casal de roupão no pufe do deck durante o pôr do sol sobre as colinas",
     "ambiente": "vista",
+    "pastas": [
+      "vista"
+    ],
     "estacao": "seca",
     "destaque": false,
-    "ordem": 35,
+    "ordem": 32,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -580,9 +633,12 @@
     "altura": 1537,
     "alt": "Notebook sobre a mesa de trabalho diante da janela com vista para o eucaliptal",
     "ambiente": "vista",
+    "pastas": [
+      "vista"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 36,
+    "ordem": 33,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -596,9 +652,12 @@
     "altura": 2400,
     "alt": "Mesa de madeira posta para o café da manhã no deck com montanhas e céu azul",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "seca",
     "destaque": false,
-    "ordem": 37,
+    "ordem": 34,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -612,9 +671,12 @@
     "altura": 2400,
     "alt": "Espumante no balde e taças sobre o pufe, com o pasto e a serra atrás",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "seca",
     "destaque": false,
-    "ordem": 38,
+    "ordem": 35,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -628,9 +690,12 @@
     "altura": 1920,
     "alt": "Hóspede de roupão relaxando no pufe do deck coberto com vista para a serra",
     "ambiente": "area-gourmet",
+    "pastas": [
+      "area-gourmet"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 39,
+    "ordem": 36,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -644,9 +709,12 @@
     "altura": 1537,
     "alt": "Hóspede de roupão tomando vinho no deck ao pôr do sol, com a serra escurecendo",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 40,
+    "ordem": 37,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -660,9 +728,12 @@
     "altura": 2400,
     "alt": "Fogueira, cadeiras e redário no gramado sob céu azul com nuvens, em Itanhandu, Minas Gerais",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 41,
+    "ordem": 38,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -676,9 +747,12 @@
     "altura": 2400,
     "alt": "Deck lateral com ducha, pufe e degraus de madeira voltado para o eucaliptal",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 42,
+    "ordem": 39,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -692,9 +766,12 @@
     "altura": 1800,
     "alt": "Fachada do Solarium 2 com deck e janelas refletindo o céu de nuvens",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 43,
+    "ordem": 40,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -708,9 +785,12 @@
     "altura": 1536,
     "alt": "Casa vista do jardim florido, com o pufe branco no deck superior",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 44,
+    "ordem": 41,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -724,9 +804,12 @@
     "altura": 1554,
     "alt": "Lateral da casa com palmeiras no gramado e o sol se pondo sobre as colinas",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 45,
+    "ordem": 42,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -740,9 +823,12 @@
     "altura": 1800,
     "alt": "Fachada do Solarium 2 e caminho de pedras com o sol nascendo ao lado",
     "ambiente": "amanhecer",
+    "pastas": [
+      "amanhecer"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 46,
+    "ordem": 43,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -756,9 +842,12 @@
     "altura": 1800,
     "alt": "Casa iluminada por spots quentes numa noite de lua sobre a serra",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 47,
+    "ordem": 44,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -772,9 +861,12 @@
     "altura": 2400,
     "alt": "Arco-íris sobre o milharal e seriema pousada no mourão, com a Serra da Mantiqueira ao fundo",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 48,
+    "ordem": 45,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -788,9 +880,12 @@
     "altura": 2400,
     "alt": "Carro elétrico carregando no estacionamento de pedras ao lado da casa",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 49,
+    "ordem": 46,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -804,9 +899,12 @@
     "altura": 1800,
     "alt": "Lavatório duplo iluminado pelo nascer do sol, com toalhas e samambaia",
     "ambiente": "amanhecer",
+    "pastas": [
+      "amanhecer"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 50,
+    "ordem": 47,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -819,13 +917,18 @@
     "largura": 2399,
     "altura": 2400,
     "alt": "Chuveiro com janela de vidro emoldurando o nascer do sol sobre o gramado",
-    "ambiente": "banheiro",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "banheiro",
+      "amanhecer"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 51,
+    "ordem": 48,
     "tambemEm": [
-      "amanhecer",
-      "vista"
+      "banheiro",
+      "amanhecer"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -838,12 +941,16 @@
     "largura": 1800,
     "altura": 2400,
     "alt": "Bancada do banheiro com secador, com o Parque Nacional do Itatiaia pela janela",
-    "ambiente": "banheiro",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "banheiro"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 52,
+    "ordem": 49,
     "tambemEm": [
-      "vista"
+      "banheiro"
     ],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -857,9 +964,12 @@
     "altura": 1536,
     "alt": "Toalhas bordadas no toalheiro e samambaia pendente ao lado da bancada do banheiro",
     "ambiente": "banheiro",
+    "pastas": [
+      "banheiro"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 53,
+    "ordem": 50,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -873,9 +983,12 @@
     "altura": 2400,
     "alt": "Box de chuveiro com revestimento de madeira clara e janela lateral",
     "ambiente": "banheiro",
+    "pastas": [
+      "banheiro"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 54,
+    "ordem": 51,
     "tambemEm": [],
     "baixaResolucao": false,
     "excluirDoSite": false,
@@ -889,12 +1002,15 @@
     "altura": 1800,
     "alt": "Telão ligado na parede diante da cama e do SPA de imersão",
     "ambiente": "spa",
+    "pastas": [
+      "spa"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 55,
+    "ordem": 52,
     "tambemEm": [],
     "baixaResolucao": false,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": false,
     "telaComConteudo": true
@@ -905,12 +1021,15 @@
     "altura": 2400,
     "alt": "Lavabo com vaso sanitário, janela estreita e porta de madeira",
     "ambiente": "banheiro",
+    "pastas": [
+      "banheiro"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 56,
+    "ordem": 53,
     "tambemEm": [],
     "baixaResolucao": false,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": false,
     "telaComConteudo": false
@@ -920,13 +1039,19 @@
     "largura": 1800,
     "altura": 2400,
     "alt": "Cama com travesseiros e SPA iluminado ao lado do box do banheiro",
-    "ambiente": "banheiro",
+    "ambiente": "spa",
+    "pastas": [
+      "spa",
+      "banheiro"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 57,
-    "tambemEm": [],
+    "ordem": 54,
+    "tambemEm": [
+      "banheiro"
+    ],
     "baixaResolucao": false,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": false,
     "telaComConteudo": false
@@ -936,15 +1061,19 @@
     "largura": 720,
     "altura": 1280,
     "alt": "Ducha externa e pufe no deck com vista para o eucaliptal e o céu azul",
-    "ambiente": "externa",
+    "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "externa"
+    ],
     "estacao": "verde",
     "destaque": false,
-    "ordem": 58,
+    "ordem": 55,
     "tambemEm": [
-      "vista"
+      "externa"
     ],
     "baixaResolucao": true,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": false,
     "telaComConteudo": false
@@ -955,12 +1084,15 @@
     "altura": 1703,
     "alt": "Caminho de pedras iluminado à noite com lanternas vermelhas de carro ao fundo",
     "ambiente": "externa",
+    "pastas": [
+      "externa"
+    ],
     "estacao": "neutra",
     "destaque": false,
-    "ordem": 59,
+    "ordem": 56,
     "tambemEm": [],
     "baixaResolucao": false,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": false,
     "telaComConteudo": false
@@ -971,12 +1103,18 @@
     "altura": 2400,
     "alt": "Telão aberto para o deck ao pôr do sol com o vale ao fundo",
     "ambiente": "vista",
+    "pastas": [
+      "vista",
+      "cinema"
+    ],
     "estacao": "seca",
     "destaque": false,
-    "ordem": 60,
-    "tambemEm": [],
+    "ordem": 57,
+    "tambemEm": [
+      "cinema"
+    ],
     "baixaResolucao": false,
-    "excluirDoSite": true,
+    "excluirDoSite": false,
     "creditoPendente": false,
     "marcaDagua": false,
     "telaComConteudo": true

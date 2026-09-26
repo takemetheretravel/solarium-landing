@@ -21,9 +21,7 @@
     "descricao": "roupao-refletido-no-vidro",
     "alt": "Roupão pendurado refletido no vidro com a serra ao fundo no fim de tarde",
     "estacao": "neutra",
-    "ordem": 76,
-    "excluirDoSite": true,
-    "motivoExclusao": "foto desfocada"
+    "ordem": 76
   },
   "07f940382b4c06264887621ff39b0d23c360a905901ece81626e0a89712c27be": {
     "descricao": "mesa-de-cafe-no-deck",
@@ -131,8 +129,6 @@
     "alt": "Telão ligado na parede diante da cama e do SPA de imersão",
     "estacao": "neutra",
     "ordem": 55,
-    "excluirDoSite": true,
-    "motivoExclusao": "foto desfocada",
     "telaComConteudo": true
   },
   "24fd17c1fd3507457e794b82a5f7301dd82e25c327d34fe43ce487261b8e9f60": {
@@ -188,7 +184,6 @@
     "ordem": 63
   },
   "2fd9acf879b38306eb6242b0ed741d27fc1fdba7cd434fcb5a777603009242b4": {
-    "ambiente": "quarto",
     "descricao": "cama-spa-e-banheiro-ao-fundo",
     "alt": "Cama com vista para o SPA e para o banheiro com bancada dupla ao fundo",
     "estacao": "neutra",
@@ -199,8 +194,6 @@
     "alt": "Céu do amanhecer sobre o Parque Nacional do Itatiaia visto do gramado",
     "estacao": "verde",
     "ordem": 78,
-    "excluirDoSite": true,
-    "motivoExclusao": "foto desfocada e escura",
     "marcaDagua": true
   },
   "3244d60c3d1fa1ee1363128665f2655097d629f53a34644561ccedddcbd9c81c": {
@@ -265,9 +258,7 @@
     "descricao": "espuma-da-hidro-com-tacas",
     "alt": "Espuma da hidromassagem com duas taças de vinho na borda e o sol se pondo",
     "estacao": "seca",
-    "ordem": 75,
-    "excluirDoSite": true,
-    "motivoExclusao": "HDR ou saturação pesada; baixa resolução"
+    "ordem": 75
   },
   "3dbd524b959e7b2f81a05a6fa6d06ce5b1f4ab2439353d044b89899b1d218639": {
     "descricao": "vista-aerea-parque-itatiaia",
@@ -326,8 +317,6 @@
     "alt": "Chuveiro do banheiro social com revestimento amadeirado e janela para as árvores",
     "estacao": "neutra",
     "ordem": 83,
-    "excluirDoSite": true,
-    "motivoExclusao": "limite de 6 fotos de banheiro por casa",
     "marcaDagua": true
   },
   "47e70b71bb8908e5b0099a3e36dc944eda2ef825d556122c9d7a6bcae05e5108": {
@@ -431,9 +420,7 @@
     "descricao": "toalhas-bordadas",
     "alt": "Toalhas brancas bordadas com a logo da casa no toalheiro aquecido",
     "estacao": "neutra",
-    "ordem": 84,
-    "excluirDoSite": true,
-    "motivoExclusao": "limite de 6 fotos de banheiro por casa"
+    "ordem": 84
   },
   "66e0d917090743f603d1b8eb270a8c86072c7b6973b092a43fa8808bce1f3528": {
     "descricao": "vista-aerea-da-casa-ao-anoitecer",
@@ -446,9 +433,7 @@
     "descricao": "ducha-e-pufe-no-deck",
     "alt": "Ducha externa e pufe no deck com vista para o eucaliptal e o céu azul",
     "estacao": "verde",
-    "ordem": 58,
-    "excluirDoSite": true,
-    "motivoExclusao": "baixa resolução; quase idêntica a deck-com-ducha"
+    "ordem": 58
   },
   "67ebc6eeac56776bf524565f8ce9dfee4afa37043e68236970a81f7c392be7a7": {
     "descricao": "cachoeira-da-gomeira",
@@ -478,9 +463,7 @@
     "descricao": "cabeceira-e-janela",
     "alt": "Cabeceira iluminada por arandela com a janela aberta para o verde",
     "estacao": "neutra",
-    "ordem": 77,
-    "excluirDoSite": true,
-    "motivoExclusao": "foto desfocada"
+    "ordem": 77
   },
   "6dbc5625e92ccf549aa8fdb262ac3c060805c257436fd2625ef31cd660baaadf": {
     "descricao": "cozinha-com-vista-parque-itatiaia",
@@ -583,9 +566,7 @@
     "descricao": "amigos-no-deck-ao-por-do-sol",
     "alt": "Três amigos comemorando no deck ao pôr do sol com a serra ao fundo",
     "estacao": "seca",
-    "ordem": 80,
-    "excluirDoSite": true,
-    "motivoExclusao": "foto de WhatsApp em baixa qualidade"
+    "ordem": 80
   },
   "8704cb1822e06a3938447977e7aa44dae8338a855883afb5bcddc8e8511b5fd4": {
     "descricao": "entrada-home-office-e-cozinha",
@@ -617,8 +598,6 @@
     "alt": "Rede suspensa e SPA com céu azul, eucaliptal e montanhas da serra",
     "estacao": "verde",
     "ordem": 73,
-    "excluirDoSite": true,
-    "motivoExclusao": "HDR ou saturação pesada; mangueira amarela em primeiro plano",
     "marcaDagua": true
   },
   "95d1ad3f91db833815ed69ed967525652c6a0fdd61c9d55c4047c7a7c23a365d": {
@@ -690,9 +669,7 @@
     "descricao": "lavabo-com-janela-estreita",
     "alt": "Lavabo com vaso sanitário, janela estreita e porta de madeira",
     "estacao": "neutra",
-    "ordem": 56,
-    "excluirDoSite": true,
-    "motivoExclusao": "vaso sanitário em destaque"
+    "ordem": 56
   },
   "ad0b6834fab55b7cc28c75270f3843b4a0dac27c0f58de50bae1763de295f476": {
     "descricao": "bancada-posta-para-o-jantar",
@@ -710,9 +687,7 @@
     "descricao": "cama-spa-e-box",
     "alt": "Cama com travesseiros e SPA iluminado ao lado do box do banheiro",
     "estacao": "neutra",
-    "ordem": 57,
-    "excluirDoSite": true,
-    "motivoExclusao": "quase idêntica a cama-spa-e-banheiro-ao-fundo"
+    "ordem": 57
   },
   "b128112efd6e95e34ea324f73f562891a22928d63ffd0d7100bd02e64d24ae46": {
     "descricao": "churrasqueira-no-deck",
@@ -768,8 +743,6 @@
     "alt": "Telão aberto para o deck ao pôr do sol com o vale ao fundo",
     "estacao": "seca",
     "ordem": 60,
-    "excluirDoSite": true,
-    "motivoExclusao": "quase idêntica a cinema-no-deck-ao-por-do-sol",
     "telaComConteudo": true
   },
   "ba66158582c7d3f1fd6b926e0fb59b8a0e8f5226dca47f050798937f2c33aad1": {
@@ -796,9 +769,7 @@
     "descricao": "box-com-chuveiro-de-teto",
     "alt": "Box com chuveiro de teto, nicho iluminado e vaso sanitário no banheiro da suíte",
     "estacao": "neutra",
-    "ordem": 81,
-    "excluirDoSite": true,
-    "motivoExclusao": "vaso sanitário em destaque"
+    "ordem": 81
   },
   "c36cd24cec597886ac2c122c5392ca1b044a0b72e91304b7e5571fd36c20ce6f": {
     "descricao": "mar-de-nuvens-ao-amanhecer",
@@ -838,9 +809,7 @@
     "descricao": "musica-na-rede",
     "alt": "Mãos tocando ukulele na rede com manta, diante do pasto seco e da serra",
     "estacao": "seca",
-    "ordem": 79,
-    "excluirDoSite": true,
-    "motivoExclusao": "manta vermelha domina o quadro; baixa resolução"
+    "ordem": 79
   },
   "c731a1f02ffdbd98628d1585594d041dd777cf60ddc7bfcd93a9012e95a0e961": {
     "descricao": "descanso-na-poltrona",
@@ -879,9 +848,7 @@
     "descricao": "estacionamento-a-noite",
     "alt": "Caminho de pedras iluminado à noite com lanternas vermelhas de carro ao fundo",
     "estacao": "neutra",
-    "ordem": 59,
-    "excluirDoSite": true,
-    "motivoExclusao": "luz vermelha de carro domina o quadro; foto tremida"
+    "ordem": 59
   },
   "d4241424455fa2e4e25c3f2d5618eb2e8f7aa765f08908932dd8b866e5b69623": {
     "descricao": "quarto-amplo-com-closet",
@@ -988,9 +955,7 @@
     "descricao": "bancada-com-espelho-amplo",
     "alt": "Bancada com cuba esculpida, espelho amplo e toalheiro no banheiro da suíte",
     "estacao": "neutra",
-    "ordem": 85,
-    "excluirDoSite": true,
-    "motivoExclusao": "limite de 6 fotos de banheiro por casa"
+    "ordem": 85
   },
   "ee6bad9c320fc3d8deaefcf39ebd8a22c23f7cba7b26fbb62253e0b488b75d91": {
     "descricao": "fachada-iluminada-ao-anoitecer",
@@ -1010,9 +975,7 @@
     "descricao": "banheiro-social-com-chuveiro",
     "alt": "Banheiro social com chuveiro, janela alta e vaso em primeiro plano",
     "estacao": "neutra",
-    "ordem": 82,
-    "excluirDoSite": true,
-    "motivoExclusao": "vaso sanitário em destaque"
+    "ordem": 82
   },
   "f295bc272df1875733fa16f0683db6a96b234dd3566e29c2928fc1047f09d561": {
     "descricao": "quarto-com-berco",
@@ -1043,7 +1006,6 @@
     "gmbCapa": true
   },
   "f8d5129b32ee5dbc1c4ede4277c2f5277bf0014b84d14632db0db89a2aee33a3": {
-    "ambiente": "spa",
     "descricao": "spa-integrado-ao-quarto",
     "alt": "SPA interno do Solarium 1 com água azul-turquesa, integrado ao quarto e ao closet",
     "estacao": "neutra",
@@ -1054,9 +1016,7 @@
     "descricao": "rede-com-almofadas-fim-de-tarde",
     "alt": "Rede com almofadas e vista para o vale dourado ao fim da tarde",
     "estacao": "seca",
-    "ordem": 74,
-    "excluirDoSite": true,
-    "motivoExclusao": "quase idêntica a rede-suspensa-com-almofadas (mesma cena)"
+    "ordem": 74
   },
   "fc647c01770c4fe3a98db64ae14ca1c19efc54a0836acbf4936d83b0eef9fda8": {
     "descricao": "teto-retratil-aberto-sobre-o-spa",
@@ -1065,7 +1025,6 @@
     "ordem": 4
   },
   "fc90d70e96e2b1f65962f07e8319b1873d4a6b654c652088682dd78233e863e2": {
-    "ambiente": "spa",
     "descricao": "banheira-e-chuveiro-ao-nascer-do-sol",
     "alt": "Banheira de imersão e chuveiro atrás do vidro, com o nascer do sol dourado",
     "estacao": "neutra",

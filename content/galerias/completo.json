@@ -5,6 +5,10 @@
     "altura": 1800,
     "alt": "Deck de vidro do Solarium 1 ao pôr do sol, com o Solarium 2 no vale",
     "ambiente": "conjunto",
+    "pastas": [
+      "conjunto",
+      "geral"
+    ],
     "estacao": "seca",
     "destaque": true,
     "ordem": 1,
@@ -23,6 +27,9 @@
     "altura": 1800,
     "alt": "As duas casas iluminadas numa noite de lua, com a serra recortada no céu",
     "ambiente": "conjunto",
+    "pastas": [
+      "conjunto"
+    ],
     "estacao": "neutra",
     "destaque": false,
     "ordem": 2,
@@ -39,6 +46,9 @@
     "altura": 1800,
     "alt": "Fogueira e redário no gramado com o Solarium 1 e a serra sob céu de nuvens",
     "ambiente": "conjunto",
+    "pastas": [
+      "conjunto"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 3,
@@ -55,6 +65,9 @@
     "altura": 1800,
     "alt": "As duas casas pequenas na paisagem, diante da Serra da Mantiqueira ao entardecer",
     "ambiente": "conjunto",
+    "pastas": [
+      "conjunto"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 4,
@@ -71,6 +84,9 @@
     "altura": 2400,
     "alt": "Solarium 2 e Solarium 1 separados pela praça de terra, com a serra ao fundo",
     "ambiente": "conjunto",
+    "pastas": [
+      "conjunto"
+    ],
     "estacao": "seca",
     "destaque": false,
     "ordem": 5,
@@ -87,6 +103,9 @@
     "altura": 1800,
     "alt": "Névoa subindo entre as colinas verdes na vista norte do terreno",
     "ambiente": "conjunto",
+    "pastas": [
+      "conjunto"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 6,
@@ -103,6 +122,9 @@
     "altura": 2400,
     "alt": "Mar de nuvens abaixo da estrada, visto do gramado com céu azul intenso",
     "ambiente": "conjunto",
+    "pastas": [
+      "conjunto"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 7,
@@ -119,6 +141,9 @@
     "altura": 2400,
     "alt": "Casal no balanço do deck com o eucaliptal e a serra ao fundo",
     "ambiente": "conjunto",
+    "pastas": [
+      "conjunto"
+    ],
     "estacao": "verde",
     "destaque": false,
     "ordem": 8,
