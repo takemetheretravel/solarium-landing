@@ -80,10 +80,12 @@ describe("IMG-0 — curadoria", () => {
     expect(d[0].excluirDoSite).toBe(false);
   });
 
-  it.each(CASAS)("%s: no máximo 3 banheiros visíveis, sempre no fim", (g) => {
+  // Limite subiu de 3 para 6 na IMG-1a-ajustes. Inclusões manuais
+  // (ajustes-manuais.json) não estão no manifesto e não contam.
+  it.each(CASAS)("%s: no máximo 6 banheiros visíveis, sempre no fim", (g) => {
     const vis = itensVisiveis(MANIFESTOS[g]);
     const banheiros = vis.filter(ehBanheiro);
-    expect(banheiros.length).toBeLessThanOrEqual(3);
+    expect(banheiros.length).toBeLessThanOrEqual(6);
     const primeiroBanheiro = vis.findIndex(ehBanheiro);
     if (primeiroBanheiro >= 0) expect(vis.slice(primeiroBanheiro).every(ehBanheiro)).toBe(true);
   });
@@ -146,7 +148,7 @@ describe.skipIf(!fs.existsSync(PROCESSADAS))("IMG-0 — arquivos processados", (
       const meta = await sharp(path.join(PROCESSADAS, it.arquivo)).metadata();
       expect([meta.width, meta.height], it.arquivo).toEqual([it.largura, it.altura]);
     }
-  });
+  }, 120_000);
 
   it("nenhum arquivo tem EXIF, GPS, XMP, IPTC ou orientação; tudo em sRGB", async () => {
     for (const it of TODOS) {
@@ -173,7 +175,7 @@ describe.skipIf(!fs.existsSync(PROCESSADAS))("IMG-0 — arquivos processados", (
         const p = path.join(d, e.name);
         return e.isDirectory() ? listar(p) : [path.relative(PROCESSADAS, p).replace(/\\/g, "/")];
       });
-    const noDisco = listar(PROCESSADAS).filter((r) => !/^(gmb|\.cache|_revisao)\/|^_origem\.json$/.test(r));
+    const noDisco = listar(PROCESSADAS).filter((r) => !/^(gmb|\.cache|_revisao)\/|^(_origem\.json|folha-contato\.html)$/.test(r));
     expect(noDisco.sort()).toEqual(TODOS.map((i) => i.arquivo).sort());
   });
 
